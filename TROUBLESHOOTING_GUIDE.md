@@ -1,6 +1,6 @@
 # Troubleshooting Guide - Google Play Billing Integration
 
-## Common Issues & Solutions
+## Common Issues & Solutions -
 
 ### 🔴 Issue 1: "Products not found on Google Play"
 
