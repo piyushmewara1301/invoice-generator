@@ -224,15 +224,17 @@ class BillingService with ChangeNotifier {
     }
   }
 
-  /// Save subscription with expiry date to Firestore
+  /// Save subscription with expiry date to Firestore for a specific business.
   Future<void> saveSubscriptionWithExpiry(
     String userId,
     SubscriptionTier tier,
+    String businessId,
   ) async {
     try {
       final expiryDate = DateTime.now().add(const Duration(days: 365));
       await FirestoreSubscriptionService().saveSubscription(
         userId,
+        businessId,
         tier,
         expiryDate,
       );
@@ -243,8 +245,10 @@ class BillingService with ChangeNotifier {
   }
 
   /// Cleanup
+  @override
   void dispose() {
     _purchaseController.close();
     _purchaseStream?.cancel();
+    super.dispose();
   }
 }

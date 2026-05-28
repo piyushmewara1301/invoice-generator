@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../models/invoice.dart';
 import '../models/client.dart';
 import '../models/business_profile.dart';
+import '../models/business_info.dart';
 import '../models/subscription_limits.dart';
 import '../models/reminder_settings.dart';
 import '../services/drive_service.dart';
@@ -14,6 +15,11 @@ import '../services/reminder_service.dart';
 import '../services/verification_service.dart';
 import '../services/billing_service.dart';
 import '../services/firestore_subscription_service.dart';
+
+/// Per-business tier cache key. Written by every authoritative tier source
+/// (Firestore, VerificationService, IAP purchase). Re-applied after every
+/// profile load so Drive data can never silently overwrite a confirmed tier.
+String _tierCacheKey(String businessId) => 'subscription_tier_v3_$businessId';
 
 class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   AppProvider(this._enc) {
@@ -33,10 +39,18 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool _onboardingComplete = false;
   ReminderSettings _reminderSettings = ReminderSettings();
   DateTime? _lastStatsPush;
-  // Throttle foreground checks to at most once every 60 s
   DateTime? _lastTierCheck;
-  // Last sync error message, if any — exposed so the UI can surface it.
   String? _lastSyncError;
+
+  // ── Multiple-business state ───────────────────────────────────────────────
+  List<BusinessInfo> _businessList = [];
+  String _activeBusinessId = 'default';
+
+  // Cross-business count caches (for combined limit enforcement).
+  // Active business is always kept in sync; inactive businesses are loaded
+  // from prefs once during _loadLocal and updated on switch/create/delete.
+  final Map<String, int> _bizClientCount = {};
+  final Map<String, int> _bizMonthlyInvCount = {};
 
   List<Invoice> get invoices => List.unmodifiable(_invoices);
   List<Client> get clients => List.unmodifiable(_clients);
@@ -45,6 +59,8 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool get syncing => _syncing;
   bool get needsOnboarding => !_onboardingComplete;
   String? get lastSyncError => _lastSyncError;
+  List<BusinessInfo> get businesses => List.unmodifiable(_businessList);
+  String get activeBusinessId => _activeBusinessId;
   ReminderSettings get reminderSettings => _reminderSettings;
 
   List<Invoice> get draftInvoices =>
@@ -151,11 +167,22 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
     await _syncFromDrive();
 
-    // Tier fetch: if we already have a cached override from a previous session,
-    // do a background refresh (no delay). If this is a new device/install and the
-    // cache is empty, await it so the UI never renders with an unconfirmed tier.
+    // ── Subscription tier resolution ─────────────────────────────────────────
+    // Priority (highest wins):
+    //   1. Firestore subscription doc (IAP expiry) — authoritative for paid users
+    //   2. VerificationService (admin override)    — can upgrade; limited downgrade
+    //   3. subscription_tier_v2 cache              — survives Drive/profile overwrites
+    //   4. Profile data from Drive/prefs           — lowest; can be stale
+    //
+    // Firestore expiry runs inline on sign-in so the UI never renders a stale tier.
+    // Admin check runs in background; it can upgrade freely but cannot downgrade
+    // a user who still has an active IAP expiry date.
+    if (_userEmail != null) {
+      await _syncFirestoreSubscription().catchError((_) {});
+    }
+
     final tierPrefs = await SharedPreferences.getInstance();
-    if (tierPrefs.getString('adminTierOverride') == null && _userEmail != null) {
+    if (tierPrefs.getString(_tierCacheKey(_activeBusinessId)) == null && _userEmail != null) {
       await _refreshSubscriptionTier().catchError((_) {});
     } else {
       _refreshSubscriptionTier().catchError((_) {});
@@ -216,15 +243,8 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
           _onboardingComplete = true;
           await prefs.setBool('onboardingComplete', true);
         }
-        // Re-apply admin tier override — Drive data can lag behind Firestore.
-        final storedTier = prefs.getString('adminTierOverride');
-        if (storedTier != null) {
-          final tier = SubscriptionTier.values.firstWhere(
-            (e) => e.name == storedTier,
-            orElse: () => _profile.subscriptionTier,
-          );
-          _profile.subscriptionTier = tier;
-        }
+        // Re-apply the cached tier — Drive data can lag behind Firestore/IAP.
+        _applyTierCache(prefs);
         await _saveLocal();
       } else {
         // No Drive file found.
@@ -263,61 +283,245 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
+  // ── Business-scoped storage key helpers ──────────────────────────────────
+  String _pKey(String id)  => 'profile_$id';
+  String _iKey(String id)  => 'invoices_$id';
+  String _cKey(String id)  => 'clients_$id';
+
   Future<void> _loadLocal() async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      final profileRaw = prefs.getString('profile');
-      if (profileRaw != null) {
-        final json = _enc.decryptSafe(profileRaw);
-        _profile = BusinessProfile.fromJson(
-            jsonDecode(json) as Map<String, dynamic>);
+      // ── Migrate old single-business format on first run ────────────────
+      final hasBusinessList = prefs.containsKey('business_list');
+      if (!hasBusinessList) {
+        // Copy legacy keys to scoped keys so nothing is lost.
+        final legacyProfile  = prefs.getString('profile');
+        final legacyInvoices = prefs.getString('invoices');
+        final legacyClients  = prefs.getString('clients');
+        if (legacyProfile != null)  await prefs.setString(_pKey('default'), legacyProfile);
+        if (legacyInvoices != null) await prefs.setString(_iKey('default'), legacyInvoices);
+        if (legacyClients != null)  await prefs.setString(_cKey('default'), legacyClients);
+        // Seed business list with a placeholder; name will be filled from profile below.
+        await prefs.setString('business_list', jsonEncode([{'id': 'default', 'name': ''}]));
+        await prefs.setString('active_business_id', 'default');
       }
-      final invoicesRaw = prefs.getString('invoices');
-      if (invoicesRaw != null) {
-        final json = _enc.decryptSafe(invoicesRaw);
-        _invoices = (jsonDecode(json) as List)
-            .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
+
+      // ── Load business list ─────────────────────────────────────────────
+      _activeBusinessId = prefs.getString('active_business_id') ?? 'default';
+      final listRaw = prefs.getString('business_list');
+      if (listRaw != null) {
+        _businessList = (jsonDecode(listRaw) as List)
+            .map((e) => BusinessInfo.fromJson(e as Map<String, dynamic>))
             .toList();
       }
-      final clientsRaw = prefs.getString('clients');
-      if (clientsRaw != null) {
-        final json = _enc.decryptSafe(clientsRaw);
-        _clients = (jsonDecode(json) as List)
-            .map((e) => Client.fromJson(e as Map<String, dynamic>))
-            .toList();
+      if (_businessList.isEmpty) {
+        _businessList = [BusinessInfo(id: 'default', name: '')];
       }
+
+      // ── Load active business data ──────────────────────────────────────
+      await _loadBusinessData(_activeBusinessId, prefs);
+      // ── Load counts for all inactive businesses ────────────────────────
+      await _loadAllBusinessCounts(prefs);
+      // ── One-time migration: account-level tier → per-business ──────────
+      await _migrateAccountTierToBusinesses(prefs);
     } catch (_) {
       // Corrupted local data — start fresh; Drive sync will restore it.
     }
-    // Re-apply the cached Firestore tier override so the first frame never
-    // shows a stale tier from the profile JSON (e.g. after Drive overwrote it).
-    final storedTier = prefs.getString('adminTierOverride');
-    if (storedTier != null) {
-      final tier = SubscriptionTier.values.firstWhere(
-        (e) => e.name == storedTier,
-        orElse: () => _profile.subscriptionTier,
-      );
-      _profile.subscriptionTier = tier;
+    _applyTierCache(prefs);
+  }
+
+  Future<void> _loadBusinessData(String id, SharedPreferences prefs) async {
+    final profileRaw = prefs.getString(_pKey(id));
+    if (profileRaw != null) {
+      final json = _enc.decryptSafe(profileRaw);
+      _profile = BusinessProfile.fromJson(jsonDecode(json) as Map<String, dynamic>);
+    } else {
+      _profile = BusinessProfile();
     }
+    final invoicesRaw = prefs.getString(_iKey(id));
+    if (invoicesRaw != null) {
+      final json = _enc.decryptSafe(invoicesRaw);
+      _invoices = (jsonDecode(json) as List)
+          .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      _invoices = [];
+    }
+    final clientsRaw = prefs.getString(_cKey(id));
+    if (clientsRaw != null) {
+      final json = _enc.decryptSafe(clientsRaw);
+      _clients = (jsonDecode(json) as List)
+          .map((e) => Client.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } else {
+      _clients = [];
+    }
+    // Keep the stub name in sync with the actual profile name.
+    final stub = _businessList.firstWhere((b) => b.id == id,
+        orElse: () => BusinessInfo(id: id, name: ''));
+    if (_profile.name.isNotEmpty && stub.name != _profile.name) {
+      stub.name = _profile.name;
+      await _saveBusinessList(prefs);
+    }
+    _syncActiveCounts();
+  }
+
+  /// Updates the in-memory count maps for the currently active business.
+  /// Call this after any mutation to invoices or clients.
+  void _syncActiveCounts() {
+    final now = DateTime.now();
+    _bizClientCount[_activeBusinessId] = _clients.length;
+    _bizMonthlyInvCount[_activeBusinessId] = _invoices
+        .where((i) =>
+            i.invoiceDate.year == now.year &&
+            i.invoiceDate.month == now.month)
+        .length;
+  }
+
+  /// Loads client and invoice counts from prefs for every business that is
+  /// NOT currently active (active business is covered by _syncActiveCounts).
+  Future<void> _loadAllBusinessCounts(SharedPreferences prefs) async {
+    final now = DateTime.now();
+    for (final biz in _businessList) {
+      if (biz.id == _activeBusinessId) continue;
+      try {
+        final clientsRaw = prefs.getString(_cKey(biz.id));
+        if (clientsRaw != null) {
+          final json = _enc.decryptSafe(clientsRaw);
+          final list = (jsonDecode(json) as List)
+              .map((e) => Client.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _bizClientCount[biz.id] = list.length;
+        } else {
+          _bizClientCount[biz.id] = 0;
+        }
+
+        final invoicesRaw = prefs.getString(_iKey(biz.id));
+        if (invoicesRaw != null) {
+          final json = _enc.decryptSafe(invoicesRaw);
+          final list = (jsonDecode(json) as List)
+              .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _bizMonthlyInvCount[biz.id] = list
+              .where((i) =>
+                  i.invoiceDate.year == now.year &&
+                  i.invoiceDate.month == now.month)
+              .length;
+        } else {
+          _bizMonthlyInvCount[biz.id] = 0;
+        }
+      } catch (_) {
+        _bizClientCount[biz.id] = 0;
+        _bizMonthlyInvCount[biz.id] = 0;
+      }
+    }
+  }
+
+  /// One-time migration: copies the old account-level `subscription_tier_v2`
+  /// key into each business's per-business key, then removes the old key.
+  /// After this runs once, the old key is gone and the new keys take over.
+  Future<void> _migrateAccountTierToBusinesses(SharedPreferences prefs) async {
+    const legacyKey = 'subscription_tier_v2';
+    final legacy = prefs.getString(legacyKey);
+    if (legacy == null) return; // already migrated or fresh install
+    for (final biz in _businessList) {
+      final newKey = _tierCacheKey(biz.id);
+      if (!prefs.containsKey(newKey)) {
+        await prefs.setString(newKey, legacy);
+      }
+    }
+    await prefs.remove(legacyKey);
   }
 
   Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('invoices',
+    final id = _activeBusinessId;
+    await prefs.setString(_iKey(id),
         _enc.encrypt(jsonEncode(_invoices.map((e) => e.toJson()).toList())));
-    await prefs.setString('clients',
+    await prefs.setString(_cKey(id),
         _enc.encrypt(jsonEncode(_clients.map((e) => e.toJson()).toList())));
     await prefs.setString(
-        'profile', _enc.encrypt(jsonEncode(_profile.toJson())));
+        _pKey(id), _enc.encrypt(jsonEncode(_profile.toJson())));
+    // Keep stub name in sync.
+    final stub = _businessList.firstWhere((b) => b.id == id,
+        orElse: () => BusinessInfo(id: id, name: ''));
+    if (_profile.name.isNotEmpty && stub.name != _profile.name) {
+      stub.name = _profile.name;
+      await _saveBusinessList(prefs);
+    }
+  }
+
+  Future<void> _saveBusinessList(SharedPreferences prefs) async {
+    await prefs.setString(
+        'business_list',
+        jsonEncode(_businessList.map((b) => b.toJson()).toList()));
   }
 
   Future<void> _clearLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('invoices');
-    await prefs.remove('clients');
-    await prefs.remove('profile');
+    // Remove data for every business.
+    for (final b in _businessList) {
+      await prefs.remove(_pKey(b.id));
+      await prefs.remove(_iKey(b.id));
+      await prefs.remove(_cKey(b.id));
+    }
+    await prefs.remove('business_list');
+    await prefs.remove('active_business_id');
     await prefs.remove('onboardingComplete');
-    await prefs.remove('adminTierOverride');
+    await prefs.remove('subscription_tier_v2'); // legacy key
+  }
+
+  // ── Public business management API ────────────────────────────────────────
+
+  /// Switch the active business. Saves the current business first.
+  Future<void> switchBusiness(String id) async {
+    if (id == _activeBusinessId) return;
+    await _saveLocal(); // persist current before switching
+    _activeBusinessId = id;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_business_id', id);
+    await _loadBusinessData(id, prefs);
+    _applyTierCache(prefs);
+    notifyListeners();
+  }
+
+  /// Creates a new empty business and switches to it immediately.
+  Future<void> createBusiness(String name) async {
+    final id = _uuid.v4();
+    final info = BusinessInfo(id: id, name: name);
+    _businessList.add(info);
+    await _saveLocal(); // save current first
+    _activeBusinessId = id;
+    _invoices = [];
+    _clients = [];
+    _profile = BusinessProfile()..name = name;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('active_business_id', id);
+    await _saveLocal();
+    await _saveBusinessList(prefs);
+    notifyListeners();
+  }
+
+  /// Deletes a business and all its data. Cannot delete the last business.
+  Future<bool> deleteBusiness(String id) async {
+    if (_businessList.length <= 1) return false; // must keep at least one
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_pKey(id));
+    await prefs.remove(_iKey(id));
+    await prefs.remove(_cKey(id));
+    _businessList.removeWhere((b) => b.id == id);
+    _bizClientCount.remove(id);
+    _bizMonthlyInvCount.remove(id);
+    await _saveBusinessList(prefs);
+    // If we deleted the active business, switch to the first remaining.
+    if (_activeBusinessId == id) {
+      _activeBusinessId = _businessList.first.id;
+      await prefs.setString('active_business_id', _activeBusinessId);
+      await _loadBusinessData(_activeBusinessId, prefs);
+      _applyTierCache(prefs);
+    }
+    notifyListeners();
+    return true;
   }
 
   Future<void> _pushToDrive() async {
@@ -369,16 +573,67 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     await refreshVerificationStatus();
   }
 
+  /// Reads the per-business tier cache and applies it to the active profile.
+  /// Called after every profile load so Drive data can never silently
+  /// overwrite a tier that was already authoritatively confirmed.
+  void _applyTierCache(SharedPreferences prefs) {
+    final stored = prefs.getString(_tierCacheKey(_activeBusinessId));
+    if (stored == null) return;
+    final tier = SubscriptionTier.values.firstWhere(
+      (e) => e.name == stored,
+      orElse: () => _profile.subscriptionTier,
+    );
+    _profile.subscriptionTier = tier;
+  }
+
+  /// Checks the Firestore subscription document for the active business.
+  /// Writes the verified tier to the per-business cache so it survives
+  /// Drive syncs and profile reloads.
+  Future<void> _syncFirestoreSubscription() async {
+    final userId = _userEmail;
+    if (userId == null) return;
+    try {
+      final svc = FirestoreSubscriptionService();
+      await svc.initialize();
+      final verified = await svc.checkAndSyncExpiry(
+        userId,
+        _activeBusinessId,
+        _profile.subscriptionTier,
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tierCacheKey(_activeBusinessId), verified.name);
+      if (verified != _profile.subscriptionTier) {
+        _profile.subscriptionTier = verified;
+        await _saveLocal();
+        notifyListeners();
+      }
+    } catch (_) {
+      // Firestore unavailable — keep current tier, never downgrade on error.
+    }
+  }
+
+  /// Fetches the admin-override tier from VerificationService and applies it
+  /// to the currently active business.
+  ///
+  /// Upgrade rule  — always apply a higher tier from the admin.
+  /// Downgrade rule — only apply free if the active business's IAP subscription
+  ///   has actually expired (subscriptionExpiryDate is null or in the past).
   Future<void> _refreshSubscriptionTier() async {
     final email = _userEmail;
     if (email == null) return;
     try {
       final remote = await VerificationService.fetchSubscriptionTier(email);
       if (remote == null) return;
-      // Persist tier in a dedicated prefs key so it survives Drive sync
-      // overwrites — Drive data can be stale between admin update and Drive push.
+
+      if (remote.index < _profile.subscriptionTier.index) {
+        final expiry = _profile.subscriptionExpiryDate;
+        if (expiry != null && expiry.isAfter(DateTime.now())) {
+          return;
+        }
+      }
+
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('adminTierOverride', remote.name);
+      await prefs.setString(_tierCacheKey(_activeBusinessId), remote.name);
       if (remote != _profile.subscriptionTier) {
         _profile.subscriptionTier = remote;
         await _saveLocal();
@@ -413,15 +668,13 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Subscription limit checks ────────────────────────────────────
 
-  /// Number of invoices created in the current calendar month.
-  int get monthlyInvoiceCount {
-    final now = DateTime.now();
-    return _invoices
-        .where((i) =>
-            i.invoiceDate.year == now.year &&
-            i.invoiceDate.month == now.month)
-        .length;
-  }
+  /// Number of invoices created in the current calendar month across ALL businesses.
+  int get monthlyInvoiceCount =>
+      _bizMonthlyInvCount.values.fold(0, (a, b) => a + b);
+
+  /// Total clients across ALL businesses.
+  int get totalClientCount =>
+      _bizClientCount.values.fold(0, (a, b) => a + b);
 
   /// Returns a [LimitInfo] if the user has hit a limit, null if they're within it.
   LimitInfo? checkInvoiceLimit() {
@@ -438,7 +691,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     final tier = _profile.subscriptionTier;
     final cap = SubscriptionLimits.clients[tier]!;
     if (cap == -1) return null;
-    if (_clients.length >= cap) {
+    if (totalClientCount >= cap) {
       return LimitInfo.numeric(LimitType.clients, cap);
     }
     return null;
@@ -478,6 +731,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (userId != null) {
           final syncedTier = await firestoreService.checkAndSyncExpiry(
             userId,
+            _activeBusinessId,
             _profile.subscriptionTier,
           );
           if (syncedTier != _profile.subscriptionTier) {
@@ -490,13 +744,11 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
         print('Error syncing subscription expiry: $e');
       }
 
-      // Sync billing subscription tier with app tier
-      final highestTier = billing.getHighestSubscribedTier();
-      if (highestTier != _profile.subscriptionTier) {
-        _profile.subscriptionTier = highestTier;
-        await _saveLocal();
-        notifyListeners();
-      }
+      // NOTE: Do NOT sync from IAP here. _purchases is always empty at this
+      // point because restorePurchases() only triggers the stream — the actual
+      // purchase data arrives asynchronously via purchaseStream. Calling
+      // getHighestSubscribedTier() now would always return free and overwrite
+      // the Firestore-verified tier we just set above.
     } catch (e) {
       print('Error initializing billing: $e');
     }
@@ -512,16 +764,19 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       final billing = BillingService();
       await billing.purchaseSubscription(tier);
       
-      // Save subscription with expiry to Firestore
+      // Save subscription with expiry to Firestore for the active business.
       if (_userEmail != null) {
-        await billing.saveSubscriptionWithExpiry(_userEmail!, tier);
+        await billing.saveSubscriptionWithExpiry(_userEmail!, tier, _activeBusinessId);
       }
-      
-      // Update local subscription
+
+      // Update local subscription and persist to the per-business tier cache
+      // so future Drive syncs / profile reloads never overwrite this paid tier.
       _profile.subscriptionTier = tier;
       _profile.subscriptionExpiryDate =
           DateTime.now().add(const Duration(days: 365));
       await _saveLocal();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_tierCacheKey(_activeBusinessId), tier.name);
       notifyListeners();
     } catch (e) {
       print('Error purchasing subscription: $e');
@@ -569,7 +824,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       id: _uuid.v4(),
       invoiceNumber: generateInvoiceNumber(),
       invoiceDate: DateTime.now(),
-      dueDate: DateTime.now().add(const Duration(days: 30)),
+      dueDate: DateTime.now(),
       currency: _profile.currency,
     );
   }
@@ -582,6 +837,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       _profile.nextInvoiceNumber++;
       _invoices.insert(0, invoice);
     }
+    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     ReminderService.scheduleForInvoice(invoice, _reminderSettings)
@@ -590,6 +846,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> deleteInvoice(String id) async {
     _invoices.removeWhere((i) => i.id == id);
+    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     ReminderService.cancelForInvoice(id).catchError((_) {});
@@ -618,6 +875,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<Client> addClient(Client client) async {
     _clients.add(client);
+    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     return client;
@@ -634,6 +892,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> deleteClient(String id) async {
     _clients.removeWhere((c) => c.id == id);
+    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
   }

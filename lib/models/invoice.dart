@@ -36,6 +36,7 @@ class Invoice {
   String? notes;
   String? terms;
   double globalDiscountPercent;
+  double globalDiscountFlat;
   String currency;
   DateTime createdAt;
   InvoiceTemplate? template;
@@ -58,6 +59,7 @@ class Invoice {
     this.notes,
     this.terms,
     this.globalDiscountPercent = 0,
+    this.globalDiscountFlat = 0,
     this.currency = 'INR',
     DateTime? createdAt,
     this.template,
@@ -73,7 +75,8 @@ class Invoice {
   double get subtotal => items.fold(0, (sum, item) => sum + item.subtotal);
   double get totalDiscount =>
       items.fold(0.0, (sum, item) => sum + item.discountAmount) +
-      subtotal * (globalDiscountPercent / 100);
+      subtotal * (globalDiscountPercent / 100) +
+      globalDiscountFlat;
   double get totalTax => items.fold(0, (sum, item) => sum + item.taxAmount);
   double get grandTotal => subtotal - totalDiscount + totalTax;
 
@@ -98,6 +101,7 @@ class Invoice {
         notes: notes,
         terms: terms,
         globalDiscountPercent: globalDiscountPercent,
+        globalDiscountFlat: globalDiscountFlat,
         currency: currency,
         createdAt: createdAt,
         template: template,
@@ -120,6 +124,7 @@ class Invoice {
         'notes': notes,
         'terms': terms,
         'globalDiscountPercent': globalDiscountPercent,
+        'globalDiscountFlat': globalDiscountFlat,
         'currency': currency,
         'createdAt': createdAt.toIso8601String(),
         'template': template?.name,
@@ -146,6 +151,8 @@ class Invoice {
         terms: json['terms'],
         globalDiscountPercent:
             (json['globalDiscountPercent'] as num?)?.toDouble() ?? 0,
+        globalDiscountFlat:
+            (json['globalDiscountFlat'] as num?)?.toDouble() ?? 0,
         currency: json['currency'] ?? 'INR',
         createdAt: json['createdAt'] != null
             ? DateTime.parse(json['createdAt'])

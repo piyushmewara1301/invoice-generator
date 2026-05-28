@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/business_profile.dart';
 
@@ -15,9 +14,7 @@ class FirestoreSubscriptionService {
 
   Future<void> initialize() async {
     if (_initialized) return;
-    
     try {
-      // Firebase must already be initialized before calling this
       _firestore = FirebaseFirestore.instance;
       _initialized = true;
     } catch (e) {
@@ -25,9 +22,26 @@ class FirestoreSubscriptionService {
     }
   }
 
-  /// Save subscription to Firestore and local cache
+  // ── Key helpers ────────────────────────────────────────────────────────────
+
+  /// Firestore document id for a (user, business) pair.
+  String _docId(String userId, String businessId) =>
+      '${userId}__$businessId';
+
+  /// SharedPreferences key for the tier cache — shared with AppProvider.
+  String _tierKey(String businessId) => 'subscription_tier_v3_$businessId';
+
+  String _expiryKey(String businessId) => 'subscription_expiry_$businessId';
+
+  String _checkedKey(String userId, String businessId) =>
+      'subscription_last_checked_${userId}_$businessId';
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+
+  /// Save subscription for a specific business to Firestore and local cache.
   Future<void> saveSubscription(
     String userId,
+    String businessId,
     SubscriptionTier tier,
     DateTime? expiryDate,
   ) async {
@@ -35,29 +49,36 @@ class FirestoreSubscriptionService {
       if (!_initialized) await initialize();
 
       if (tier == SubscriptionTier.free) {
-        // Free tier: no expiry
-        await _firestore.collection('subscriptions').doc(userId).set({
+        await _firestore
+            .collection('subscriptions')
+            .doc(_docId(userId, businessId))
+            .set({
           'uid': userId,
+          'businessId': businessId,
           'tier': _tierToString(tier),
           'expiryDate': null,
           'purchaseDate': FieldValue.serverTimestamp(),
           'status': 'active',
         }, SetOptions(merge: true));
-        
-        await _saveLocalSubscription(userId, tier, null);
+
+        await _saveLocalSubscription(userId, businessId, tier, null);
       } else {
-        // Paid tier: save with expiry date (1 year from now if not provided)
-        final finalExpiryDate = expiryDate ?? DateTime.now().add(const Duration(days: 365));
-        
-        await _firestore.collection('subscriptions').doc(userId).set({
+        final finalExpiry =
+            expiryDate ?? DateTime.now().add(const Duration(days: 365));
+
+        await _firestore
+            .collection('subscriptions')
+            .doc(_docId(userId, businessId))
+            .set({
           'uid': userId,
+          'businessId': businessId,
           'tier': _tierToString(tier),
-          'expiryDate': Timestamp.fromDate(finalExpiryDate),
+          'expiryDate': Timestamp.fromDate(finalExpiry),
           'purchaseDate': FieldValue.serverTimestamp(),
           'status': 'active',
         }, SetOptions(merge: true));
-        
-        await _saveLocalSubscription(userId, tier, finalExpiryDate);
+
+        await _saveLocalSubscription(userId, businessId, tier, finalExpiry);
       }
     } catch (e) {
       print('Error saving subscription: $e');
@@ -65,18 +86,16 @@ class FirestoreSubscriptionService {
     }
   }
 
-  /// Fetch subscription from Firestore
-  Future<Map<String, dynamic>?> fetchSubscriptionStatus(String userId) async {
+  /// Fetch raw subscription doc for a specific business.
+  Future<Map<String, dynamic>?> fetchSubscriptionStatus(
+      String userId, String businessId) async {
     try {
       if (!_initialized) await initialize();
-
       final doc = await _firestore
           .collection('subscriptions')
-          .doc(userId)
+          .doc(_docId(userId, businessId))
           .get();
-
       if (!doc.exists) return null;
-
       return doc.data();
     } catch (e) {
       print('Error fetching subscription: $e');
@@ -84,160 +103,117 @@ class FirestoreSubscriptionService {
     }
   }
 
-  /// Check and sync expiry daily. Auto-demote if expired.
+  /// Check and sync expiry for a specific business. Auto-demotes if expired.
+  /// Throttled to once per 24 hours per (user, business) pair.
   Future<SubscriptionTier> checkAndSyncExpiry(
     String userId,
+    String businessId,
     SubscriptionTier currentTier,
   ) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lastCheckedStr = prefs.getString('subscription_last_checked_$userId');
+      final checkedKey = _checkedKey(userId, businessId);
+      final lastCheckedStr = prefs.getString(checkedKey);
 
-      // Check only if > 1 day since last check
       if (lastCheckedStr != null) {
         final lastChecked = DateTime.parse(lastCheckedStr);
-        final hoursSinceCheck = DateTime.now().difference(lastChecked).inHours;
-        if (hoursSinceCheck < 24) {
-          // Use local cache, don't sync
-          return _getLocalTier(userId);
+        if (DateTime.now().difference(lastChecked).inHours < 24) {
+          final cached = prefs.getString(_tierKey(businessId));
+          return cached != null ? _stringToTier(cached) : currentTier;
         }
       }
 
-      // Fetch from Firestore
-      final remoteData = await fetchSubscriptionStatus(userId);
+      final remoteData = await fetchSubscriptionStatus(userId, businessId);
       if (remoteData == null) {
-        // No subscription found, set to free
-        await _setFreeAndClear(userId, prefs);
-        return SubscriptionTier.free;
+        // No Firestore doc yet — trust local tier, don't demote.
+        return currentTier;
       }
 
       final remoteTier = _stringToTier(remoteData['tier'] as String? ?? 'free');
       final remoteExpiryTs = remoteData['expiryDate'] as Timestamp?;
-      final remoteExpiryDate = remoteExpiryTs?.toDate();
+      final remoteExpiry = remoteExpiryTs?.toDate();
 
-      // Check if subscription expired
-      if (remoteTier != SubscriptionTier.free && remoteExpiryDate != null) {
-        if (DateTime.now().isAfter(remoteExpiryDate)) {
-          // Subscription expired, demote to free
-          await saveSubscription(userId, SubscriptionTier.free, null);
-          await _setFreeAndClear(userId, prefs);
+      if (remoteTier != SubscriptionTier.free && remoteExpiry != null) {
+        if (DateTime.now().isAfter(remoteExpiry)) {
+          await saveSubscription(userId, businessId, SubscriptionTier.free, null);
+          await _setFreeAndClear(userId, businessId, prefs);
           return SubscriptionTier.free;
         }
       }
 
-      // Subscription still valid
-      await _saveLocalSubscription(userId, remoteTier, remoteExpiryDate);
-      await prefs.setString(
-        'subscription_last_checked_$userId',
-        DateTime.now().toIso8601String(),
-      );
-
+      await _saveLocalSubscription(userId, businessId, remoteTier, remoteExpiry);
+      await prefs.setString(checkedKey, DateTime.now().toIso8601String());
       return remoteTier;
     } catch (e) {
       print('Error in checkAndSyncExpiry: $e');
-      // Return local tier on error
-      return _getLocalTier(userId);
+      return currentTier;
     }
   }
 
-  /// Check if user can upgrade from current tier to target tier
-  bool canUpgradeTo(
-    SubscriptionTier currentTier,
-    SubscriptionTier targetTier,
-  ) {
-    // Can't downgrade or stay at same tier
+  /// Whether upgrading from [current] to [target] is a valid transition.
+  bool canUpgradeTo(SubscriptionTier currentTier, SubscriptionTier targetTier) {
     if (targetTier == currentTier) return false;
-
     switch (currentTier) {
       case SubscriptionTier.free:
-        // Can upgrade to any tier from free
         return true;
-
       case SubscriptionTier.lite:
-        // Can upgrade to Pro or Premium, not back to Free
         return targetTier == SubscriptionTier.pro ||
             targetTier == SubscriptionTier.premium;
-
       case SubscriptionTier.pro:
-        // Can only upgrade to Premium, not downgrade to Lite/Free
         return targetTier == SubscriptionTier.premium;
-
       case SubscriptionTier.premium:
-        // Cannot downgrade from Premium
         return false;
     }
   }
 
-  /// Get local subscription tier
-  SubscriptionTier _getLocalTier(String userId) {
-    // Note: This is simplified - normally would query SharedPreferences
-    // In practice, the app_provider maintains this state
-    return SubscriptionTier.free;
-  }
-
-  /// Save to local SharedPreferences
-  Future<void> _saveLocalSubscription(
-    String userId,
-    SubscriptionTier tier,
-    DateTime? expiryDate,
-  ) async {
+  /// Stored expiry date for a specific business.
+  Future<DateTime?> getExpiryDate(String userId, String businessId) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('subscription_tier_$userId', _tierToString(tier));
-
-    if (expiryDate != null) {
-      await prefs.setString(
-        'subscription_expiry_$userId',
-        expiryDate.toIso8601String(),
-      );
-    } else {
-      await prefs.remove('subscription_expiry_$userId');
-    }
-
-    await prefs.setString(
-      'subscription_last_checked_$userId',
-      DateTime.now().toIso8601String(),
-    );
-  }
-
-  /// Set to free and clear expiry
-  Future<void> _setFreeAndClear(String userId, SharedPreferences prefs) async {
-    await prefs.setString('subscription_tier_$userId', 'free');
-    await prefs.remove('subscription_expiry_$userId');
-    await prefs.setString(
-      'subscription_last_checked_$userId',
-      DateTime.now().toIso8601String(),
-    );
-  }
-
-  /// Convert tier to string for Firestore
-  String _tierToString(SubscriptionTier tier) {
-    return tier.toString().split('.').last;
-  }
-
-  /// Convert string to tier
-  SubscriptionTier _stringToTier(String tierStr) {
-    switch (tierStr.toLowerCase()) {
-      case 'lite':
-        return SubscriptionTier.lite;
-      case 'pro':
-        return SubscriptionTier.pro;
-      case 'premium':
-        return SubscriptionTier.premium;
-      default:
-        return SubscriptionTier.free;
-    }
-  }
-
-  /// Get stored expiry date for display
-  Future<DateTime?> getExpiryDate(String userId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final expiryStr = prefs.getString('subscription_expiry_$userId');
+    final expiryStr = prefs.getString(_expiryKey(businessId));
     if (expiryStr == null) return null;
-
     try {
       return DateTime.parse(expiryStr);
     } catch (_) {
       return null;
+    }
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  Future<void> _saveLocalSubscription(
+    String userId,
+    String businessId,
+    SubscriptionTier tier,
+    DateTime? expiryDate,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_tierKey(businessId), _tierToString(tier));
+    if (expiryDate != null) {
+      await prefs.setString(_expiryKey(businessId), expiryDate.toIso8601String());
+    } else {
+      await prefs.remove(_expiryKey(businessId));
+    }
+    await prefs.setString(
+        _checkedKey(userId, businessId), DateTime.now().toIso8601String());
+  }
+
+  Future<void> _setFreeAndClear(
+      String userId, String businessId, SharedPreferences prefs) async {
+    await prefs.setString(_tierKey(businessId), 'free');
+    await prefs.remove(_expiryKey(businessId));
+    await prefs.setString(
+        _checkedKey(userId, businessId), DateTime.now().toIso8601String());
+  }
+
+  String _tierToString(SubscriptionTier tier) =>
+      tier.toString().split('.').last;
+
+  SubscriptionTier _stringToTier(String s) {
+    switch (s.toLowerCase()) {
+      case 'lite':    return SubscriptionTier.lite;
+      case 'pro':     return SubscriptionTier.pro;
+      case 'premium': return SubscriptionTier.premium;
+      default:        return SubscriptionTier.free;
     }
   }
 }

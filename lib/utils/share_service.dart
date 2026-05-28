@@ -92,12 +92,18 @@ class ShareService {
   }
 
   /// Shares the PDF via the native share sheet (user picks the app).
+  /// Pass [sharePositionOrigin] (the tapped widget's rect) to avoid iOS
+  /// UIActivityViewController presentation failures from inside a modal sheet.
   static Future<void> sharePdf(
-      Invoice invoice, BusinessProfile profile) async {
+    Invoice invoice,
+    BusinessProfile profile, {
+    Rect? sharePositionOrigin,
+  }) async {
     try {
       final path = await _savePdfTemp(invoice, profile);
       await Share.shareXFiles(
         [XFile(path, mimeType: 'application/pdf')],
+        sharePositionOrigin: sharePositionOrigin,
       );
     } catch (e) {
       print('Error sharing PDF: $e');

@@ -15,6 +15,8 @@ import 'settings/gst_setup_screen.dart';
 import 'settings/reminder_settings_screen.dart';
 import 'gst_report_screen.dart';
 import 'settings/verification_screen.dart';
+import 'employees/employees_screen.dart';
+import 'businesses/businesses_screen.dart';
 import '../widgets/paywall_sheet.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -141,6 +143,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             _NavItem(
+              icon: Icons.store_outlined,
+              color: const Color(0xFF7E22CE),
+              title: 'My Businesses',
+              subtitle: _businessSubtitle(profile),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BusinessesScreen()),
+              ),
+            ),
+            _NavItem(
+              icon: Icons.group_outlined,
+              color: const Color(0xFF0F766E),
+              title: 'Manage Team',
+              subtitle: 'Add employees & set access permissions',
+              onTap: () => _requireFeature(
+                LimitType.manageTeam,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EmployeesScreen()),
+                ),
+              ),
+            ),
+            _NavItem(
               icon: Icons.chat_outlined,
               color: const Color(0xFF0277BD),
               title: 'Message Templates',
@@ -206,6 +231,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  String _businessSubtitle(BusinessProfile profile) {
+    final provider = context.read<AppProvider>();
+    final count = provider.businesses.length;
+    if (count <= 1) return 'Run multiple businesses from one account';
+    return '$count businesses · tap to switch or add';
   }
 
   String _gstSubtitle(BusinessProfile profile) {

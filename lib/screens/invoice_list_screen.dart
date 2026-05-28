@@ -47,7 +47,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabs;
   String _search = '';
-  _Period _period = _Period.all;
+  _Period _period = _Period.today;
   DateTimeRange? _customRange;
   Client? _clientFilter;
   bool _exporting = false;
@@ -129,8 +129,17 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
     if (_period != _Period.all) {
       final range = _rangeFor(_period);
       list = list.where((i) {
-        final d = i.invoiceDate;
-        return !d.isBefore(range.start) && !d.isAfter(range.end);
+        final created = i.invoiceDate;
+        final createdInRange =
+            !created.isBefore(range.start) && !created.isAfter(range.end);
+        if (createdInRange) return true;
+        // For the "Today" period also include invoices whose due date is today,
+        // regardless of when they were created.
+        if (_period == _Period.today) {
+          final due = i.dueDate;
+          return !due.isBefore(range.start) && !due.isAfter(range.end);
+        }
+        return false;
       }).toList();
     }
     if (_clientFilter != null) {

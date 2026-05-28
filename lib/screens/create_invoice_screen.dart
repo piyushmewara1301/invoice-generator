@@ -32,6 +32,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   late TextEditingController _termsCtrl;
   late TextEditingController _invoiceNumCtrl;
   late TextEditingController _subjectCtrl;
+  late TextEditingController _discountCtrl;
+  bool _discountIsPercent = true; // % vs flat amount toggle
   bool _saving = false;
 
   @override
@@ -52,6 +54,17 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         text: _invoice.terms ??
             'Payment is due within the stated due date. Late payments may incur a fee.');
     _invoiceNumCtrl = TextEditingController(text: _invoice.invoiceNumber);
+    if (_invoice.globalDiscountFlat > 0) {
+      _discountIsPercent = false;
+      _discountCtrl = TextEditingController(
+          text: _invoice.globalDiscountFlat.toStringAsFixed(2));
+    } else {
+      _discountIsPercent = true;
+      _discountCtrl = TextEditingController(
+          text: _invoice.globalDiscountPercent == 0
+              ? ''
+              : _invoice.globalDiscountPercent.toStringAsFixed(2));
+    }
   }
 
   @override
@@ -60,6 +73,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _notesCtrl.dispose();
     _termsCtrl.dispose();
     _invoiceNumCtrl.dispose();
+    _discountCtrl.dispose();
     super.dispose();
   }
 
@@ -125,7 +139,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         items: profile.serviceItems,
         itemLabel: profile.itemLabel,
       ),
-    ).then((picked) {
+    ).then((picked) async {
       if (!mounted) return;
       if (picked == null) {
         setState(() {
@@ -137,6 +151,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         });
       } else {
         final s = picked as ServiceItem;
+        final qty = await _showQtyPickerDialog(context, s.name) ?? 1.0;
+        if (!mounted) return;
         setState(() {
           _invoice.items.add(LineItem(
             description: s.description?.isNotEmpty == true
@@ -144,6 +160,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 : s.name,
             rate: s.rate,
             taxPercent: s.taxPercent,
+            quantity: qty,
           ));
         });
       }
@@ -637,10 +654,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         child: Column(
           children: [
             _totalRow('Subtotal', '$symbol${_invoice.subtotal.toStringAsFixed(2)}'),
-            if (_invoice.totalDiscount > 0)
-              _totalRow('Discount',
-                  '-$symbol${_invoice.totalDiscount.toStringAsFixed(2)}',
-                  color: AppTheme.error),
+
+            // ── Bill-level discount input ──────────────────────────────────
+            _discountInputRow(symbol),
+
+            // Item-level discounts summary (if any, separate from bill discount)
+            if (_invoice.items.fold(0.0, (s, i) => s + i.discountAmount) > 0)
+              _totalRow(
+                'Item Discounts',
+                '-$symbol${_invoice.items.fold(0.0, (s, i) => s + i.discountAmount).toStringAsFixed(2)}',
+                color: AppTheme.error,
+              ),
+
             if (_invoice.totalTax > 0) ...[
               if (gst != null && supplyType == GstSupplyType.interState)
                 _totalRow(
@@ -671,6 +696,111 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 fontSize: 18),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _discountInputRow(String symbol) {
+    final hasDiscount = _discountIsPercent
+        ? _invoice.globalDiscountPercent > 0
+        : _invoice.globalDiscountFlat > 0;
+    final discountAmount = _discountIsPercent
+        ? _invoice.subtotal * (_invoice.globalDiscountPercent / 100)
+        : _invoice.globalDiscountFlat;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          // Label
+          const Text('Bill Discount',
+              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+          const SizedBox(width: 8),
+
+          // % / ₹ toggle chip
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _discountIsPercent = !_discountIsPercent;
+                _discountCtrl.clear();
+                _invoice.globalDiscountPercent = 0;
+                _invoice.globalDiscountFlat = 0;
+              });
+            },
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                    color: AppTheme.primary.withValues(alpha: 0.3)),
+              ),
+              child: Text(
+                _discountIsPercent ? '%' : symbol,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.primary),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Input field
+          Expanded(
+            child: SizedBox(
+              height: 36,
+              child: TextField(
+                controller: _discountCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: _discountIsPercent ? '0.00' : '0.00',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        const BorderSide(color: AppTheme.primary, width: 1.5),
+                  ),
+                ),
+                onChanged: (v) {
+                  final val = double.tryParse(v) ?? 0;
+                  setState(() {
+                    if (_discountIsPercent) {
+                      _invoice.globalDiscountPercent =
+                          val.clamp(0, 100);
+                      _invoice.globalDiscountFlat = 0;
+                    } else {
+                      _invoice.globalDiscountFlat =
+                          val.clamp(0, double.infinity);
+                      _invoice.globalDiscountPercent = 0;
+                    }
+                  });
+                },
+              ),
+            ),
+          ),
+
+          // Computed discount amount shown on the right
+          if (hasDiscount) ...[
+            const SizedBox(width: 10),
+            Text(
+              '-$symbol${discountAmount.toStringAsFixed(2)}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.error,
+                  fontWeight: FontWeight.w600),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1214,7 +1344,18 @@ class _LineItemRowState extends State<_LineItemRow> {
     }
     _taxCtrl.text = s.taxPercent.toString();
     widget.item.taxPercent = s.taxPercent;
-    widget.onChanged();
+
+    // Defer to the next frame so the autocomplete overlay finishes closing
+    // before we push the dialog route — avoids the InheritedElement
+    // 'dependents.isEmpty' assertion.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final qty = await _showQtyPickerDialog(context, s.name) ?? 1.0;
+      if (!mounted) return;
+      _qtyCtrl.text = qty % 1 == 0 ? qty.toInt().toString() : qty.toString();
+      widget.item.quantity = qty;
+      widget.onChanged();
+    });
   }
 
   @override
@@ -1507,6 +1648,140 @@ class _CatalogPickerSheet extends StatelessWidget {
       style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+Future<double?> _showQtyPickerDialog(BuildContext context, String itemName) {
+  return showDialog<double>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _QtyPickerDialog(itemName: itemName),
+  );
+}
+
+class _QtyPickerDialog extends StatefulWidget {
+  final String itemName;
+  const _QtyPickerDialog({required this.itemName});
+
+  @override
+  State<_QtyPickerDialog> createState() => _QtyPickerDialogState();
+}
+
+class _QtyPickerDialogState extends State<_QtyPickerDialog> {
+  // null means the user is typing a custom value
+  int? _selected = 1;
+  final _customCtrl = TextEditingController();
+  final _customFocus = FocusNode();
+
+  static const _numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  @override
+  void dispose() {
+    _customCtrl.dispose();
+    _customFocus.dispose();
+    super.dispose();
+  }
+
+  double? get _resolvedQty {
+    if (_selected != null) return _selected!.toDouble();
+    final v = double.tryParse(_customCtrl.text.trim());
+    return (v != null && v > 0) ? v : null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = AppTheme.primary;
+    return AlertDialog(
+      title: const Text('Select Quantity'),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.itemName,
+            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 14),
+          // Wrap avoids scroll-viewport intrinsic-dimension crash inside AlertDialog
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _numbers.map((n) {
+              final isSelected = _selected == n;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selected = n;
+                    _customCtrl.clear();
+                  });
+                  _customFocus.unfocus();
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: isSelected ? primary : primary.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$n',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: isSelected ? Colors.white : primary,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _customCtrl,
+            focusNode: _customFocus,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Custom quantity',
+              hintText: 'e.g. 15 or 2.5',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: primary, width: 1.5),
+              ),
+            ),
+            onChanged: (v) {
+              // Deselect grid tiles as soon as the user starts typing
+              if (v.isNotEmpty && _selected != null) {
+                setState(() => _selected = null);
+              } else if (v.isEmpty && _selected == null) {
+                setState(() => _selected = 1);
+              }
+            },
+          ),
+          const SizedBox(height: 4),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final qty = _resolvedQty;
+            if (qty == null) return; // invalid custom input — keep dialog open
+            Navigator.pop(context, qty);
+          },
+          child: const Text('Add'),
+        ),
+      ],
     );
   }
 }

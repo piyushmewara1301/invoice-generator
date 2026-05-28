@@ -286,6 +286,14 @@ class _TemplateCardState extends State<_TemplateCard> {
           row1: Color(0xFFF5F5F5),
           row2: Colors.white,
         );
+      case InvoiceTemplate.legalPro:
+        return const _TemplateScheme(
+          primary: Color(0xFF37474F),
+          header: Colors.white,
+          accent: Color(0xFF37474F),
+          row1: Color(0xFFF5F5F5),
+          row2: Colors.white,
+        );
     }
   }
 }

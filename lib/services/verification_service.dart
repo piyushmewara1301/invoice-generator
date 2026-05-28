@@ -144,10 +144,15 @@ class VerificationService {
       if (fields == null) return null;
       final tierStr = _readStr(fields, 'subscriptionTier');
       if (tierStr == null) return null;
-      return SubscriptionTier.values.firstWhere(
-        (e) => e.name == tierStr,
-        orElse: () => SubscriptionTier.free,
-      );
+      // Case-insensitive match; return null (not free) for unrecognised strings
+      // so that callers never downgrade a user due to a typo in Firestore.
+      try {
+        return SubscriptionTier.values.firstWhere(
+          (e) => e.name.toLowerCase() == tierStr.toLowerCase(),
+        );
+      } catch (_) {
+        return null;
+      }
     } catch (_) {
       return null;
     }

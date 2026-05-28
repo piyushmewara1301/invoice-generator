@@ -1,4 +1,4 @@
-enum InvoiceTemplate { classic, minimal, corporate, modern, restaurant, receipt, professional, gstBill, letterhead }
+enum InvoiceTemplate { classic, minimal, corporate, modern, restaurant, receipt, professional, gstBill, letterhead, legalPro }
 
 extension InvoiceTemplateInfo on InvoiceTemplate {
   String get displayName {
@@ -21,6 +21,8 @@ extension InvoiceTemplateInfo on InvoiceTemplate {
         return 'GST Bill';
       case InvoiceTemplate.letterhead:
         return 'Letterhead';
+      case InvoiceTemplate.legalPro:
+        return 'Legal Pro';
     }
   }
 
@@ -44,6 +46,8 @@ extension InvoiceTemplateInfo on InvoiceTemplate {
         return 'GST-compliant · CGST/SGST/IGST split · HSN/SAC column';
       case InvoiceTemplate.letterhead:
         return 'Double-rule header · Sr.No/Particulars/Amount · for advocates & CAs';
+      case InvoiceTemplate.legalPro:
+        return 'Logo+info header · Dated/Particulars/Amount · for lawyers & advocates';
     }
   }
 }

@@ -49,6 +49,8 @@ class PdfGenerator {
         return _buildGstBill(invoice, profile, theme);
       case InvoiceTemplate.letterhead:
         return _buildLetterhead(invoice, profile, theme);
+      case InvoiceTemplate.legalPro:
+        return _buildLegalPro(invoice, profile, theme);
     }
   }
 
@@ -1111,8 +1113,14 @@ class PdfGenerator {
         ],
         _dashedDivider(),
         pw.SizedBox(height: 10),
-        pw.Center(child: pw.Text('THANKS, PLEASE VISIT AGAIN!',
-            style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+        if (profile.showThankYouMessage)
+          pw.Center(
+            child: pw.Text(
+              profile.thankYouMessage,
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+            ),
+          ),
         pw.SizedBox(height: 4),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
@@ -3473,6 +3481,380 @@ class PdfGenerator {
   }
 
   static pw.Widget _lhCell(String text,
+      {bool bold = false, pw.TextAlign align = pw.TextAlign.left}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+      child: pw.Text(
+        text,
+        textAlign: align,
+        style: bold
+            ? pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)
+            : const pw.TextStyle(fontSize: 9.5),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // TEMPLATE 10 — LEGAL PRO
+  // Logo+info header · Dated/Particulars/Amount · for lawyers & advocates
+  // ─────────────────────────────────────────────────────────────
+  static Future<Uint8List> _buildLegalPro(
+      Invoice invoice, BusinessProfile profile, pw.ThemeData theme) async {
+    final pdf = pw.Document();
+    final sym = Fmt.currencySymbol(invoice.currency);
+    final logo = _decodeLogo(profile.logoBase64);
+    final signatureImage = _decodeLogo(profile.signatureBase64);
+    final f = profile.headerFields;
+
+    final bankMethods = profile.showPaymentDetailsOnInvoice
+        ? profile.paymentMethods
+            .where((m) => m.type == PaymentMethodType.bankAccount)
+            .toList()
+        : <PaymentMethod>[];
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.fromLTRB(52, 44, 52, 44),
+      theme: theme,
+      build: (ctx) => [
+
+        // ── Letterhead header box: Logo (left) | separator | Business info (right) ──
+        pw.Container(
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
+          ),
+          child: pw.SizedBox(
+            height: 82,
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                // Logo on left
+                pw.Container(
+                  width: 110,
+                  padding: const pw.EdgeInsets.all(10),
+                  child: logo != null && f.contains(kHeaderLogo)
+                      ? pw.Center(
+                          child: pw.Image(logo, width: 90, height: 60, fit: pw.BoxFit.contain),
+                        )
+                      : pw.SizedBox(),
+                ),
+                // Vertical separator
+                pw.Container(
+                  width: 0.5,
+                  color: PdfColors.grey700,
+                ),
+                // Business info on right
+                pw.Expanded(
+                  child: pw.Padding(
+                    padding: const pw.EdgeInsets.fromLTRB(12, 10, 10, 10),
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        if (f.contains(kHeaderName))
+                          pw.Text(
+                            profile.name.isNotEmpty ? profile.name : 'Your Business',
+                            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
+                          ),
+                        pw.SizedBox(height: 3),
+                        if (f.contains(kHeaderAddress)) ...[
+                          () {
+                            final parts = [
+                              profile.address,
+                              profile.city,
+                              profile.state,
+                              profile.postalCode,
+                            ].where((s) => s.isNotEmpty).join(', ');
+                            return parts.isNotEmpty
+                                ? pw.Text(parts,
+                                    style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800))
+                                : pw.SizedBox();
+                          }(),
+                        ],
+                        if (profile.phone.isNotEmpty)
+                          pw.Text('Contact : ${profile.phone}',
+                              style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800)),
+                        if (f.contains(kHeaderEmail) && profile.email.isNotEmpty)
+                          pw.Text('E-mail : ${profile.email}',
+                              style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800)),
+                        if (f.contains(kHeaderWebsite) && profile.website?.isNotEmpty == true)
+                          pw.Text('Web: ${profile.website}',
+                              style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 14),
+
+        // ── Client block (left) + Invoice meta (right) ───────────────
+        pw.Row(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Expanded(
+              flex: 55,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  if (invoice.client != null) ...[
+                    pw.Text(
+                      invoice.client!.companyName?.isNotEmpty == true
+                          ? invoice.client!.companyName!
+                          : invoice.client!.name,
+                      style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                    ),
+                    if (invoice.client!.companyName?.isNotEmpty == true &&
+                        invoice.client!.name.isNotEmpty)
+                      pw.Text('"${invoice.client!.name}"',
+                          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
+                    if (invoice.client!.address.isNotEmpty)
+                      pw.Text(invoice.client!.address,
+                          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
+                    () {
+                      final parts = [
+                        invoice.client!.city,
+                        invoice.client!.state,
+                        invoice.client!.postalCode,
+                      ].where((s) => s.isNotEmpty).join(', ');
+                      return parts.isNotEmpty
+                          ? pw.Text(parts,
+                              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800))
+                          : pw.SizedBox();
+                    }(),
+                  ],
+                ],
+              ),
+            ),
+            pw.SizedBox(width: 12),
+            pw.Expanded(
+              flex: 45,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text('INVOICE NO:${invoice.invoiceNumber}',
+                      style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+                  pw.SizedBox(height: 2),
+                  pw.Text(Fmt.date(invoice.invoiceDate),
+                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
+                  if (invoice.terms?.isNotEmpty == true) ...[
+                    pw.SizedBox(height: 2),
+                    pw.Text('Payment terms ${invoice.terms}',
+                        style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+
+        // ── "INVOICE" centered heading ───────────────────────────────
+        pw.Center(
+          child: pw.Container(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            decoration: const pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(width: 1.5, color: PdfColors.black),
+              ),
+            ),
+            child: pw.Text(
+              _invoiceTitle(profile).toUpperCase(),
+              style: pw.TextStyle(
+                  fontSize: 13, fontWeight: pw.FontWeight.bold, letterSpacing: 4),
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 12),
+
+        // ── Subject ──────────────────────────────────────────────────
+        if (invoice.subject?.isNotEmpty == true) ...[
+          pw.Row(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Sub: ',
+                  style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+              pw.Expanded(
+                child: pw.Text(
+                  invoice.subject!,
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+        ],
+
+        // ── Items table: DATED | PARTICULARS | CURRENCY IN RUPEES ────
+        _legalProTable(invoice, sym, profile),
+        pw.SizedBox(height: 20),
+
+        // ── Notes ────────────────────────────────────────────────────
+        if (invoice.notes?.isNotEmpty == true) ...[
+          pw.Text(invoice.notes!,
+              style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          pw.SizedBox(height: 12),
+        ],
+
+        // ── Signature block ──────────────────────────────────────────
+        pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            if (signatureImage != null) ...[
+              pw.Image(signatureImage, width: 110, height: 50, fit: pw.BoxFit.contain),
+              pw.SizedBox(height: 2),
+            ],
+            pw.Text(
+              profile.name.isNotEmpty ? profile.name : 'Authorized Signatory',
+              style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Text('Advocate',
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+
+        // ── PAN NUMBER ───────────────────────────────────────────────
+        if (profile.gstin?.isNotEmpty == true) ...[
+          pw.Row(
+            children: [
+              pw.Text('PAN NUMBER – ',
+                  style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+              pw.Text(profile.gstin!,
+                  style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+        ],
+
+        // ── Bank Details ─────────────────────────────────────────────
+        if (bankMethods.isNotEmpty) ...[
+          pw.Text('Bank Details',
+              style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 6),
+          for (final m in bankMethods) ...[
+            if (m.bankName?.isNotEmpty == true)
+              pw.Row(children: [
+                pw.SizedBox(
+                    width: 88,
+                    child: pw.Text('Bank Name:',
+                        style: const pw.TextStyle(fontSize: 9))),
+                pw.Text(m.bankName!, style: const pw.TextStyle(fontSize: 9)),
+              ]),
+            if (m.accountHolder?.isNotEmpty == true)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 88),
+                child: pw.Text(m.accountHolder!,
+                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+              ),
+            if (m.accountNumber?.isNotEmpty == true)
+              pw.Row(children: [
+                pw.SizedBox(
+                    width: 88,
+                    child: pw.Text('Account No. :',
+                        style: const pw.TextStyle(fontSize: 9))),
+                pw.Text(m.accountNumber!, style: const pw.TextStyle(fontSize: 9)),
+              ]),
+            if (m.ifscCode?.isNotEmpty == true)
+              pw.Row(children: [
+                pw.SizedBox(
+                    width: 88,
+                    child: pw.Text('IFS Code:',
+                        style: const pw.TextStyle(fontSize: 9))),
+                pw.Text(m.ifscCode!, style: const pw.TextStyle(fontSize: 9)),
+              ]),
+            pw.SizedBox(height: 4),
+          ],
+        ],
+
+        if (profile.verificationStatus != VerificationStatus.verified)
+          _unverifiedDisclaimer(),
+        _brandingFooter(),
+      ],
+    ));
+    return pdf.save();
+  }
+
+  // ── Legal Pro items table ─────────────────────────────────────────────────
+
+  static pw.Widget _legalProTable(Invoice inv, String sym, BusinessProfile profile) {
+    final rows = <pw.TableRow>[];
+    final dateStr = Fmt.date(inv.invoiceDate);
+
+    // Header row
+    rows.add(pw.TableRow(
+      decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+      children: [
+        _lpCell('DATED', bold: true, align: pw.TextAlign.center),
+        _lpCell('PARTICULARS', bold: true, align: pw.TextAlign.center),
+        _lpCell('CURRENCY IN\nRUPEES', bold: true, align: pw.TextAlign.center),
+      ],
+    ));
+
+    // Item rows
+    for (final item in inv.items) {
+      rows.add(pw.TableRow(children: [
+        _lpCell(dateStr, align: pw.TextAlign.center),
+        _lpCell(item.description, align: pw.TextAlign.left),
+        _lpCell(item.subtotal.toStringAsFixed(2), align: pw.TextAlign.right),
+      ]));
+    }
+
+    // Discount row
+    if (inv.totalDiscount > 0) {
+      rows.add(pw.TableRow(children: [
+        _lpCell('', align: pw.TextAlign.center),
+        _lpCell('Discount', align: pw.TextAlign.right),
+        _lpCell('-${inv.totalDiscount.toStringAsFixed(2)}', align: pw.TextAlign.right),
+      ]));
+    }
+
+    // Tax rows
+    if (inv.totalTax > 0) {
+      for (final lv in _gstTaxLabelValues(inv, profile, sym)) {
+        rows.add(pw.TableRow(children: [
+          _lpCell('', align: pw.TextAlign.center),
+          _lpCell(lv.$1, align: pw.TextAlign.right),
+          _lpCell(lv.$2, align: pw.TextAlign.right),
+        ]));
+      }
+    }
+
+    // Total row with amount in words
+    final wordsUpper = _amountInWords(inv.grandTotal).toUpperCase();
+    rows.add(pw.TableRow(children: [
+      _lpCell('', align: pw.TextAlign.center),
+      pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Text('TOTAL',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold)),
+            pw.Text('($wordsUpper)',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+          ],
+        ),
+      ),
+      _lpCell(inv.grandTotal.toStringAsFixed(2), bold: true, align: pw.TextAlign.right),
+    ]));
+
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.5),
+      columnWidths: const {
+        0: pw.FixedColumnWidth(60),
+        1: pw.FlexColumnWidth(4),
+        2: pw.FixedColumnWidth(90),
+      },
+      children: rows,
+    );
+  }
+
+  static pw.Widget _lpCell(String text,
       {bool bold = false, pw.TextAlign align = pw.TextAlign.left}) {
     return pw.Padding(
       padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 6),

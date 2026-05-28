@@ -51,7 +51,9 @@
       "Bash(which flutter *)",
       "Read(//Users/piyushmewara/**)",
       "Bash(/Users/piyushmewara/Documents/flutter/flutter/bin/flutter pub *)",
-      "WebFetch(domain:www.zoho.com)"
+      "WebFetch(domain:www.zoho.com)",
+      "Bash(/Users/piyushmewara/development/flutter/bin/flutter analyze *)",
+      "Bash(/Users/piyushmewara/flutter/bin/flutter analyze *)"
     ],
     "additionalDirectories": [
       "/Users/piyushmewara/Library/Developer/Xcode/DerivedData"
