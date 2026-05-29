@@ -161,6 +161,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             rate: s.rate,
             taxPercent: s.taxPercent,
             quantity: qty,
+            category: s.category,
           ));
         });
       }
@@ -1344,6 +1345,7 @@ class _LineItemRowState extends State<_LineItemRow> {
     }
     _taxCtrl.text = s.taxPercent.toString();
     widget.item.taxPercent = s.taxPercent;
+    widget.item.category = s.category;
 
     // Defer to the next frame so the autocomplete overlay finishes closing
     // before we push the dialog route — avoids the InheritedElement
@@ -1462,6 +1464,25 @@ class _LineItemRowState extends State<_LineItemRow> {
               ),
             ),
           ),
+          if (item.category != null && item.category!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.folder_outlined,
+                    size: 13, color: AppTheme.textSecondary),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    item.category!,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 8),
           if (widget.showQty)
             Row(
@@ -1566,7 +1587,7 @@ class _LineItemRowState extends State<_LineItemRow> {
   }
 }
 
-class _CatalogPickerSheet extends StatelessWidget {
+class _CatalogPickerSheet extends StatefulWidget {
   final List<ServiceItem> items;
   final String itemLabel;
 
@@ -1576,69 +1597,317 @@ class _CatalogPickerSheet extends StatelessWidget {
   });
 
   @override
+  State<_CatalogPickerSheet> createState() => _CatalogPickerSheetState();
+}
+
+class _CatalogPickerSheetState extends State<_CatalogPickerSheet> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+  // null = category overview, non-null = items within that category ('' = all)
+  String? _selectedCategory;
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<String> get _categories {
+    return widget.items
+        .map((s) => s.category?.trim())
+        .where((c) => c != null && c.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  List<ServiceItem> get _filteredItems {
+    var list = widget.items;
+    if (_selectedCategory == '__uncategorized__') {
+      list = list
+          .where((s) => s.category == null || s.category!.trim().isEmpty)
+          .toList();
+    } else if (_selectedCategory != null && _selectedCategory!.isNotEmpty) {
+      list = list
+          .where((s) => s.category?.trim() == _selectedCategory)
+          .toList();
+    }
+    final q = _query.toLowerCase();
+    if (q.isNotEmpty) {
+      list = list
+          .where((s) =>
+              s.name.toLowerCase().contains(q) ||
+              (s.description?.toLowerCase().contains(q) ?? false) ||
+              (s.category?.toLowerCase().contains(q) ?? false))
+          .toList();
+    }
+    return list;
+  }
+
+  bool get _isSearching => _query.isNotEmpty;
+  bool get _showItemList => _selectedCategory != null || _isSearching;
+
+  void _pickItem(ServiceItem s) => Navigator.pop(context, s);
+  void _addBlank() => Navigator.pop(context, null);
+
+  @override
   Widget build(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.75;
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Pick a $itemLabel',
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Select from your saved ${itemLabel.toLowerCase()}s or add a blank one.',
-              style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 12),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.45,
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const Divider(height: 1),
-                itemBuilder: (_, i) {
-                  final s = items[i];
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(s.name,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header ────────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: Row(
+                  children: [
+                    if (_selectedCategory != null && !_isSearching)
+                      GestureDetector(
+                        onTap: () =>
+                            setState(() => _selectedCategory = null),
+                        child: const Icon(Icons.arrow_back,
+                            size: 20, color: AppTheme.textSecondary),
+                      )
+                    else
+                      const Icon(Icons.grid_view_rounded,
+                          size: 20, color: AppTheme.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _isSearching
+                            ? 'Search results'
+                            : _selectedCategory == '__uncategorized__'
+                                ? 'Uncategorized'
+                                : _selectedCategory != null && _selectedCategory!.isNotEmpty
+                                    ? _selectedCategory!
+                                    : _selectedCategory == ''
+                                        ? 'All ${widget.itemLabel}s'
+                                        : 'Pick a ${widget.itemLabel}',
                         style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
-                    subtitle: _subtitle(s),
-                    onTap: () => Navigator.pop(context, s),
-                    trailing: const Icon(Icons.chevron_right,
-                        size: 18, color: AppTheme.textSecondary),
-                  );
-                },
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Divider(height: 1),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.add_circle_outline, color: AppTheme.primary),
-              title: Text('Add blank ${itemLabel.toLowerCase()}',
-                  style: const TextStyle(color: AppTheme.primary)),
-              onTap: () => Navigator.pop(context, null),
-            ),
-          ],
+              // ── Search bar ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: TextField(
+                  controller: _searchCtrl,
+                  autofocus: false,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  decoration: InputDecoration(
+                    hintText: 'Search ${widget.itemLabel.toLowerCase()}s…',
+                    prefixIcon:
+                        const Icon(Icons.search, size: 18, color: AppTheme.textSecondary),
+                    suffixIcon: _query.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () {
+                              _searchCtrl.clear();
+                              setState(() => _query = '');
+                            },
+                            child: const Icon(Icons.clear,
+                                size: 18, color: AppTheme.textSecondary),
+                          )
+                        : null,
+                    isDense: true,
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide:
+                          const BorderSide(color: AppTheme.primary, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Divider(height: 1),
+              // ── Body ──────────────────────────────────────────────────────
+              Flexible(
+                child: _showItemList
+                    ? _ItemListView(
+                        items: _filteredItems,
+                        symbol: '₹',
+                        onPick: _pickItem,
+                      )
+                    : _CategoryListView(
+                        categories: _categories,
+                        allItems: widget.items,
+                        itemLabel: widget.itemLabel,
+                        onSelectCategory: (cat) =>
+                            setState(() => _selectedCategory = cat),
+                      ),
+              ),
+              // ── Add blank ─────────────────────────────────────────────────
+              const Divider(height: 1),
+              ListTile(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16),
+                leading: const Icon(Icons.add_circle_outline,
+                    color: AppTheme.primary),
+                title: Text(
+                  'Add blank ${widget.itemLabel.toLowerCase()}',
+                  style: const TextStyle(color: AppTheme.primary),
+                ),
+                onTap: _addBlank,
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _CategoryListView extends StatelessWidget {
+  final List<String> categories;
+  final List<ServiceItem> allItems;
+  final String itemLabel;
+  final ValueChanged<String> onSelectCategory;
+
+  const _CategoryListView({
+    required this.categories,
+    required this.allItems,
+    required this.itemLabel,
+    required this.onSelectCategory,
+  });
+
+  int _countForCategory(String cat) =>
+      allItems.where((s) => s.category?.trim() == cat).length;
+
+  int get _uncategorizedCount =>
+      allItems.where((s) => s.category == null || s.category!.trim().isEmpty).length;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      children: [
+        // All items shortcut
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: const Icon(Icons.list_rounded, color: AppTheme.primary),
+          title: Text('All ${itemLabel}s',
+              style: const TextStyle(fontWeight: FontWeight.w500)),
+          trailing: _CountBadge(allItems.length),
+          onTap: () => onSelectCategory(''),
+        ),
+        if (categories.isNotEmpty) const Divider(height: 1),
+        // Named categories
+        ...categories.map((cat) {
+          return Column(
+            children: [
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                leading: const Icon(Icons.folder_outlined,
+                    color: AppTheme.primary),
+                title: Text(cat,
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _CountBadge(_countForCategory(cat)),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right,
+                        size: 18, color: AppTheme.textSecondary),
+                  ],
+                ),
+                onTap: () => onSelectCategory(cat),
+              ),
+              const Divider(height: 1),
+            ],
+          );
+        }),
+        // Uncategorized (only if there are some)
+        if (_uncategorizedCount > 0) ...[
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            leading: const Icon(Icons.help_outline,
+                color: AppTheme.textSecondary),
+            title: const Text('Uncategorized',
+                style: TextStyle(color: AppTheme.textSecondary)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _CountBadge(_uncategorizedCount),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right,
+                    size: 18, color: AppTheme.textSecondary),
+              ],
+            ),
+            onTap: () => onSelectCategory('__uncategorized__'),
+          ),
+          const Divider(height: 1),
+        ],
+      ],
+    );
+  }
+}
+
+class _ItemListView extends StatelessWidget {
+  final List<ServiceItem> items;
+  final String symbol;
+  final ValueChanged<ServiceItem> onPick;
+
+  const _ItemListView({
+    required this.items,
+    required this.symbol,
+    required this.onPick,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('No items found',
+              style: TextStyle(color: AppTheme.textSecondary)),
+        ),
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      itemCount: items.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (_, i) {
+        final s = items[i];
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(s.name,
+              style: const TextStyle(
+                  fontSize: 14, fontWeight: FontWeight.w500)),
+          subtitle: _subtitle(s),
+          onTap: () => onPick(s),
+          trailing: const Icon(Icons.chevron_right,
+              size: 18, color: AppTheme.textSecondary),
+        );
+      },
     );
   }
 
   Widget? _subtitle(ServiceItem s) {
     final parts = <String>[
+      if (s.category != null && s.category!.isNotEmpty) s.category!,
       if (s.description != null && s.description!.isNotEmpty) s.description!,
-      if (s.rate > 0) '₹${s.rate.toStringAsFixed(0)}',
+      if (s.rate > 0) '$symbol${s.rate.toStringAsFixed(0)}',
       if (s.unit != null && s.unit!.isNotEmpty) s.unit!,
       if (s.taxPercent > 0) '${s.taxPercent.toStringAsFixed(0)}% tax',
     ];
@@ -1648,6 +1917,29 @@ class _CatalogPickerSheet extends StatelessWidget {
       style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+    );
+  }
+}
+
+class _CountBadge extends StatelessWidget {
+  final int count;
+  const _CountBadge(this.count);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        '$count',
+        style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppTheme.primary),
+      ),
     );
   }
 }

@@ -14,6 +14,8 @@ import 'invoice_list_screen.dart';
 import 'client_list_screen.dart';
 import 'settings_screen.dart';
 import 'gst_report_screen.dart';
+import 'category_analytics_screen.dart';
+import 'pos_screen.dart';
 
 enum _Period { today, week, month, year, custom }
 
@@ -76,21 +78,55 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    final appProvider = context.watch<AppProvider>();
+    final posEnabled = appProvider.profile.posEnabled;
+    final isFreeTier =
+        appProvider.profile.subscriptionTier == SubscriptionTier.free;
+
     final screens = [
       const _DashboardHome(),
       const InvoiceListScreen(),
+      if (posEnabled) const PosScreen(),
       const ClientListScreen(),
       const SettingsScreen(),
     ];
 
-    final isFreeTier = context.select<AppProvider, bool>(
-      (p) => p.profile.subscriptionTier == SubscriptionTier.free,
-    );
+    final destinations = [
+      const NavigationDestination(
+        icon: Icon(Icons.dashboard_outlined),
+        selectedIcon: Icon(Icons.dashboard),
+        label: 'Dashboard',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.receipt_long_outlined),
+        selectedIcon: Icon(Icons.receipt_long),
+        label: 'Invoices',
+      ),
+      if (posEnabled)
+        const NavigationDestination(
+          icon: Icon(Icons.point_of_sale_outlined),
+          selectedIcon: Icon(Icons.point_of_sale_rounded),
+          label: 'POS',
+        ),
+      const NavigationDestination(
+        icon: Icon(Icons.people_outline),
+        selectedIcon: Icon(Icons.people),
+        label: 'Clients',
+      ),
+      const NavigationDestination(
+        icon: Icon(Icons.settings_outlined),
+        selectedIcon: Icon(Icons.settings),
+        label: 'Settings',
+      ),
+    ];
+
+    // Clamp index so toggling POS never leaves an out-of-range selection.
+    final safeIndex = _selectedIndex.clamp(0, screens.length - 1);
 
     return Scaffold(
       body: FadeTransition(
         opacity: _navController,
-        child: screens[_selectedIndex],
+        child: screens[safeIndex],
       ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -108,30 +144,9 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
             child: NavigationBar(
-              selectedIndex: _selectedIndex,
+              selectedIndex: safeIndex,
               onDestinationSelected: _onTabChanged,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Dashboard',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.receipt_long_outlined),
-                  selectedIcon: Icon(Icons.receipt_long),
-                  label: 'Invoices',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.people_outline),
-                  selectedIcon: Icon(Icons.people),
-                  label: 'Clients',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+              destinations: destinations,
             ),
           ),
         ],
@@ -396,6 +411,21 @@ class _DashboardHomeState extends State<_DashboardHome>
                     child: _GstReportCard(onTap: () => openGstReport(context)),
                   ),
                 ),
+
+              // ── Category Insights ───────────────────────────────────
+              _FadeSlide(
+                animation: _recentAnim,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _CategoryInsightsCard(invoices: all, onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CategoryAnalyticsScreen()),
+                    );
+                  }),
+                ),
+              ),
 
               // ── Recent invoices ─────────────────────────────────────
               _FadeSlide(
@@ -916,6 +946,95 @@ class _GstReportCard extends StatelessWidget {
                     'CGST/SGST/IGST · HSN summary · Invoice register',
                     style: TextStyle(
                         fontSize: 11, color: AppTheme.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.textSecondary),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Category Insights card ───────────────────────────────────────────────────
+
+class _CategoryInsightsCard extends StatelessWidget {
+  final List<Invoice> invoices;
+  final VoidCallback onTap;
+  const _CategoryInsightsCard({required this.invoices, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    // Count distinct categories used across all invoices.
+    final cats = invoices
+        .expand((inv) => inv.items)
+        .map((item) => item.category?.trim())
+        .where((c) => c != null && c.isNotEmpty)
+        .toSet();
+    final catCount = cats.length;
+
+    // Find the top category by revenue (paid invoices).
+    final revenueMap = <String, double>{};
+    for (final inv in invoices) {
+      if (inv.status != InvoiceStatus.paid) continue;
+      for (final item in inv.items) {
+        final cat = item.category?.trim();
+        if (cat == null || cat.isEmpty) continue;
+        revenueMap[cat] = (revenueMap[cat] ?? 0) + item.total;
+      }
+    }
+    final topCat = revenueMap.isEmpty
+        ? null
+        : (revenueMap.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value)))
+            .first
+            .key;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.label_outlined,
+                  color: Color(0xFF7C3AED), size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Category Insights',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppTheme.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(
+                    catCount == 0
+                        ? 'Revenue · top items · best services'
+                        : topCat != null
+                            ? '$catCount categor${catCount == 1 ? 'y' : 'ies'} · top: $topCat'
+                            : '$catCount categor${catCount == 1 ? 'y' : 'ies'} tracked',
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.textSecondary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),

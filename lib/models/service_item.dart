@@ -6,6 +6,7 @@ class ServiceItem {
   double taxPercent;
   String? unit;
   String? hsnSac; // HSN (goods) or SAC (services) code
+  String? category;
 
   ServiceItem({
     required this.id,
@@ -15,6 +16,7 @@ class ServiceItem {
     this.taxPercent = 0,
     this.unit,
     this.hsnSac,
+    this.category,
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,6 +27,7 @@ class ServiceItem {
         'taxPercent': taxPercent,
         'unit': unit,
         'hsnSac': hsnSac,
+        'category': category,
       };
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) => ServiceItem(
@@ -35,5 +38,6 @@ class ServiceItem {
         taxPercent: (json['taxPercent'] as num?)?.toDouble() ?? 0,
         unit: json['unit'] as String?,
         hsnSac: json['hsnSac'] as String?,
+        category: json['category'] as String?,
       );
 }

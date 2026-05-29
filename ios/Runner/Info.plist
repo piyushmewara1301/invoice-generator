@@ -30,6 +30,8 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Used to upload your business logo for invoices</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Used to scan QR codes for connecting to a business as a team member</string>
 	<key>GIDClientID</key>
 	<string>891634878125-flcss8ni6rjnrfg8pij3m0uehd359142.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>

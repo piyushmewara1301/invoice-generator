@@ -100,6 +100,78 @@ class DriveService {
   /// Writes raw content (an encrypted string) to Drive.
   Future<void> saveData(String content) => _writeFile(_dataFileName, content);
 
+  // ── Employee sharing — file-by-ID access ─────────────────────────────────
+
+  /// Returns the Drive file ID of the data file, creating it if absent.
+  /// Called by the owner before generating a pairing QR code.
+  Future<String> getDataFileId() async {
+    var fileId = await _findFileId(_dataFileName);
+    if (fileId == null) {
+      // Ensure the file exists before we try to share it.
+      await _writeFile(_dataFileName, '');
+      fileId = await _findFileId(_dataFileName);
+    }
+    return fileId!;
+  }
+
+  /// Reads content from an arbitrary file ID without needing the folder.
+  /// Used by employees whose OAuth token differs from the owner's.
+  /// Throws on permission/network errors so the caller can surface them.
+  Future<String?> loadDataByFileId(String fileId) async {
+    final media = await _api.files.get(
+      fileId,
+      downloadOptions: drive.DownloadOptions.fullMedia,
+    ) as drive.Media;
+    final bytes = <int>[];
+    await for (final chunk in media.stream) {
+      bytes.addAll(chunk);
+    }
+    final s = utf8.decode(bytes);
+    return s.isEmpty ? null : s;
+  }
+
+  /// Writes content to an arbitrary file ID (employee mode).
+  Future<void> saveDataByFileId(String fileId, String content) async {
+    final encoded = utf8.encode(content);
+    final mediaStream = drive.Media(Stream.value(encoded), encoded.length);
+    await _api.files.update(
+      drive.File(),
+      fileId,
+      uploadMedia: mediaStream,
+    );
+  }
+
+  /// Grants [email] writer access to the owner's data file.
+  /// Returns the file ID so it can be embedded in the pairing QR.
+  Future<String> shareDataFileWith(String email) async {
+    final fileId = await getDataFileId();
+    await _api.permissions.create(
+      drive.Permission()
+        ..role = 'writer'
+        ..type = 'user'
+        ..emailAddress = email,
+      fileId,
+      sendNotificationEmail: false,
+    );
+    return fileId;
+  }
+
+  /// Removes [email]'s access to the data file.
+  Future<void> revokeDataFileAccess(String email) async {
+    final fileId = await _findFileId(_dataFileName);
+    if (fileId == null) return;
+    final permList = await _api.permissions.list(
+      fileId,
+      $fields: 'permissions(id,emailAddress)',
+    );
+    for (final perm in permList.permissions ?? <drive.Permission>[]) {
+      if (perm.emailAddress?.toLowerCase() == email.toLowerCase()) {
+        await _api.permissions.delete(fileId, perm.id!);
+        break;
+      }
+    }
+  }
+
   // ── CSV exports ──────────────────────────────────────────────────────────
 
   /// Uploads (or replaces) a CSV export file in the InvoiceGenerator folder.

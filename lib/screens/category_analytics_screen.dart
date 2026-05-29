@@ -1,0 +1,478 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../models/invoice.dart';
+import '../models/line_item.dart';
+import '../providers/app_provider.dart';
+import '../utils/app_theme.dart';
+import '../utils/formatters.dart';
+
+class CategoryAnalyticsScreen extends StatefulWidget {
+  const CategoryAnalyticsScreen({super.key});
+
+  @override
+  State<CategoryAnalyticsScreen> createState() =>
+      _CategoryAnalyticsScreenState();
+}
+
+class _CategoryAnalyticsScreenState extends State<CategoryAnalyticsScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final invoices = context.watch<AppProvider>().invoices;
+    final currency = context.watch<AppProvider>().profile.currency;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Category Analytics'),
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(text: 'Revenue'),
+            Tab(text: 'Top Items'),
+            Tab(text: 'Top Services'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _CategoryRevenueTab(invoices: invoices, currency: currency),
+          _TopItemsTab(invoices: invoices, currency: currency),
+          _TopServicesTab(invoices: invoices, currency: currency),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const _kUncategorized = 'Uncategorized';
+
+/// All line items across all invoices (optionally paid-only).
+List<LineItem> _allItems(List<Invoice> invoices, {bool paidOnly = false}) {
+  return invoices
+      .where((inv) => !paidOnly || inv.status == InvoiceStatus.paid)
+      .expand((inv) => inv.items)
+      .toList();
+}
+
+/// Category → revenue (sum of item.total for paid invoices).
+Map<String, double> _categoryRevenue(List<Invoice> invoices) {
+  final map = <String, double>{};
+  for (final inv in invoices) {
+    if (inv.status != InvoiceStatus.paid) continue;
+    for (final item in inv.items) {
+      final cat = (item.category?.trim().isNotEmpty == true)
+          ? item.category!.trim()
+          : _kUncategorized;
+      map[cat] = (map[cat] ?? 0) + item.total;
+    }
+  }
+  return map;
+}
+
+/// Description → usage count across all invoices.
+Map<String, int> _itemUsage(List<Invoice> invoices) {
+  final map = <String, int>{};
+  for (final item in _allItems(invoices)) {
+    final key = item.description.trim();
+    if (key.isEmpty) continue;
+    map[key] = (map[key] ?? 0) + 1;
+  }
+  return map;
+}
+
+/// Description → total revenue (paid invoices).
+Map<String, double> _itemRevenue(List<Invoice> invoices) {
+  final map = <String, double>{};
+  for (final item in _allItems(invoices, paidOnly: true)) {
+    final key = item.description.trim();
+    if (key.isEmpty) continue;
+    map[key] = (map[key] ?? 0) + item.total;
+  }
+  return map;
+}
+
+// Palette for category bars
+const _palette = [
+  Color(0xFF2563EB),
+  Color(0xFF16A34A),
+  Color(0xFFD97706),
+  Color(0xFFDC2626),
+  Color(0xFF7C3AED),
+  Color(0xFF0891B2),
+  Color(0xFFDB2777),
+  Color(0xFF65A30D),
+];
+
+Color _colorFor(int index) => _palette[index % _palette.length];
+
+// ── Tab 1: Revenue by category ─────────────────────────────────────────────
+
+class _CategoryRevenueTab extends StatelessWidget {
+  final List<Invoice> invoices;
+  final String currency;
+  const _CategoryRevenueTab(
+      {required this.invoices, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _categoryRevenue(invoices);
+    if (data.isEmpty) {
+      return _EmptyState(
+        icon: Icons.label_outline,
+        message: 'No paid invoices yet.\nCategories will appear here once '
+            'you mark invoices as paid.',
+      );
+    }
+
+    final sorted = data.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final maxVal = sorted.first.value;
+    final total = sorted.fold(0.0, (s, e) => s + e.value);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _SectionLabel(
+            label: 'Revenue by Category',
+            subtitle: 'From paid invoices · ${Fmt.currencyAmount(total, currency)} total'),
+        const SizedBox(height: 12),
+        ...sorted.asMap().entries.map((entry) {
+          final i = entry.key;
+          final cat = entry.value.key;
+          final rev = entry.value.value;
+          final pct = maxVal > 0 ? rev / maxVal : 0.0;
+          final share = total > 0 ? (rev / total * 100) : 0.0;
+          return _CategoryBar(
+            label: cat,
+            value: Fmt.currencyAmount(rev, currency),
+            subtitle: '${share.toStringAsFixed(1)}% of total',
+            fraction: pct,
+            color: cat == _kUncategorized
+                ? AppTheme.textSecondary.withValues(alpha: 0.4)
+                : _colorFor(i),
+          );
+        }),
+        const SizedBox(height: 24),
+        _SectionLabel(label: 'Category Breakdown'),
+        const SizedBox(height: 12),
+        _PieChartLegend(entries: sorted, total: total),
+      ],
+    );
+  }
+}
+
+// ── Tab 2: Top items by usage count ──────────────────────────────────────────
+
+class _TopItemsTab extends StatelessWidget {
+  final List<Invoice> invoices;
+  final String currency;
+  const _TopItemsTab({required this.invoices, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final usage = _itemUsage(invoices);
+    if (usage.isEmpty) {
+      return _EmptyState(
+        icon: Icons.bar_chart_outlined,
+        message: 'No invoice items yet.\nCreate some invoices to see '
+            'which items are used most.',
+      );
+    }
+
+    final sorted = usage.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.take(20).toList();
+    final maxCount = top.first.value;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _SectionLabel(
+          label: 'Most Used Items',
+          subtitle: 'Across all invoices · by number of times added',
+        ),
+        const SizedBox(height: 12),
+        ...top.asMap().entries.map((entry) {
+          final i = entry.key;
+          final name = entry.value.key;
+          final count = entry.value.value;
+          final pct = maxCount > 0 ? count / maxCount : 0.0;
+          return _CategoryBar(
+            label: name,
+            value: '$count time${count == 1 ? '' : 's'}',
+            subtitle: 'used on invoices',
+            fraction: pct,
+            color: _colorFor(i),
+            rank: i + 1,
+          );
+        }),
+      ],
+    );
+  }
+}
+
+// ── Tab 3: Top services by revenue ────────────────────────────────────────────
+
+class _TopServicesTab extends StatelessWidget {
+  final List<Invoice> invoices;
+  final String currency;
+  const _TopServicesTab({required this.invoices, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final revenue = _itemRevenue(invoices);
+    if (revenue.isEmpty) {
+      return _EmptyState(
+        icon: Icons.trending_up_outlined,
+        message: 'No paid invoices yet.\nService revenue will appear here '
+            'once you mark invoices as paid.',
+      );
+    }
+
+    final sorted = revenue.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.take(20).toList();
+    final maxVal = top.first.value;
+    final total = top.fold(0.0, (s, e) => s + e.value);
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _SectionLabel(
+          label: 'Top Services by Revenue',
+          subtitle:
+              'From paid invoices · ${Fmt.currencyAmount(total, currency)} total',
+        ),
+        const SizedBox(height: 12),
+        ...top.asMap().entries.map((entry) {
+          final i = entry.key;
+          final name = entry.value.key;
+          final rev = entry.value.value;
+          final pct = maxVal > 0 ? rev / maxVal : 0.0;
+          final share = total > 0 ? (rev / total * 100) : 0.0;
+          return _CategoryBar(
+            label: name,
+            value: Fmt.currencyAmount(rev, currency),
+            subtitle: '${share.toStringAsFixed(1)}% of service revenue',
+            fraction: pct,
+            color: _colorFor(i),
+            rank: i + 1,
+          );
+        }),
+      ],
+    );
+  }
+}
+
+// ── Shared widgets ─────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final String? subtitle;
+  const _SectionLabel({required this.label, this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary)),
+        if (subtitle != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(subtitle!,
+                style: const TextStyle(
+                    fontSize: 11, color: AppTheme.textSecondary)),
+          ),
+      ],
+    );
+  }
+}
+
+class _CategoryBar extends StatelessWidget {
+  final String label;
+  final String value;
+  final String subtitle;
+  final double fraction; // 0.0 – 1.0
+  final Color color;
+  final int? rank;
+
+  const _CategoryBar({
+    required this.label,
+    required this.value,
+    required this.subtitle,
+    required this.fraction,
+    required this.color,
+    this.rank,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.divider),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (rank != null)
+                Container(
+                  width: 22,
+                  height: 22,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: rank! <= 3
+                        ? color.withValues(alpha: 0.15)
+                        : AppTheme.surface,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$rank',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: rank! <= 3 ? color : AppTheme.textSecondary),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(value,
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: color)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction.clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: color.withValues(alpha: 0.12),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(subtitle,
+              style: const TextStyle(
+                  fontSize: 10, color: AppTheme.textSecondary)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PieChartLegend extends StatelessWidget {
+  final List<MapEntry<String, double>> entries;
+  final double total;
+  const _PieChartLegend({required this.entries, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: entries.asMap().entries.map((e) {
+        final i = e.key;
+        final cat = e.value.key;
+        final rev = e.value.value;
+        final share = total > 0 ? (rev / total * 100) : 0.0;
+        final color = cat == _kUncategorized
+            ? AppTheme.textSecondary.withValues(alpha: 0.4)
+            : _colorFor(i);
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                    color: color, borderRadius: BorderRadius.circular(3)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(cat,
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.textPrimary),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+              ),
+              Text('${share.toStringAsFixed(1)}%',
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary)),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  const _EmptyState({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 52, color: AppTheme.textSecondary.withValues(alpha: 0.35)),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textSecondary,
+                  height: 1.5),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

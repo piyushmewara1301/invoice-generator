@@ -15,7 +15,7 @@ class AuthService extends ChangeNotifier {
     scopes: [
       'email',
       'profile',
-      'https://www.googleapis.com/auth/drive.file',
+      'https://www.googleapis.com/auth/drive',
     ],
   );
 
@@ -47,9 +47,9 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  /// Requests Drive file scope after initial sign-in (web only).
+  /// Requests Drive scope after initial sign-in (web only).
   Future<bool> requestDriveScope() =>
-      _instance.requestScopes(['https://www.googleapis.com/auth/drive.file']);
+      _instance.requestScopes(['https://www.googleapis.com/auth/drive']);
 
   Future<bool> signIn() async {
     try {

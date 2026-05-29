@@ -5,6 +5,7 @@ import '../../services/employee_service.dart';
 import '../../services/auth_service.dart';
 import '../../utils/app_theme.dart';
 import 'add_employee_screen.dart';
+import 'owner_pairing_screen.dart';
 
 class EmployeesScreen extends StatefulWidget {
   const EmployeesScreen({super.key});
@@ -55,6 +56,10 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
       MaterialPageRoute(builder: (_) => const AddEmployeeScreen()),
     );
     if (result != null && _ownerEmail != null) {
+      if (result.email.toLowerCase() == _ownerEmail!.toLowerCase()) {
+        _showSnack('You cannot add yourself as a team member', isError: true);
+        return;
+      }
       final err = await EmployeeService.addEmployee(_ownerEmail!, result);
       if (!mounted) return;
       if (err != null) {
@@ -101,6 +106,18 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
         ];
       });
     }
+  }
+
+  Future<void> _openShareAccess(Employee emp) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OwnerPairingScreen(
+          employeeName: emp.name,
+          employeeEmail: emp.email,
+        ),
+      ),
+    );
   }
 
   Future<void> _confirmDelete(Employee emp) async {
@@ -180,6 +197,7 @@ class _EmployeesScreenState extends State<EmployeesScreen> {
                               onEdit: () => _openEdit(emp),
                               onToggle: () => _toggleActive(emp),
                               onDelete: () => _confirmDelete(emp),
+                              onShare: () => _openShareAccess(emp),
                             ),
                             const SizedBox(height: 10),
                           ],
@@ -199,12 +217,14 @@ class _EmployeeCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onToggle;
   final VoidCallback onDelete;
+  final VoidCallback onShare;
 
   const _EmployeeCard({
     required this.employee,
     required this.onEdit,
     required this.onToggle,
     required this.onDelete,
+    required this.onShare,
   });
 
   @override
@@ -322,6 +342,14 @@ class _EmployeeCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+                // Share access
+                IconButton(
+                  icon: const Icon(Icons.qr_code_outlined, size: 18),
+                  color: const Color(0xFF0369A1),
+                  tooltip: 'Share Access',
+                  onPressed: onShare,
+                  visualDensity: VisualDensity.compact,
                 ),
                 // Edit
                 IconButton(

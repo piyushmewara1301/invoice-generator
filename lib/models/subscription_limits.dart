@@ -17,7 +17,6 @@ enum LimitType {
   messageTemplates,
   gstReports,
   manageTeam,
-  multipleBusinesses,
 }
 
 // ── Pricing ───────────────────────────────────────────────────────────────────
@@ -125,13 +124,6 @@ class SubscriptionLimits {
     SubscriptionTier.premium: true,
   };
 
-  static const multipleBusinesses = {
-    SubscriptionTier.free:    true,
-    SubscriptionTier.lite:    true,
-    SubscriptionTier.pro:     true,
-    SubscriptionTier.premium: true,
-  };
-
   // ── Helpers ─────────────────────────────────────────────────────────────────
 
   static bool canUse(SubscriptionTier tier, LimitType feature) {
@@ -143,7 +135,6 @@ class SubscriptionLimits {
       case LimitType.messageTemplates:     return messageTemplates[tier]!;
       case LimitType.gstReports:           return gstReports[tier]!;
       case LimitType.manageTeam:           return manageTeam[tier]!;
-      case LimitType.multipleBusinesses:   return multipleBusinesses[tier]!;
       default:
         final cap = _numericLimit(tier, feature);
         return cap == -1;
@@ -225,7 +216,6 @@ class LimitInfo {
       case LimitType.messageTemplates:    return 'Custom message templates';
       case LimitType.gstReports:          return 'GST Reports';
       case LimitType.manageTeam:          return 'Manage Team';
-      case LimitType.multipleBusinesses:  return 'Multiple Businesses';
     }
   }
 
@@ -255,8 +245,6 @@ class LimitInfo {
         return 'Generate detailed GSTR-1 style reports with CGST/SGST/IGST splits, HSN/SAC summary and invoice register.';
       case LimitType.manageTeam:
         return 'Add employees and control exactly what each person can do in the app.';
-      case LimitType.multipleBusinesses:
-        return 'Run multiple businesses from one account — switch instantly, separate data.';
     }
   }
 }

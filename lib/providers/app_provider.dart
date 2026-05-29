@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import '../models/invoice.dart';
 import '../models/client.dart';
 import '../models/business_profile.dart';
-import '../models/business_info.dart';
 import '../models/subscription_limits.dart';
 import '../models/reminder_settings.dart';
 import '../services/drive_service.dart';
@@ -15,6 +14,10 @@ import '../services/reminder_service.dart';
 import '../services/verification_service.dart';
 import '../services/billing_service.dart';
 import '../services/firestore_subscription_service.dart';
+import '../services/employee_service.dart';
+import '../models/employee.dart';
+import '../models/employee_pairing.dart';
+import '../services/pairing_service.dart';
 
 /// Per-business tier cache key. Written by every authoritative tier source
 /// (Firestore, VerificationService, IAP purchase). Re-applied after every
@@ -42,15 +45,15 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   DateTime? _lastTierCheck;
   String? _lastSyncError;
 
-  // ── Multiple-business state ───────────────────────────────────────────────
-  List<BusinessInfo> _businessList = [];
-  String _activeBusinessId = 'default';
+  static const _kBusinessId = 'default';
 
-  // Cross-business count caches (for combined limit enforcement).
-  // Active business is always kept in sync; inactive businesses are loaded
-  // from prefs once during _loadLocal and updated on switch/create/delete.
-  final Map<String, int> _bizClientCount = {};
-  final Map<String, int> _bizMonthlyInvCount = {};
+  // ── Dual-role: owner + employee of another business ───────────────────────
+  String? _employeeOwnerEmail;
+  Employee? _activeEmployeeRecord;
+
+  // ── Employee mode: accessing owner's Drive via QR pairing ────────────────
+  EmployeePairing? _pairing;
+  EncryptionService? _pairingEnc;
 
   List<Invoice> get invoices => List.unmodifiable(_invoices);
   List<Client> get clients => List.unmodifiable(_clients);
@@ -59,9 +62,23 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool get syncing => _syncing;
   bool get needsOnboarding => !_onboardingComplete;
   String? get lastSyncError => _lastSyncError;
-  List<BusinessInfo> get businesses => List.unmodifiable(_businessList);
-  String get activeBusinessId => _activeBusinessId;
   ReminderSettings get reminderSettings => _reminderSettings;
+
+  /// True when the signed-in user is also a team member of another business.
+  bool get isAlsoEmployee =>
+      _employeeOwnerEmail != null && _activeEmployeeRecord != null;
+
+  /// The owner email of the business where this user is an employee.
+  String? get employeeOwnerEmail => _employeeOwnerEmail;
+
+  /// The employee record for this user within another owner's business.
+  Employee? get employeeRecord => _activeEmployeeRecord;
+
+  /// True when the app is currently viewing an owner's data as an employee.
+  bool get isEmployeeMode => _pairing != null;
+
+  /// The active pairing (non-null only in employee mode).
+  EmployeePairing? get activePairing => _pairing;
 
   List<Invoice> get draftInvoices =>
       _invoices.where((i) => i.status == InvoiceStatus.draft).toList();
@@ -81,6 +98,13 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Called once at startup — loads from local SharedPreferences.
   Future<void> load() async {
+    // Restore employee pairing before loading local data so key helpers
+    // can use the correct prefix from the very first read.
+    _pairing = await PairingService.load();
+    if (_pairing != null) {
+      _pairingEnc = EncryptionService.withKey(_pairing!.encKey);
+    }
+
     await _loadLocal();
     final prefs = await SharedPreferences.getInstance();
     _onboardingComplete = prefs.getBool('onboardingComplete') ?? false;
@@ -135,6 +159,13 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     _userEmail = userEmail;
     _lastSyncError = null;
 
+    // ── Employee mode: skip all key management; use pairing key ──────────
+    if (isEmployeeMode) {
+      await _syncFromDrive();
+      _detectEmployeeRole().catchError((_) {});
+      return;
+    }
+
     // ── Key management ────────────────────────────────────────────────────
     // Wrapped in its own try-catch so a key-fetch failure doesn't silently
     // leave _drive set but unusable, or worse generate a brand-new key that
@@ -182,7 +213,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     }
 
     final tierPrefs = await SharedPreferences.getInstance();
-    if (tierPrefs.getString(_tierCacheKey(_activeBusinessId)) == null && _userEmail != null) {
+    if (tierPrefs.getString(_tierCacheKey(_kBusinessId)) == null && _userEmail != null) {
       await _refreshSubscriptionTier().catchError((_) {});
     } else {
       _refreshSubscriptionTier().catchError((_) {});
@@ -192,6 +223,8 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     _checkVerificationStatus().catchError((_) {});
     // Push latest stats so admin dashboard stays current.
     _pushStats().catchError((_) {});
+    // Detect if this user is also an employee of another business.
+    _detectEmployeeRole().catchError((_) {});
   }
 
   /// Detaches Drive (on sign-out) and clears local cache + encryption key.
@@ -201,17 +234,54 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     _clients = [];
     _profile = BusinessProfile();
     _onboardingComplete = false;
+    _employeeOwnerEmail = null;
+    _activeEmployeeRecord = null;
+    _pairing = null;
+    _pairingEnc = null;
     await _clearLocal();
     await _enc.clearKey();
+    await PairingService.clear();
+    notifyListeners();
+  }
+
+  /// Checks whether the signed-in user is also an employee in another
+  /// business. Populates [_employeeOwnerEmail] and [_activeEmployeeRecord].
+  Future<void> _detectEmployeeRole() async {
+    final email = _userEmail;
+    if (email == null) return;
+    final ownerEmail = await EmployeeService.findOwnerEmail(email);
+    if (ownerEmail == null) {
+      if (_employeeOwnerEmail != null) {
+        _employeeOwnerEmail = null;
+        _activeEmployeeRecord = null;
+        notifyListeners();
+      }
+      return;
+    }
+    final record = await EmployeeService.fetchEmployee(ownerEmail, email);
+    _employeeOwnerEmail = ownerEmail;
+    _activeEmployeeRecord = record;
     notifyListeners();
   }
 
   Future<void> _syncFromDrive() async {
     if (_drive == null) return;
     _syncing = true;
+    _lastSyncError = null; // always reset so stale errors don't linger
     notifyListeners();
     try {
-      final raw = await _drive!.loadData();
+      // In employee mode: read from the owner's shared file using its ID.
+      // In owner mode: read from the standard named file in the app folder.
+      final String? raw;
+      if (isEmployeeMode && _pairing != null) {
+        raw = await _drive!.loadDataByFileId(_pairing!.fileId);
+      } else {
+        raw = await _drive!.loadData();
+      }
+
+      // Choose the encryption service: pairing key for employees, own key for owners.
+      final encSvc = (isEmployeeMode && _pairingEnc != null) ? _pairingEnc! : _enc;
+
       if (raw != null) {
         // ── Decrypt ──────────────────────────────────────────────────────
         // Use decrypt() (not decryptSafe) so a key mismatch throws rather than
@@ -219,7 +289,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
         // error that we'd then confuse for a "no data" state.
         final String json;
         try {
-          json = _enc.isReady ? _enc.decrypt(raw) : raw;
+          json = encSvc.isReady ? encSvc.decrypt(raw) : raw;
         } catch (e) {
           // Decryption failed — key mismatch or corrupt file.
           // Keep local data and surface the error; do NOT overwrite Drive.
@@ -243,17 +313,23 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
           _onboardingComplete = true;
           await prefs.setBool('onboardingComplete', true);
         }
-        // Re-apply the cached tier — Drive data can lag behind Firestore/IAP.
-        _applyTierCache(prefs);
+        // Re-apply the cached tier (owner mode only) — Drive data can lag behind
+        // Firestore/IAP. In employee mode we honour the tier that came from the
+        // owner's Drive file; we must not overwrite it with the employee's own cache.
+        if (!isEmployeeMode) {
+          _applyTierCache(prefs);
+        }
         await _saveLocal();
       } else {
         // No Drive file found.
-        // Only push if we actually have local data to back up.
-        // ⚠ NEVER push empty data — that would destroy any pre-existing Drive
-        // content (e.g. when web localStorage is blank on a returning user).
-        if (_profile.name.isNotEmpty ||
-            _invoices.isNotEmpty ||
-            _clients.isNotEmpty) {
+        // In employee mode this means the owner's file is empty — do NOT push
+        // the employee's in-memory data there. The employee has no data yet and
+        // must wait for the owner to save something to Drive first.
+        // In owner mode, push local data to seed a fresh Drive file.
+        if (!isEmployeeMode &&
+            (_profile.name.isNotEmpty ||
+                _invoices.isNotEmpty ||
+                _clients.isNotEmpty)) {
           await _pushToDrive();
         }
       }
@@ -284,61 +360,60 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   // ── Business-scoped storage key helpers ──────────────────────────────────
-  String _pKey(String id)  => 'profile_$id';
-  String _iKey(String id)  => 'invoices_$id';
-  String _cKey(String id)  => 'clients_$id';
+  // In employee mode we use an 'emp_' prefix so the employee's cached copy
+  // of the owner's data never overwrites the employee's own business data.
+  String _pKey(String id)  => isEmployeeMode ? 'emp_profile_$id' : 'profile_$id';
+  String _iKey(String id)  => isEmployeeMode ? 'emp_invoices_$id' : 'invoices_$id';
+  String _cKey(String id)  => isEmployeeMode ? 'emp_clients_$id' : 'clients_$id';
 
   Future<void> _loadLocal() async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      // ── Migrate old single-business format on first run ────────────────
-      final hasBusinessList = prefs.containsKey('business_list');
-      if (!hasBusinessList) {
-        // Copy legacy keys to scoped keys so nothing is lost.
-        final legacyProfile  = prefs.getString('profile');
-        final legacyInvoices = prefs.getString('invoices');
-        final legacyClients  = prefs.getString('clients');
-        if (legacyProfile != null)  await prefs.setString(_pKey('default'), legacyProfile);
-        if (legacyInvoices != null) await prefs.setString(_iKey('default'), legacyInvoices);
-        if (legacyClients != null)  await prefs.setString(_cKey('default'), legacyClients);
-        // Seed business list with a placeholder; name will be filled from profile below.
-        await prefs.setString('business_list', jsonEncode([{'id': 'default', 'name': ''}]));
-        await prefs.setString('active_business_id', 'default');
+      // Legacy key migration (owner mode only — never pollute emp_ keys with
+      // the employee's own data or copy old unscoped keys under emp_ prefix).
+      if (!isEmployeeMode) {
+        // Migrate unscoped legacy keys to scoped keys on first run.
+        if (!prefs.containsKey(_pKey(_kBusinessId)) &&
+            !prefs.containsKey(_iKey(_kBusinessId)) &&
+            !prefs.containsKey(_cKey(_kBusinessId))) {
+          final legacyProfile  = prefs.getString('profile');
+          final legacyInvoices = prefs.getString('invoices');
+          final legacyClients  = prefs.getString('clients');
+          if (legacyProfile != null)  await prefs.setString(_pKey(_kBusinessId), legacyProfile);
+          if (legacyInvoices != null) await prefs.setString(_iKey(_kBusinessId), legacyInvoices);
+          if (legacyClients != null)  await prefs.setString(_cKey(_kBusinessId), legacyClients);
+        }
+        // One-time migration: copy old account-level tier key to the scoped key.
+        const legacyTierKey = 'subscription_tier_v2';
+        final legacyTier = prefs.getString(legacyTierKey);
+        if (legacyTier != null) {
+          if (!prefs.containsKey(_tierCacheKey(_kBusinessId))) {
+            await prefs.setString(_tierCacheKey(_kBusinessId), legacyTier);
+          }
+          await prefs.remove(legacyTierKey);
+        }
       }
-
-      // ── Load business list ─────────────────────────────────────────────
-      _activeBusinessId = prefs.getString('active_business_id') ?? 'default';
-      final listRaw = prefs.getString('business_list');
-      if (listRaw != null) {
-        _businessList = (jsonDecode(listRaw) as List)
-            .map((e) => BusinessInfo.fromJson(e as Map<String, dynamic>))
-            .toList();
-      }
-      if (_businessList.isEmpty) {
-        _businessList = [BusinessInfo(id: 'default', name: '')];
-      }
-
-      // ── Load active business data ──────────────────────────────────────
-      await _loadBusinessData(_activeBusinessId, prefs);
-      // ── Load counts for all inactive businesses ────────────────────────
-      await _loadAllBusinessCounts(prefs);
-      // ── One-time migration: account-level tier → per-business ──────────
-      await _migrateAccountTierToBusinesses(prefs);
+      await _loadBusinessData(prefs);
     } catch (_) {
       // Corrupted local data — start fresh; Drive sync will restore it.
     }
-    _applyTierCache(prefs);
+    // Apply tier cache only in owner mode — in employee mode the tier comes
+    // from the owner's Drive file and must not be overwritten by the
+    // employee's own subscription cache.
+    if (!isEmployeeMode) {
+      _applyTierCache(prefs);
+    }
   }
 
-  Future<void> _loadBusinessData(String id, SharedPreferences prefs) async {
-    final profileRaw = prefs.getString(_pKey(id));
+  Future<void> _loadBusinessData(SharedPreferences prefs) async {
+    final profileRaw = prefs.getString(_pKey(_kBusinessId));
     if (profileRaw != null) {
       final json = _enc.decryptSafe(profileRaw);
       _profile = BusinessProfile.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } else {
       _profile = BusinessProfile();
     }
-    final invoicesRaw = prefs.getString(_iKey(id));
+    final invoicesRaw = prefs.getString(_iKey(_kBusinessId));
     if (invoicesRaw != null) {
       final json = _enc.decryptSafe(invoicesRaw);
       _invoices = (jsonDecode(json) as List)
@@ -347,7 +422,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       _invoices = [];
     }
-    final clientsRaw = prefs.getString(_cKey(id));
+    final clientsRaw = prefs.getString(_cKey(_kBusinessId));
     if (clientsRaw != null) {
       final json = _enc.decryptSafe(clientsRaw);
       _clients = (jsonDecode(json) as List)
@@ -356,190 +431,42 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     } else {
       _clients = [];
     }
-    // Keep the stub name in sync with the actual profile name.
-    final stub = _businessList.firstWhere((b) => b.id == id,
-        orElse: () => BusinessInfo(id: id, name: ''));
-    if (_profile.name.isNotEmpty && stub.name != _profile.name) {
-      stub.name = _profile.name;
-      await _saveBusinessList(prefs);
-    }
-    _syncActiveCounts();
-  }
-
-  /// Updates the in-memory count maps for the currently active business.
-  /// Call this after any mutation to invoices or clients.
-  void _syncActiveCounts() {
-    final now = DateTime.now();
-    _bizClientCount[_activeBusinessId] = _clients.length;
-    _bizMonthlyInvCount[_activeBusinessId] = _invoices
-        .where((i) =>
-            i.invoiceDate.year == now.year &&
-            i.invoiceDate.month == now.month)
-        .length;
-  }
-
-  /// Loads client and invoice counts from prefs for every business that is
-  /// NOT currently active (active business is covered by _syncActiveCounts).
-  Future<void> _loadAllBusinessCounts(SharedPreferences prefs) async {
-    final now = DateTime.now();
-    for (final biz in _businessList) {
-      if (biz.id == _activeBusinessId) continue;
-      try {
-        final clientsRaw = prefs.getString(_cKey(biz.id));
-        if (clientsRaw != null) {
-          final json = _enc.decryptSafe(clientsRaw);
-          final list = (jsonDecode(json) as List)
-              .map((e) => Client.fromJson(e as Map<String, dynamic>))
-              .toList();
-          _bizClientCount[biz.id] = list.length;
-        } else {
-          _bizClientCount[biz.id] = 0;
-        }
-
-        final invoicesRaw = prefs.getString(_iKey(biz.id));
-        if (invoicesRaw != null) {
-          final json = _enc.decryptSafe(invoicesRaw);
-          final list = (jsonDecode(json) as List)
-              .map((e) => Invoice.fromJson(e as Map<String, dynamic>))
-              .toList();
-          _bizMonthlyInvCount[biz.id] = list
-              .where((i) =>
-                  i.invoiceDate.year == now.year &&
-                  i.invoiceDate.month == now.month)
-              .length;
-        } else {
-          _bizMonthlyInvCount[biz.id] = 0;
-        }
-      } catch (_) {
-        _bizClientCount[biz.id] = 0;
-        _bizMonthlyInvCount[biz.id] = 0;
-      }
-    }
-  }
-
-  /// One-time migration: copies the old account-level `subscription_tier_v2`
-  /// key into each business's per-business key, then removes the old key.
-  /// After this runs once, the old key is gone and the new keys take over.
-  Future<void> _migrateAccountTierToBusinesses(SharedPreferences prefs) async {
-    const legacyKey = 'subscription_tier_v2';
-    final legacy = prefs.getString(legacyKey);
-    if (legacy == null) return; // already migrated or fresh install
-    for (final biz in _businessList) {
-      final newKey = _tierCacheKey(biz.id);
-      if (!prefs.containsKey(newKey)) {
-        await prefs.setString(newKey, legacy);
-      }
-    }
-    await prefs.remove(legacyKey);
   }
 
   Future<void> _saveLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    final id = _activeBusinessId;
-    await prefs.setString(_iKey(id),
+    await prefs.setString(_iKey(_kBusinessId),
         _enc.encrypt(jsonEncode(_invoices.map((e) => e.toJson()).toList())));
-    await prefs.setString(_cKey(id),
+    await prefs.setString(_cKey(_kBusinessId),
         _enc.encrypt(jsonEncode(_clients.map((e) => e.toJson()).toList())));
     await prefs.setString(
-        _pKey(id), _enc.encrypt(jsonEncode(_profile.toJson())));
-    // Keep stub name in sync.
-    final stub = _businessList.firstWhere((b) => b.id == id,
-        orElse: () => BusinessInfo(id: id, name: ''));
-    if (_profile.name.isNotEmpty && stub.name != _profile.name) {
-      stub.name = _profile.name;
-      await _saveBusinessList(prefs);
-    }
-  }
-
-  Future<void> _saveBusinessList(SharedPreferences prefs) async {
-    await prefs.setString(
-        'business_list',
-        jsonEncode(_businessList.map((b) => b.toJson()).toList()));
+        _pKey(_kBusinessId), _enc.encrypt(jsonEncode(_profile.toJson())));
   }
 
   Future<void> _clearLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    // Remove data for every business.
-    for (final b in _businessList) {
-      await prefs.remove(_pKey(b.id));
-      await prefs.remove(_iKey(b.id));
-      await prefs.remove(_cKey(b.id));
-    }
+    await prefs.remove(_pKey(_kBusinessId));
+    await prefs.remove(_iKey(_kBusinessId));
+    await prefs.remove(_cKey(_kBusinessId));
     await prefs.remove('business_list');
     await prefs.remove('active_business_id');
     await prefs.remove('onboardingComplete');
-    await prefs.remove('subscription_tier_v2'); // legacy key
-  }
-
-  // ── Public business management API ────────────────────────────────────────
-
-  /// Switch the active business. Saves the current business first.
-  Future<void> switchBusiness(String id) async {
-    if (id == _activeBusinessId) return;
-    await _saveLocal(); // persist current before switching
-    _activeBusinessId = id;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('active_business_id', id);
-    await _loadBusinessData(id, prefs);
-    _applyTierCache(prefs);
-    notifyListeners();
-  }
-
-  /// Creates a new empty business and switches to it immediately.
-  Future<void> createBusiness(String name) async {
-    final id = _uuid.v4();
-    final info = BusinessInfo(id: id, name: name);
-    _businessList.add(info);
-    await _saveLocal(); // save current first
-    _activeBusinessId = id;
-    _invoices = [];
-    _clients = [];
-    _profile = BusinessProfile()..name = name;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('active_business_id', id);
-    await _saveLocal();
-    await _saveBusinessList(prefs);
-    notifyListeners();
-  }
-
-  /// Deletes a business and all its data. Cannot delete the last business.
-  Future<bool> deleteBusiness(String id) async {
-    if (_businessList.length <= 1) return false; // must keep at least one
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_pKey(id));
-    await prefs.remove(_iKey(id));
-    await prefs.remove(_cKey(id));
-    _businessList.removeWhere((b) => b.id == id);
-    _bizClientCount.remove(id);
-    _bizMonthlyInvCount.remove(id);
-    await _saveBusinessList(prefs);
-    // If we deleted the active business, switch to the first remaining.
-    if (_activeBusinessId == id) {
-      _activeBusinessId = _businessList.first.id;
-      await prefs.setString('active_business_id', _activeBusinessId);
-      await _loadBusinessData(_activeBusinessId, prefs);
-      _applyTierCache(prefs);
-    }
-    notifyListeners();
-    return true;
+    await prefs.remove('subscription_tier_v2');
   }
 
   Future<void> _pushToDrive() async {
     if (_drive == null) return;
-    // Hard guard: never overwrite Drive with a completely empty payload.
-    // This is the last line of defence against accidental data destruction
-    // when local state happens to be blank (e.g. on web before first sync).
-    if (_profile.name.isEmpty &&
-        _invoices.isEmpty &&
-        _clients.isEmpty) {
-      return;
-    }
+    if (_profile.name.isEmpty && _invoices.isEmpty && _clients.isEmpty) return;
     final payload = jsonEncode({
       'profile': _profile.toJson(),
       'invoices': _invoices.map((e) => e.toJson()).toList(),
       'clients': _clients.map((e) => e.toJson()).toList(),
     });
-    await _drive!.saveData(_enc.encrypt(payload));
+    if (isEmployeeMode && _pairing != null && _pairingEnc != null) {
+      await _drive!.saveDataByFileId(_pairing!.fileId, _pairingEnc!.encrypt(payload));
+    } else {
+      await _drive!.saveData(_enc.encrypt(payload));
+    }
   }
 
   /// Persists data to local storage and Drive in the background.
@@ -563,6 +490,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     _lastStatsPush = now;
     await VerificationService.pushStats(
       userEmail: email,
+      businessId: _kBusinessId,
       businessName: _profile.name,
       invoiceCount: _invoices.length,
       clientCount: _clients.length,
@@ -577,7 +505,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
   /// Called after every profile load so Drive data can never silently
   /// overwrite a tier that was already authoritatively confirmed.
   void _applyTierCache(SharedPreferences prefs) {
-    final stored = prefs.getString(_tierCacheKey(_activeBusinessId));
+    final stored = prefs.getString(_tierCacheKey(_kBusinessId));
     if (stored == null) return;
     final tier = SubscriptionTier.values.firstWhere(
       (e) => e.name == stored,
@@ -597,11 +525,11 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       await svc.initialize();
       final verified = await svc.checkAndSyncExpiry(
         userId,
-        _activeBusinessId,
+        _kBusinessId,
         _profile.subscriptionTier,
       );
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tierCacheKey(_activeBusinessId), verified.name);
+      await prefs.setString(_tierCacheKey(_kBusinessId), verified.name);
       if (verified != _profile.subscriptionTier) {
         _profile.subscriptionTier = verified;
         await _saveLocal();
@@ -625,15 +553,21 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       final remote = await VerificationService.fetchSubscriptionTier(email);
       if (remote == null) return;
 
+      final prefs = await SharedPreferences.getInstance();
+
+      // Per-business model: an admin upgrade (remote > current) is only applied
+      // if this business already has an explicit tier cache key — meaning it was
+      // either migrated from the old account-level tier or explicitly purchased.
+      // Newly created free businesses have no key yet and must remain free until
+      // an IAP purchase is made for them specifically.
+      // Downgrade protection: if the admin tier is lower than the current tier,
+      // only allow the downgrade if there is no active IAP subscription.
       if (remote.index < _profile.subscriptionTier.index) {
         final expiry = _profile.subscriptionExpiryDate;
-        if (expiry != null && expiry.isAfter(DateTime.now())) {
-          return;
-        }
+        if (expiry != null && expiry.isAfter(DateTime.now())) return;
       }
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tierCacheKey(_activeBusinessId), remote.name);
+      await prefs.setString(_tierCacheKey(_kBusinessId), remote.name);
       if (remote != _profile.subscriptionTier) {
         _profile.subscriptionTier = remote;
         await _saveLocal();
@@ -668,13 +602,13 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   // ── Subscription limit checks ────────────────────────────────────
 
-  /// Number of invoices created in the current calendar month across ALL businesses.
-  int get monthlyInvoiceCount =>
-      _bizMonthlyInvCount.values.fold(0, (a, b) => a + b);
-
-  /// Total clients across ALL businesses.
-  int get totalClientCount =>
-      _bizClientCount.values.fold(0, (a, b) => a + b);
+  int get monthlyInvoiceCount {
+    final now = DateTime.now();
+    return _invoices
+        .where((i) =>
+            i.invoiceDate.year == now.year && i.invoiceDate.month == now.month)
+        .length;
+  }
 
   /// Returns a [LimitInfo] if the user has hit a limit, null if they're within it.
   LimitInfo? checkInvoiceLimit() {
@@ -691,7 +625,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     final tier = _profile.subscriptionTier;
     final cap = SubscriptionLimits.clients[tier]!;
     if (cap == -1) return null;
-    if (totalClientCount >= cap) {
+    if (_clients.length >= cap) {
       return LimitInfo.numeric(LimitType.clients, cap);
     }
     return null;
@@ -731,7 +665,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
         if (userId != null) {
           final syncedTier = await firestoreService.checkAndSyncExpiry(
             userId,
-            _activeBusinessId,
+            _kBusinessId,
             _profile.subscriptionTier,
           );
           if (syncedTier != _profile.subscriptionTier) {
@@ -766,7 +700,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       
       // Save subscription with expiry to Firestore for the active business.
       if (_userEmail != null) {
-        await billing.saveSubscriptionWithExpiry(_userEmail!, tier, _activeBusinessId);
+        await billing.saveSubscriptionWithExpiry(_userEmail!, tier, _kBusinessId);
       }
 
       // Update local subscription and persist to the per-business tier cache
@@ -776,7 +710,7 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
           DateTime.now().add(const Duration(days: 365));
       await _saveLocal();
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tierCacheKey(_activeBusinessId), tier.name);
+      await prefs.setString(_tierCacheKey(_kBusinessId), tier.name);
       notifyListeners();
     } catch (e) {
       print('Error purchasing subscription: $e');
@@ -837,7 +771,6 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
       _profile.nextInvoiceNumber++;
       _invoices.insert(0, invoice);
     }
-    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     ReminderService.scheduleForInvoice(invoice, _reminderSettings)
@@ -846,7 +779,6 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> deleteInvoice(String id) async {
     _invoices.removeWhere((i) => i.id == id);
-    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     ReminderService.cancelForInvoice(id).catchError((_) {});
@@ -875,7 +807,6 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<Client> addClient(Client client) async {
     _clients.add(client);
-    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
     return client;
@@ -892,7 +823,6 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> deleteClient(String id) async {
     _clients.removeWhere((c) => c.id == id);
-    _syncActiveCounts();
     notifyListeners();
     _save().catchError((_) {});
   }
@@ -940,6 +870,74 @@ class AppProvider extends ChangeNotifier with WidgetsBindingObserver {
     for (final invoice in invoices) {
       ReminderService.scheduleForInvoice(invoice, _reminderSettings)
           .catchError((_) {});
+    }
+  }
+
+  // ── Employee pairing (owner side) ────────────────────────────────────────
+
+  /// Shares the owner's Drive data file with [employeeEmail] and returns the
+  /// pairing QR string that the employee will scan.
+  /// Must be called on the owner's account (not in employee mode).
+  Future<String> generatePairingQr(String employeeEmail) async {
+    assert(!isEmployeeMode, 'Only an owner can generate a pairing QR');
+    if (_drive == null) throw Exception('Drive not connected');
+    final keyB64 = _enc.keyBase64;
+    if (keyB64 == null) throw Exception('Encryption key not ready');
+    final fileId = await _drive!.shareDataFileWith(employeeEmail);
+    final pairing = EmployeePairing(
+      ownerEmail: _userEmail!,
+      fileId: fileId,
+      encKey: keyB64,
+    );
+    return pairing.toQrString();
+  }
+
+  /// Revokes an employee's access to the owner's Drive file.
+  Future<void> revokeEmployeeAccess(String employeeEmail) async {
+    if (_drive == null) return;
+    await _drive!.revokeDataFileAccess(employeeEmail);
+  }
+
+  // ── Employee pairing (employee side) ─────────────────────────────────────
+
+  /// Applies a scanned [pairing] and re-syncs from Drive using the owner's file.
+  /// The employee's own key and data are preserved — they're stored under
+  /// un-prefixed keys and will be available when they switch back.
+  ///
+  /// Returns null on success, or a non-null error string if the sync failed.
+  /// The pairing is always persisted so the employee doesn't need to re-scan
+  /// after fixing an auth/scope issue.
+  Future<String?> applyPairing(EmployeePairing pairing) async {
+    _pairing = pairing;
+    _pairingEnc = EncryptionService.withKey(pairing.encKey);
+    await PairingService.save(pairing);
+    // Load from emp_-prefixed cache so in-memory state reflects the owner's
+    // previously cached data (empty on first connection) rather than the
+    // employee's own data that was in memory before pairing.
+    await _loadLocal();
+    notifyListeners();
+    if (_drive != null) {
+      await _syncFromDrive();
+    }
+    // Surface any sync error so the caller can guide the user.
+    return _lastSyncError;
+  }
+
+  /// Disconnects from the owner's business and restores the employee's own data.
+  Future<void> disconnectPairing() async {
+    _pairing = null;
+    _pairingEnc = null;
+    await PairingService.clear();
+    // Clear any emp_-prefixed cached data.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('emp_profile_$_kBusinessId');
+    await prefs.remove('emp_invoices_$_kBusinessId');
+    await prefs.remove('emp_clients_$_kBusinessId');
+    // Restore the employee's own data.
+    await _loadLocal();
+    notifyListeners();
+    if (_drive != null) {
+      await _syncFromDrive();
     }
   }
 

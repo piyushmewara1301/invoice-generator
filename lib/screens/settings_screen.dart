@@ -16,8 +16,11 @@ import 'settings/reminder_settings_screen.dart';
 import 'gst_report_screen.dart';
 import 'settings/verification_screen.dart';
 import 'employees/employees_screen.dart';
-import 'businesses/businesses_screen.dart';
+import 'employees/scan_pairing_screen.dart';
+import '../models/employee.dart';
+import '../providers/locale_provider.dart';
 import '../widgets/paywall_sheet.dart';
+import '../l10n/app_localizations.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -59,10 +62,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
-    final profile = context.watch<AppProvider>().profile;
+    final appProvider = context.watch<AppProvider>();
+    final profile = appProvider.profile;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(AppLocalizations.of(context)!.settings)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -143,16 +147,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             _NavItem(
-              icon: Icons.store_outlined,
-              color: const Color(0xFF7E22CE),
-              title: 'My Businesses',
-              subtitle: _businessSubtitle(profile),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BusinessesScreen()),
-              ),
-            ),
-            _NavItem(
               icon: Icons.group_outlined,
               color: const Color(0xFF0F766E),
               title: 'Manage Team',
@@ -165,6 +159,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+            if (!kIsWeb)
+              _NavItem(
+                icon: appProvider.isEmployeeMode
+                    ? Icons.link
+                    : Icons.qr_code_scanner,
+                color: const Color(0xFF0369A1),
+                title: 'Connect to Business',
+                subtitle: appProvider.isEmployeeMode
+                    ? 'Connected · ${appProvider.activePairing!.ownerEmail}'
+                    : 'Scan a QR code from your employer',
+                onTap: appProvider.isEmployeeMode
+                    ? _disconnectFromBusiness
+                    : _connectToBusiness,
+              ),
             _NavItem(
               icon: Icons.chat_outlined,
               color: const Color(0xFF0277BD),
@@ -190,6 +198,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(
                     builder: (_) => const ReminderSettingsScreen()),
               ),
+            ),
+            _NavItem(
+              icon: Icons.point_of_sale_rounded,
+              color: const Color(0xFF0F766E),
+              title: 'Point of Sale',
+              subtitle: profile.posEnabled
+                  ? 'Enabled · Quick billing from catalog'
+                  : 'Disabled · Tap to enable quick billing',
+              onTap: () => _togglePos(context, profile),
+              trailing: Switch(
+                value: profile.posEnabled,
+                onChanged: (_) => _togglePos(context, profile),
+                activeThumbColor: AppTheme.primary,
+              ),
+            ),
+            _NavItem(
+              icon: Icons.language_outlined,
+              color: const Color(0xFF6A1B9A),
+              title: AppLocalizations.of(context)!.language,
+              subtitle: LocaleProvider.localeNames[
+                  context.watch<LocaleProvider>().locale.languageCode] ??
+                  'English',
+              onTap: () => _showLanguagePicker(context),
             ),
             _NavItem(
               icon: _verificationIcon(profile.verificationStatus),
@@ -218,6 +249,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ]),
 
+          // Employee mode: active connection banner
+          if (appProvider.isEmployeeMode) ...[
+            const SizedBox(height: 16),
+            _EmployeeModeBanner(
+              pairing: appProvider.activePairing!,
+              onDisconnect: _disconnectFromBusiness,
+            ),
+          ],
+
+          // Team membership: user is also an employee of another business
+          if (appProvider.isAlsoEmployee) ...[
+            const SizedBox(height: 16),
+            _TeamMembershipCard(
+              ownerEmail: appProvider.employeeOwnerEmail!,
+              employee: appProvider.employeeRecord,
+              isConnected: appProvider.isEmployeeMode,
+              onConnect: _connectToBusiness,
+              onDisconnect: _disconnectFromBusiness,
+            ),
+          ],
+
           const SizedBox(height: 32),
           Center(
             child: Text(
@@ -231,13 +283,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
-  }
-
-  String _businessSubtitle(BusinessProfile profile) {
-    final provider = context.read<AppProvider>();
-    final count = provider.businesses.length;
-    if (count <= 1) return 'Run multiple businesses from one account';
-    return '$count businesses · tap to switch or add';
   }
 
   String _gstSubtitle(BusinessProfile profile) {
@@ -555,6 +600,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _connectToBusiness() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const ScanPairingScreen()),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Now viewing the business data. Tap Disconnect to switch back.'),
+      ));
+    }
+  }
+
+  Future<void> _disconnectFromBusiness() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Disconnect?'),
+        content: const Text(
+            'You will stop viewing the business data and return to your own account.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Disconnect'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      await context.read<AppProvider>().disconnectPairing();
+    }
+  }
+
   Future<void> _signOut(BuildContext context, AuthService auth) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -579,6 +660,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!context.mounted) return;
     await auth.signOut();
   }
+
+  void _togglePos(BuildContext context, BusinessProfile profile) {
+    final updated = BusinessProfile(
+      name: profile.name,
+      email: profile.email,
+      phone: profile.phone,
+      address: profile.address,
+      city: profile.city,
+      state: profile.state,
+      country: profile.country,
+      postalCode: profile.postalCode,
+      gstin: profile.gstin,
+      website: profile.website,
+      currency: profile.currency,
+      invoicePrefix: profile.invoicePrefix,
+      nextInvoiceNumber: profile.nextInvoiceNumber,
+      logoBase64: profile.logoBase64,
+      headerFields: profile.headerFields,
+      defaultTemplate: profile.defaultTemplate,
+      themeColorHex: profile.themeColorHex,
+      defaultTaxPercent: profile.defaultTaxPercent,
+      showQuantity: profile.showQuantity,
+      itemLabel: profile.itemLabel,
+      paymentMethods: profile.paymentMethods,
+      serviceItems: profile.serviceItems,
+      verificationStatus: profile.verificationStatus,
+      verificationNotes: profile.verificationNotes,
+      verificationSubmittedAt: profile.verificationSubmittedAt,
+      subscriptionTier: profile.subscriptionTier,
+      subscriptionExpiryDate: profile.subscriptionExpiryDate,
+      subscriptionLastCheckedDate: profile.subscriptionLastCheckedDate,
+      signatureBase64: profile.signatureBase64,
+      showPaymentDetailsOnInvoice: profile.showPaymentDetailsOnInvoice,
+      defaultPlaceOfSupply: profile.defaultPlaceOfSupply,
+      defaultReverseCharge: profile.defaultReverseCharge,
+      isCompositionDealer: profile.isCompositionDealer,
+      showThankYouMessage: profile.showThankYouMessage,
+      thankYouMessage: profile.thankYouMessage,
+      showClientAcknowledgment: profile.showClientAcknowledgment,
+      posEnabled: !profile.posEnabled,
+    );
+    context.read<AppProvider>().updateProfile(updated);
+  }
+
+  void _showLanguagePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => _LanguagePickerSheet(
+        currentLocale: context.read<LocaleProvider>().locale,
+        onSelect: (locale) {
+          context.read<LocaleProvider>().setLocale(locale);
+          Navigator.pop(ctx);
+        },
+      ),
+    );
+  }
 }
 
 class _NavItem {
@@ -597,4 +737,278 @@ class _NavItem {
     required this.onTap,
     this.trailing,
   });
+}
+
+// ── Employee mode active banner ───────────────────────────────────────────────
+
+class _EmployeeModeBanner extends StatelessWidget {
+  final dynamic pairing; // EmployeePairing
+  final VoidCallback onDisconnect;
+
+  const _EmployeeModeBanner({
+    required this.pairing,
+    required this.onDisconnect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF0369A1);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.sync_alt, size: 18, color: accent),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Viewing business data',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: accent),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  pairing.ownerEmail as String,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppTheme.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: onDisconnect,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: accent,
+              side: BorderSide(color: accent.withValues(alpha: 0.5)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text('Disconnect', style: TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Language picker sheet ─────────────────────────────────────────────────────
+
+class _LanguagePickerSheet extends StatelessWidget {
+  final Locale currentLocale;
+  final void Function(Locale) onSelect;
+
+  const _LanguagePickerSheet({
+    required this.currentLocale,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+              child: Text(
+                AppLocalizations.of(context)!.selectLanguage,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary,
+                ),
+              ),
+            ),
+            const Divider(height: 1),
+            ...LocaleProvider.localeNames.entries.map((entry) {
+              final isSelected = currentLocale.languageCode == entry.key;
+              return ListTile(
+                title: Text(entry.value),
+                leading: isSelected
+                    ? const Icon(Icons.check_circle_rounded,
+                        color: AppTheme.primary)
+                    : const Icon(Icons.radio_button_unchecked_rounded,
+                        color: AppTheme.textSecondary),
+                onTap: () => onSelect(Locale(entry.key)),            
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Team membership card ──────────────────────────────────────────────────────
+
+class _TeamMembershipCard extends StatelessWidget {
+  final String ownerEmail;
+  final Employee? employee;
+  final bool isConnected;
+  final VoidCallback onConnect;
+  final VoidCallback onDisconnect;
+
+  const _TeamMembershipCard({
+    required this.ownerEmail,
+    required this.employee,
+    required this.isConnected,
+    required this.onConnect,
+    required this.onDisconnect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFF0F766E);
+
+    final roleName = employee?.role.displayName ?? 'Team Member';
+    final isActive = employee?.isActive ?? true;
+    final perms = employee?.effectivePermissions ?? const <AppPermission>{};
+
+    // Show up to 4 permission labels
+    final permLabels = perms.take(4).map((p) => p.displayName).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.badge_outlined, size: 16, color: accent),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text(
+                  'Team Membership',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: accent),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? const Color(0xFF16A34A).withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isActive
+                        ? const Color(0xFF16A34A).withValues(alpha: 0.4)
+                        : Colors.grey.withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Text(
+                  isActive ? 'Active' : 'Inactive',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isActive
+                        ? const Color(0xFF16A34A)
+                        : AppTheme.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'You are a $roleName at another business.',
+            style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            ownerEmail,
+            style: const TextStyle(
+                fontSize: 11, color: AppTheme.textSecondary),
+          ),
+          if (permLabels.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 5,
+              runSpacing: 4,
+              children: permLabels
+                  .map((l) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: accent.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(l,
+                            style: const TextStyle(
+                                fontSize: 10, color: accent)),
+                      ))
+                  .toList(),
+            ),
+          ],
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 38,
+            child: isConnected
+                ? OutlinedButton.icon(
+                    onPressed: onDisconnect,
+                    icon: const Icon(Icons.link_off, size: 16),
+                    label: const Text('Disconnect from business',
+                        style: TextStyle(fontSize: 13)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.error,
+                      side: BorderSide(
+                          color: AppTheme.error.withValues(alpha: 0.5)),
+                    ),
+                  )
+                : FilledButton.icon(
+                    onPressed: onConnect,
+                    icon: const Icon(Icons.qr_code_scanner, size: 16),
+                    label: const Text('Connect — Scan QR',
+                        style: TextStyle(fontSize: 13)),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: accent,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
 }

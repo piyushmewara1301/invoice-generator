@@ -198,7 +198,6 @@ class _PaywallSheet extends StatelessWidget {
       case LimitType.messageTemplates:   return Icons.chat_outlined;
       case LimitType.gstReports:         return Icons.summarize_outlined;
       case LimitType.manageTeam:         return Icons.group_outlined;
-      case LimitType.multipleBusinesses: return Icons.store_outlined;
     }
   }
 

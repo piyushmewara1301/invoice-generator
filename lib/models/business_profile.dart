@@ -66,6 +66,7 @@ class BusinessProfile {
   bool showThankYouMessage;
   String thankYouMessage;
   bool showClientAcknowledgment;
+  bool posEnabled;
 
   BusinessProfile({
     this.name = '',
@@ -104,12 +105,34 @@ class BusinessProfile {
     this.showThankYouMessage = true,
     this.thankYouMessage = 'Thank you for your business!',
     this.showClientAcknowledgment = true,
+    this.posEnabled = false,
   })  : headerFields = headerFields ?? {kHeaderLogo, kHeaderName, kHeaderAddress},
         paymentMethods = paymentMethods ?? [],
         serviceItems = serviceItems ?? [];
 
-  List<PaymentMethod> get allPaymentMethods =>
-      [PaymentMethod.defaultCash, ...paymentMethods];
+  List<PaymentMethod> get allPaymentMethods {
+    // Built-in generic options always available; suppress a built-in if the user
+    // has already configured a specific method of the same type.
+    final configuredTypes = paymentMethods.map((m) => m.type).toSet();
+    final builtIns = [
+      PaymentMethod.defaultCash,
+      if (!configuredTypes.contains(PaymentMethodType.upi))
+        PaymentMethod(
+            id: '__upi__', name: 'UPI', type: PaymentMethodType.upi),
+      if (!configuredTypes.contains(PaymentMethodType.bankAccount))
+        PaymentMethod(
+            id: '__bank__',
+            name: 'Bank Transfer',
+            type: PaymentMethodType.bankAccount),
+      if (!configuredTypes.contains(PaymentMethodType.other)) ...[
+        PaymentMethod(
+            id: '__cheque__', name: 'Cheque', type: PaymentMethodType.other),
+        PaymentMethod(
+            id: '__other__', name: 'Other', type: PaymentMethodType.other),
+      ],
+    ];
+    return [...builtIns, ...paymentMethods];
+  }
 
   bool get isGstRegistered => gstin != null && gstin!.isNotEmpty;
 
@@ -153,6 +176,7 @@ class BusinessProfile {
         'showThankYouMessage': showThankYouMessage,
         'thankYouMessage': thankYouMessage,
         'showClientAcknowledgment': showClientAcknowledgment,
+        'posEnabled': posEnabled,
       };
 
   factory BusinessProfile.fromJson(Map<String, dynamic> json) =>
@@ -213,6 +237,7 @@ class BusinessProfile {
         showThankYouMessage: json['showThankYouMessage'] as bool? ?? true,
         thankYouMessage: json['thankYouMessage'] as String? ?? 'Thank you for your business!',
         showClientAcknowledgment: json['showClientAcknowledgment'] as bool? ?? true,
+        posEnabled: json['posEnabled'] as bool? ?? false,
       );
 }
 

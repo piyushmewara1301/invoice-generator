@@ -6,6 +6,7 @@ class LineItem {
   double discountPercent;
   String unit;
   String? hsnSac; // HSN (goods) or SAC (services) code — required for GST invoices
+  String? category;
 
   LineItem({
     required this.description,
@@ -15,6 +16,7 @@ class LineItem {
     this.discountPercent = 0,
     this.unit = 'pcs',
     this.hsnSac,
+    this.category,
   });
 
   double get subtotal => quantity * rate;
@@ -31,6 +33,7 @@ class LineItem {
         'discountPercent': discountPercent,
         'unit': unit,
         'hsnSac': hsnSac,
+        'category': category,
       };
 
   LineItem copy() => LineItem(
@@ -41,6 +44,7 @@ class LineItem {
         discountPercent: discountPercent,
         unit: unit,
         hsnSac: hsnSac,
+        category: category,
       );
 
   factory LineItem.fromJson(Map<String, dynamic> json) => LineItem(
@@ -51,5 +55,6 @@ class LineItem {
         discountPercent: (json['discountPercent'] as num).toDouble(),
         unit: json['unit'] ?? 'pcs',
         hsnSac: json['hsnSac'] as String?,
+        category: json['category'] as String?,
       );
 }

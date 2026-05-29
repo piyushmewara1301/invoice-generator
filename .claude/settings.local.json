@@ -53,7 +53,15 @@
       "Bash(/Users/piyushmewara/Documents/flutter/flutter/bin/flutter pub *)",
       "WebFetch(domain:www.zoho.com)",
       "Bash(/Users/piyushmewara/development/flutter/bin/flutter analyze *)",
-      "Bash(/Users/piyushmewara/flutter/bin/flutter analyze *)"
+      "Bash(/Users/piyushmewara/flutter/bin/flutter analyze *)",
+      "Bash(/Users/piyushmewara/fvm/default/bin/flutter analyze *)",
+      "Bash(pod repo *)",
+      "Bash(find /usr/local /usr/bin /opt /Users/piyushmewara -name \"pod\" -type f 2>/dev/null | head -5)",
+      "Read(//usr/local/**)",
+      "Bash(/opt/homebrew/Cellar/cocoapods/1.16.2_2/bin/pod repo *)",
+      "Bash(/opt/homebrew/Cellar/cocoapods/1.16.2_2/bin/pod install *)",
+      "Bash(/Users/piyushmewara/Documents/flutter/flutter/bin/dart analyze *)",
+      "Bash(/Users/piyushmewara/Documents/flutter/flutter/bin/flutter gen-l10n *)"
     ],
     "additionalDirectories": [
       "/Users/piyushmewara/Library/Developer/Xcode/DerivedData"

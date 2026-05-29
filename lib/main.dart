@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/app_provider.dart';
+import 'providers/locale_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -22,33 +24,32 @@ import 'widgets/keyboard_dismisser.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   GoogleFonts.config.allowRuntimeFetching = false;
-  if (!kIsWeb) await AdService.instance.initialize();
-  if (!kIsWeb) await ReminderService.initialize();
-  if (!kIsWeb) await BillingService().initialize();
 
   final authService = AuthService();
   final enc = EncryptionService();
-
-  // Try to load the key from device secure storage so local data
-  // (SharedPreferences) can be decrypted before Drive sync.
-  await enc.tryLoadLocalKey();
-
   final appProvider = AppProvider(enc);
+  final localeProvider = LocaleProvider();
+  await localeProvider.init();
 
-  // Load local cache first so the app feels instant.
-  await appProvider.load();
-
-  // Try silent sign-in (restores a previous session automatically).
-  await authService.init();
-
-  if (authService.isSignedIn) {
-    final httpClient = await authService.getAuthClient();
-    if (httpClient != null) {
-      // Key management + Drive sync are both handled inside attachDriveAndSync.
-      await appProvider.attachDriveAndSync(
-        DriveService(httpClient),
-        userEmail: authService.user?.email,
-      );
+  if (kIsWeb) {
+    // On web, run the app immediately so the landing page renders at once.
+    // Auth + Drive sync happen in the background and update the UI reactively.
+    _webInit(authService, enc, appProvider);
+  } else {
+    await AdService.instance.initialize();
+    await ReminderService.initialize();
+    await BillingService().initialize();
+    await enc.tryLoadLocalKey();
+    await appProvider.load();
+    await authService.init();
+    if (authService.isSignedIn) {
+      final httpClient = await authService.getAuthClient();
+      if (httpClient != null) {
+        await appProvider.attachDriveAndSync(
+          DriveService(httpClient),
+          userEmail: authService.user?.email,
+        );
+      }
     }
   }
 
@@ -57,6 +58,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider.value(value: appProvider),
+        ChangeNotifierProvider.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => ExchangeRateService()),
       ],
       child: const InvoiceApp(),
@@ -64,15 +66,34 @@ void main() async {
   );
 }
 
+/// Web-only background initializer. Runs after [runApp] so the landing page
+/// renders immediately. Auth state changes propagate via [ChangeNotifier].
+Future<void> _webInit(
+  AuthService authService,
+  EncryptionService enc,
+  AppProvider appProvider,
+) async {
+  await enc.tryLoadLocalKey();
+  await appProvider.load();
+  // Drive attach is handled by _AuthGate once auth resolves.
+  await authService.init();
+}
+
 class InvoiceApp extends StatelessWidget {
   const InvoiceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final locale = context.watch<LocaleProvider>().locale;
+    print('>>> MaterialApp locale: ${locale.languageCode}');
+    print('>>> Supported: ${AppLocalizations.supportedLocales}');
     return MaterialApp(
-      title: 'Invoice Generator',
+      title: 'BillBook',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
+      locale: locale, 
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: const KeyboardDismisser(child: _AuthGate()),
       routes: {
         '/plans': (_) => const KeyboardDismisser(child: PlanScreen()),
@@ -118,6 +139,20 @@ class _AuthGateState extends State<_AuthGate> {
         });
         return;
       }
+    } else if (appProvider.isEmployeeMode) {
+      // Employee mode needs the full drive scope to read/write the owner's
+      // shared file. This is a no-op if the scope is already granted; it
+      // shows a consent screen only if the token was issued with the older
+      // drive.file scope (existing users must approve once).
+      final granted = await auth.requestDriveScope();
+      if (!mounted) return;
+      if (!granted) {
+        setState(() {
+          _drivePending = false;
+          _driveAttachAttempted = true;
+        });
+        return;
+      }
     }
 
     final httpClient = await auth.getAuthClient();
@@ -141,9 +176,12 @@ class _AuthGateState extends State<_AuthGate> {
     final auth = context.watch<AuthService>();
 
     if (auth.initializing) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      // On web, show the landing page immediately while auth checks silently
+      // in the background — no blank screen or spinner for first-time visitors.
+      // On mobile, auth resolves from local storage, so a brief spinner is fine.
+      return kIsWeb
+          ? const LandingScreen()
+          : const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!auth.isSignedIn) {

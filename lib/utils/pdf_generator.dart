@@ -3520,9 +3520,9 @@ class PdfGenerator {
 
         // ── Letterhead header box: Logo (left) | separator | Business info (right) ──
         pw.Container(
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
-          ),
+          // decoration: pw.BoxDecoration(
+          //   border: pw.Border.all(color: PdfColors.grey700, width: 0.5),
+          // ),
           child: pw.SizedBox(
             height: 82,
             child: pw.Row(
@@ -3538,11 +3538,11 @@ class PdfGenerator {
                         )
                       : pw.SizedBox(),
                 ),
-                // Vertical separator
-                pw.Container(
-                  width: 0.5,
-                  color: PdfColors.grey700,
-                ),
+                // // Vertical separator
+                // pw.Container(
+                //   width: 0.5,
+                //   color: PdfColors.grey700,
+                // ),
                 // Business info on right
                 pw.Expanded(
                   child: pw.Padding(

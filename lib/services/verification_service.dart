@@ -68,8 +68,8 @@ class VerificationService {
   static String _verDoc(String email) =>
       '$_base/verifications/${Uri.encodeComponent(email)}?key=${FirebaseConfig.apiKey}';
 
-  static String _statsDoc(String email) =>
-      '$_base/stats/${Uri.encodeComponent(email)}?key=${FirebaseConfig.apiKey}';
+  static String _statsDoc(String email, String businessId) =>
+      '$_base/stats/${Uri.encodeComponent(email)}__${Uri.encodeComponent(businessId)}?key=${FirebaseConfig.apiKey}';
 
   // ── Verification request ───────────────────────────────────────────────────
 
@@ -161,8 +161,11 @@ class VerificationService {
   // ── Stats push ─────────────────────────────────────────────────────────────
 
   /// Pushes anonymised usage stats so the admin dashboard can display them.
+  /// Each (email, businessId) pair gets its own stats document so businesses
+  /// don't overwrite each other's records.
   static Future<void> pushStats({
     required String userEmail,
+    required String businessId,
     required String businessName,
     required int invoiceCount,
     required int clientCount,
@@ -171,15 +174,16 @@ class VerificationService {
     try {
       final body = jsonEncode({
         'fields': {
-          'userEmail': _strField(userEmail),
-          'businessName': _strField(businessName),
-          'invoiceCount': _intField(invoiceCount),
-          'clientCount': _intField(clientCount),
-          'lastActive': _tsField(DateTime.now()),
+          'userEmail':     _strField(userEmail),
+          'businessId':    _strField(businessId),
+          'businessName':  _strField(businessName),
+          'invoiceCount':  _intField(invoiceCount),
+          'clientCount':   _intField(clientCount),
+          'lastActive':    _tsField(DateTime.now()),
         }
       });
       await http
-          .patch(Uri.parse(_statsDoc(userEmail)),
+          .patch(Uri.parse(_statsDoc(userEmail, businessId)),
               headers: {'Content-Type': 'application/json'}, body: body)
           .timeout(const Duration(seconds: 10));
     } catch (_) {

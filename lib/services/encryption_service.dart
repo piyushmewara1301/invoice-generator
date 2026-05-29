@@ -93,6 +93,16 @@ class EncryptionService {
     }
   }
 
+  /// Creates an [EncryptionService] pre-loaded with [keyB64].
+  /// Does NOT touch secure storage — used for employee mode where the key
+  /// came from the owner's QR code and must never overwrite the employee's
+  /// own key.
+  static EncryptionService withKey(String keyB64) {
+    final svc = EncryptionService();
+    svc._key = enc.Key(Uint8List.fromList(base64Decode(keyB64)));
+    return svc;
+  }
+
   /// Removes the key from secure storage (called on sign-out so that
   /// encrypted local data cannot be read without re-authenticating).
   Future<void> clearKey() async {
