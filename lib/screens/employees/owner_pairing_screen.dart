@@ -78,8 +78,8 @@ class _OwnerPairingScreenState extends State<OwnerPairingScreen> {
               const SizedBox(height: 8),
               Text(
                 widget.employeeEmail,
-                style: const TextStyle(
-                    fontSize: 13, color: AppTheme.textSecondary),
+                style: TextStyle(
+                    fontSize: 13, color: AppTheme.subtext(context)),
               ),
               const SizedBox(height: 24),
 
@@ -126,9 +126,9 @@ class _QrBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -214,8 +214,8 @@ class _Step extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(text,
-              style: const TextStyle(
-                  fontSize: 13, color: AppTheme.textPrimary)),
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.onCard(context))),
         ),
       ],
     );
@@ -239,7 +239,7 @@ class _ErrorBox extends StatelessWidget {
           const SizedBox(height: 12),
           Text(error,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppTheme.textSecondary)),
+              style: TextStyle(color: AppTheme.subtext(context))),
           const SizedBox(height: 12),
           ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
         ],

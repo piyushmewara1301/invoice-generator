@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/business_profile.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/paywall_sheet.dart';
 
 // ─── Palette for category colour dots ────────────────────────────────────────
 const _kCategoryColors = [
@@ -49,28 +50,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
   Future<void> _save() async {
     final provider = context.read<AppProvider>();
     final cur = provider.profile;
-    await provider.updateProfile(BusinessProfile(
-      name: cur.name,
-      email: cur.email,
-      phone: cur.phone,
-      address: cur.address,
-      city: cur.city,
-      state: cur.state,
-      country: cur.country,
-      postalCode: cur.postalCode,
-      gstin: cur.gstin,
-      website: cur.website,
-      logoBase64: cur.logoBase64,
-      headerFields: cur.headerFields,
-      currency: cur.currency,
-      invoicePrefix: cur.invoicePrefix,
-      nextInvoiceNumber: cur.nextInvoiceNumber,
-      defaultTemplate: cur.defaultTemplate,
-      themeColorHex: cur.themeColorHex,
-      defaultTaxPercent: cur.defaultTaxPercent,
-      showQuantity: cur.showQuantity,
+    await provider.updateProfile(cur.copyWith(
       itemLabel: _itemLabel,
-      paymentMethods: cur.paymentMethods,
       serviceItems: _items,
     ));
     if (mounted) {
@@ -85,6 +66,12 @@ class _ServicesScreenState extends State<ServicesScreen> {
   // ── Item CRUD ────────────────────────────────────────────────────────────
 
   Future<void> _add({String? presetCategory}) async {
+    final limitInfo = context.read<AppProvider>().checkServiceItemLimit();
+    if (limitInfo != null) {
+      final upgrade = await showPaywallSheet(context, limitInfo);
+      if (upgrade && mounted) Navigator.pushNamed(context, '/plans');
+      return;
+    }
     final result = await _showForm(presetCategory: presetCategory);
     if (result != null) {
       setState(() => _items.add(result));
@@ -108,7 +95,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     return showModalBottomSheet<ServiceItem>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.card(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _ServiceItemForm(
@@ -245,7 +232,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
           if (uncategorized.isNotEmpty) ...[
             _CategorySection(
               categoryName: _kUncategorized,
-              color: AppTheme.textSecondary,
+              color: AppTheme.subtext(context),
               items: uncategorized,
               itemLabel: _itemLabel,
               collapsed: _collapsed.contains(_kUncategorized),
@@ -273,24 +260,24 @@ class _ServicesScreenState extends State<ServicesScreen> {
   Widget _labelToggleCard() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How do you call them in invoices?',
+          Text('How do you call them in invoices?',
               style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          const Text(
+                  color: AppTheme.onCard(context))),
+          SizedBox(height: 4),
+          Text(
               'This label appears on line items in invoices and buttons.',
               style:
-                  TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                  TextStyle(fontSize: 12, color: AppTheme.subtext(context))),
           const SizedBox(height: 12),
           Row(
             children: ['Item', 'Service'].map((label) {
@@ -322,18 +309,18 @@ class _ServicesScreenState extends State<ServicesScreen> {
             Icon(Icons.inventory_2_outlined,
                 size: 52,
                 color: AppTheme.textSecondary.withValues(alpha: 0.35)),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Text('No ${_itemLabel.toLowerCase()}s yet',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary)),
-            const SizedBox(height: 6),
+                    color: AppTheme.subtext(context))),
+            SizedBox(height: 6),
             Text(
               'Tap + to add your first ${_itemLabel.toLowerCase()},\nor "Add Category" to organise from the start.',
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                  fontSize: 13, color: AppTheme.textSecondary),
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.subtext(context)),
             ),
           ],
         ),
@@ -371,9 +358,9 @@ class _CategorySection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         children: [
@@ -406,8 +393,8 @@ class _CategorySection extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
                           color: color == AppTheme.textSecondary
-                              ? AppTheme.textSecondary
-                              : AppTheme.textPrimary),
+                              ? AppTheme.subtext(context)
+                              : AppTheme.onCard(context)),
                     ),
                   ),
                   Container(
@@ -438,13 +425,13 @@ class _CategorySection extends StatelessWidget {
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   Icon(
                     collapsed
                         ? Icons.keyboard_arrow_down
                         : Icons.keyboard_arrow_up,
                     size: 18,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                   ),
                 ],
               ),
@@ -462,14 +449,14 @@ class _CategorySection extends StatelessWidget {
                     children: [
                       Icon(Icons.receipt_long_outlined,
                           size: 32,
-                          color: AppTheme.textSecondary
+                          color: AppTheme.subtext(context)
                               .withValues(alpha: 0.3)),
-                      const SizedBox(height: 8),
+                      SizedBox(height: 8),
                       Text(
                         'No ${itemLabel.toLowerCase()}s in this category',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.textSecondary),
+                            color: AppTheme.subtext(context)),
                       ),
                     ],
                   ),
@@ -524,21 +511,30 @@ class _ItemTile extends StatelessWidget {
       title: Text(item.name,
           style: const TextStyle(
               fontSize: 13, fontWeight: FontWeight.w600)),
-      subtitle: parts.isNotEmpty
-          ? Text(
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (parts.isNotEmpty)
+            Text(
               parts.join(' · '),
-              style: const TextStyle(
-                  fontSize: 11, color: AppTheme.textSecondary),
+              style: TextStyle(
+                  fontSize: 11, color: AppTheme.subtext(context)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-            )
-          : null,
+            ),
+          if (item.isTrackingStock) ...[
+            const SizedBox(height: 4),
+            _StockBadge(item: item),
+          ],
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined,
-                size: 18, color: AppTheme.textSecondary),
+            icon: Icon(Icons.edit_outlined,
+                size: 18, color: AppTheme.subtext(context)),
             onPressed: onEdit,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -550,6 +546,53 @@ class _ItemTile extends StatelessWidget {
             onPressed: onDelete,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Stock badge ──────────────────────────────────────────────────────────────
+
+class _StockBadge extends StatelessWidget {
+  final ServiceItem item;
+  const _StockBadge({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final isLow = item.isLowStock;
+    final qty = item.quantityOnHand!;
+    final bgColor = isLow
+        ? AppTheme.error.withValues(alpha: 0.12)
+        : AppTheme.textSecondary.withValues(alpha: 0.1);
+    final fgColor = isLow ? AppTheme.error : AppTheme.textSecondary;
+    final label = isLow
+        ? '${qty % 1 == 0 ? qty.toInt() : qty} · Low Stock'
+        : '${qty % 1 == 0 ? qty.toInt() : qty} in stock';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isLow ? Icons.warning_amber_rounded : Icons.inventory_2_outlined,
+            size: 10,
+            color: fgColor,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: fgColor,
+            ),
           ),
         ],
       ),
@@ -585,6 +628,9 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
   late TextEditingController _taxCtrl;
   late TextEditingController _unitCtrl;
   late TextEditingController _categoryCtrl;
+  late TextEditingController _qtyCtrl;
+  late TextEditingController _thresholdCtrl;
+  bool _trackStock = false;
   final _formKey = GlobalKey<FormState>();
 
   @override
@@ -602,6 +648,11 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
     _unitCtrl = TextEditingController(text: s?.unit ?? '');
     _categoryCtrl = TextEditingController(
         text: s?.category ?? widget.presetCategory ?? '');
+    _trackStock = s?.isTrackingStock ?? false;
+    _qtyCtrl = TextEditingController(
+        text: s?.quantityOnHand?.toString() ?? '');
+    _thresholdCtrl = TextEditingController(
+        text: s?.lowStockThreshold?.toString() ?? '');
   }
 
   @override
@@ -612,7 +663,9 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
       _rateCtrl,
       _taxCtrl,
       _unitCtrl,
-      _categoryCtrl
+      _categoryCtrl,
+      _qtyCtrl,
+      _thresholdCtrl,
     ]) {
       c.dispose();
     }
@@ -637,6 +690,11 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
         unit:
             _unitCtrl.text.trim().isEmpty ? null : _unitCtrl.text.trim(),
         category: cat.isEmpty ? null : cat,
+        quantityOnHand:
+            _trackStock ? double.tryParse(_qtyCtrl.text) : null,
+        lowStockThreshold: _trackStock
+            ? double.tryParse(_thresholdCtrl.text)
+            : null,
       ),
     );
   }
@@ -758,9 +816,9 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
                     prefixIcon:
                         const Icon(Icons.label_outline, size: 18),
                     suffixIcon: suggestions.isNotEmpty
-                        ? const Icon(Icons.expand_more,
+                        ? Icon(Icons.expand_more,
                             size: 18,
-                            color: AppTheme.textSecondary)
+                            color: AppTheme.subtext(context))
                         : null,
                   ),
                 );
@@ -832,6 +890,59 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
                 return null;
               },
             ),
+            const SizedBox(height: 16),
+
+            // ── Inventory / Stock tracking ────────────────────────────
+            Container(
+              decoration: BoxDecoration(
+                color: AppTheme.surface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.outline(context)),
+              ),
+              child: SwitchListTile(
+                title: const Text('Track Stock / Inventory',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'Monitor quantity on hand for this item',
+                    style: TextStyle(fontSize: 11)),
+                value: _trackStock,
+                activeThumbColor: AppTheme.primary,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12),
+                onChanged: (v) => setState(() => _trackStock = v),
+              ),
+            ),
+            if (_trackStock) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _qtyCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity on Hand',
+                        hintText: '0',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _thresholdCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Low Stock Alert Threshold',
+                        hintText: 'e.g. 5',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _submit,

@@ -295,11 +295,11 @@ class _ImportInvoicesScreenState extends State<ImportInvoicesScreen> {
     ];
     return ExpansionTile(
       tilePadding: EdgeInsets.zero,
-      title: const Text('Column guide',
+      title: Text('Column guide',
           style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textSecondary)),
+              color: AppTheme.subtext(context))),
       childrenPadding: const EdgeInsets.only(bottom: 8),
       children: cols
           .map((c) => Padding(
@@ -307,14 +307,14 @@ class _ImportInvoicesScreenState extends State<ImportInvoicesScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.circle, size: 5,
-                        color: AppTheme.textSecondary),
-                    const SizedBox(width: 8),
+                    Icon(Icons.circle, size: 5,
+                        color: AppTheme.subtext(context)),
+                    SizedBox(width: 8),
                     Expanded(
                       child: RichText(
                         text: TextSpan(
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textPrimary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppTheme.onCard(context)),
                           children: [
                             TextSpan(
                                 text: '${c.$1}: ',
@@ -353,9 +353,9 @@ class _StepCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,10 +384,10 @@ class _StepCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(subtitle,
-              style: const TextStyle(
-                  fontSize: 12, color: AppTheme.textSecondary)),
+              style: TextStyle(
+                  fontSize: 12, color: AppTheme.subtext(context))),
           const SizedBox(height: 14),
           child,
         ],
@@ -405,8 +405,8 @@ class _PreviewTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (preview.rows.isEmpty) {
-      return const Text('No data rows found.',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13));
+      return Text('No data rows found.',
+          style: TextStyle(color: AppTheme.subtext(context), fontSize: 13));
     }
 
     return ClipRRect(
@@ -419,30 +419,29 @@ class _PreviewTable extends StatelessWidget {
           3: FlexColumnWidth(2),    // total / error
         },
         border: TableBorder.all(
-          color: AppTheme.divider,
+          color: AppTheme.outline(context),
           borderRadius: BorderRadius.circular(8),
         ),
         children: [
           // Header row
           TableRow(
-            decoration: const BoxDecoration(color: Color(0xFFF5F5F5)),
+            decoration: BoxDecoration(color: AppTheme.isDark(context) ? AppTheme.darkDivider : const Color(0xFFF1F5F9)),
             children: [
-              _th('#'),
-              _th('Invoice No'),
-              _th('Client / Error'),
-              _th('Total'),
+              _th(context, '#'),
+              _th(context, 'Invoice No'),
+              _th(context, 'Client / Error'),
+              _th(context, 'Total'),
             ],
           ),
           // Data rows
           ...preview.rows.map((row) {
             final isError = !row.isValid;
-            final bg =
-                isError ? AppTheme.error.withValues(alpha: 0.06) : Colors.white;
+            final bg = isError ? AppTheme.error.withValues(alpha: 0.06) : Colors.transparent;
             return TableRow(
               decoration: BoxDecoration(color: bg),
               children: [
                 _td('${row.rowNumber}',
-                    color: AppTheme.textSecondary, small: true),
+                    color: AppTheme.subtext(context), small: true),
                 _td(row.invoiceNo,
                     color: isError ? AppTheme.error : AppTheme.textPrimary,
                     bold: !isError),
@@ -457,7 +456,7 @@ class _PreviewTable extends StatelessWidget {
                   row.total != null
                       ? Fmt.currency(row.total!)
                       : (isError ? '—' : ''),
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.onCard(context),
                 ),
               ],
             );
@@ -467,13 +466,13 @@ class _PreviewTable extends StatelessWidget {
     );
   }
 
-  Widget _th(String text) => Padding(
+  Widget _th(BuildContext ctx, String text) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
         child: Text(text,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary)),
+                color: AppTheme.subtext(ctx))),
       );
 
   Widget _td(String text, {Color? color, bool bold = false, bool small = false}) =>

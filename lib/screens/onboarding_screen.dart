@@ -328,7 +328,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.card(context),
       body: SafeArea(
         child: Column(
           children: [
@@ -436,9 +436,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEEEEE))),
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        border: Border(top: BorderSide(color: AppTheme.outline(context))),
       ),
       child: Row(
         children: [
@@ -497,14 +497,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             if (badge != null) ...[const SizedBox(width: 10), badge],
           ],
         ),
-        const SizedBox(height: 14),
+        SizedBox(height: 14),
         Text(title,
-            style: const TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-        const SizedBox(height: 6),
+            style: TextStyle(
+                fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.onCard(context))),
+        SizedBox(height: 6),
         Text(subtitle,
-            style: const TextStyle(
-                fontSize: 13, color: AppTheme.textSecondary, height: 1.4)),
+            style: TextStyle(
+                fontSize: 13, color: AppTheme.subtext(context), height: 1.4)),
       ],
     );
   }
@@ -534,7 +534,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       decoration: BoxDecoration(
                         color: AppTheme.surface,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.divider),
+                        border: Border.all(color: AppTheme.outline(context)),
                       ),
                       child: _logoBase64 != null
                           ? ClipRRect(
@@ -547,9 +547,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                 Icon(Icons.add_photo_alternate_outlined,
                                     size: 28,
                                     color: AppTheme.textSecondary.withValues(alpha: 0.5)),
-                                const SizedBox(height: 4),
-                                const Text('Add Logo',
-                                    style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                SizedBox(height: 4),
+                                Text('Add Logo',
+                                    style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
                               ],
                             ),
                     ),
@@ -664,8 +664,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: const Icon(Icons.shopping_bag_outlined,
                       color: AppTheme.primary, size: 18),
                 ),
-                const SizedBox(width: 12),
-                const Expanded(
+                SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -679,7 +679,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         'Upgrade to Lite, Pro, or Premium will be available in the next update.',
                         style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.subtext(context),
                             height: 1.4),
                       ),
                     ],
@@ -772,7 +772,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     color: color.withValues(alpha: 0.12 * dimmed), shape: BoxShape.circle),
                 child: Icon(icons[tier], color: color, size: 18),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,15 +783,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             style: TextStyle(
                                 fontWeight: FontWeight.w700, color: color, fontSize: 14)),
                         if (comingSoon) ...[
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                             decoration: BoxDecoration(
                                 color: AppTheme.textSecondary.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(4)),
-                            child: const Text('COMING SOON',
+                            child: Text('COMING SOON',
                                 style: TextStyle(
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.subtext(context),
                                     fontSize: 8,
                                     fontWeight: FontWeight.w700)),
                           ),
@@ -811,10 +811,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ],
                     ),
                     price.yearlyRupees == 0
-                        ? const Text('Free forever',
+                        ? Text('Free forever',
                             style: TextStyle(
                                 fontSize: 11,
-                                color: AppTheme.textSecondary))
+                                color: AppTheme.subtext(context)))
                         : Wrap(
                             spacing: 4,
                             crossAxisAlignment: WrapCrossAlignment.center,
@@ -834,16 +834,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                               ),
                               Text(
                                 '₹${price.yearlyRupees * 2}/yr',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 10,
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.subtext(context),
                                     decoration: TextDecoration.lineThrough),
                               ),
                               Text(
                                 '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 11,
-                                    color: AppTheme.textSecondary),
+                                    color: AppTheme.subtext(context)),
                               ),
                             ],
                           ),
@@ -954,7 +954,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // ── Composition scheme ───────────────────────────────────
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.divider),
+              border: Border.all(color: AppTheme.outline(context)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: SwitchListTile(
@@ -983,17 +983,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 value: indianStatesForGst.contains(_defaultPlaceOfSupply)
                     ? _defaultPlaceOfSupply
                     : null,
-                hint: const Text('Select state',
+                hint: Text('Select state',
                     style: TextStyle(fontSize: 14)),
                 isDense: true,
                 isExpanded: true,
                 items: [
-                  const DropdownMenuItem<String>(
+                  DropdownMenuItem<String>(
                     value: null,
                     child: Text('— Not set —',
                         style: TextStyle(
                             fontSize: 14,
-                            color: AppTheme.textSecondary)),
+                            color: AppTheme.subtext(context))),
                   ),
                   ...indianStatesForGst.map((s) => DropdownMenuItem(
                         value: s,
@@ -1009,14 +1009,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 16),
 
           // ── Default GST Rate ─────────────────────────────────────
-          const Text('Default GST Rate',
+          Text('Default GST Rate',
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          const Text('Applied to new invoice line items by default',
-              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                  color: AppTheme.onCard(context))),
+          SizedBox(height: 4),
+          Text('Applied to new invoice line items by default',
+              style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -1041,7 +1041,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // ── Reverse Charge ───────────────────────────────────────
           Container(
             decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.divider),
+              border: Border.all(color: AppTheme.outline(context)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: SwitchListTile(
@@ -1072,12 +1072,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.info_outline, size: 14, color: _saffron.withValues(alpha: 0.7)),
-                const SizedBox(width: 8),
-                const Expanded(
+                SizedBox(width: 8),
+                Expanded(
                   child: Text(
                     'GST setup is optional. You can configure it later from Settings → GST Setup. Tap "Skip GST" to continue.',
                     style: TextStyle(
-                        fontSize: 11, color: AppTheme.textSecondary, height: 1.4),
+                        fontSize: 11, color: AppTheme.subtext(context), height: 1.4),
                   ),
                 ),
               ],
@@ -1124,11 +1124,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Template section
           Row(
             children: [
-              const Text('Invoice Template',
+              Text('Invoice Template',
                   style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary)),
+                      color: AppTheme.onCard(context))),
               const Spacer(),
               // Tier badge showing how many templates are unlocked
               Container(
@@ -1348,7 +1348,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE0E0E0)),
         boxShadow: [
@@ -1369,20 +1369,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     borderRadius: BorderRadius.circular(10)),
                 child: Icon(icon, color: color, size: 22),
               ),
-              const SizedBox(width: 14),
+              SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
-                    const SizedBox(height: 3),
+                            color: AppTheme.onCard(context))),
+                    SizedBox(height: 3),
                     Text(subtitle,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary)),
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.subtext(context))),
                   ],
                 ),
               ),
@@ -1407,14 +1407,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _optionalNote() {
-    return const Row(
+    return Row(
       children: [
-        Icon(Icons.info_outline, size: 14, color: AppTheme.textSecondary),
+        Icon(Icons.info_outline, size: 14, color: AppTheme.subtext(context)),
         SizedBox(width: 6),
         Expanded(
           child: Text(
             'This step is optional — you can set it up later from Settings.',
-            style: TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 11, color: AppTheme.subtext(context)),
           ),
         ),
       ],

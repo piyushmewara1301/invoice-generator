@@ -10,6 +10,12 @@ class PartialPayment {
   final String? baseCurrencyCode; // e.g. 'INR'
   final double? baseAmount;       // amount converted to base currency
 
+  // TDS (Tax Deducted at Source) — common in Indian professional services.
+  // [amount] = cash actually received; tdsAmount = tax credit from client.
+  // Both together settle the invoice: effectivePaid = amount + tdsAmount.
+  final double? tdsPercent; // e.g. 10.0 for 10 % TDS
+  final double? tdsAmount;  // exact TDS rupee amount deducted by client
+
   PartialPayment({
     required this.id,
     required this.date,
@@ -20,6 +26,8 @@ class PartialPayment {
     this.exchangeRate,
     this.baseCurrencyCode,
     this.baseAmount,
+    this.tdsPercent,
+    this.tdsAmount,
   });
 
   Map<String, dynamic> toJson() => {
@@ -32,6 +40,8 @@ class PartialPayment {
         'exchangeRate': exchangeRate,
         'baseCurrencyCode': baseCurrencyCode,
         'baseAmount': baseAmount,
+        'tdsPercent': tdsPercent,
+        'tdsAmount': tdsAmount,
       };
 
   factory PartialPayment.fromJson(Map<String, dynamic> json) => PartialPayment(
@@ -44,5 +54,7 @@ class PartialPayment {
         exchangeRate: (json['exchangeRate'] as num?)?.toDouble(),
         baseCurrencyCode: json['baseCurrencyCode'] as String?,
         baseAmount: (json['baseAmount'] as num?)?.toDouble(),
+        tdsPercent: (json['tdsPercent'] as num?)?.toDouble(),
+        tdsAmount: (json['tdsAmount'] as num?)?.toDouble(),
       );
 }

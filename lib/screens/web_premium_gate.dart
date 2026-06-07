@@ -11,7 +11,7 @@ class WebPremiumGateScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -67,20 +67,20 @@ class _BrandHeader extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        const Text(
+        SizedBox(height: 12),
+        Text(
           'BillBook',
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
-            color: AppTheme.textPrimary,
+            color: AppTheme.onCard(context),
             letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 4),
-        const Text(
+        SizedBox(height: 4),
+        Text(
           'Invoice Generator',
-          style: TextStyle(fontSize: 14, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 14, color: AppTheme.subtext(context)),
         ),
       ],
     );
@@ -94,9 +94,9 @@ class _GateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
         boxShadow: AppTheme.cardShadow,
       ),
       child: Column(
@@ -142,22 +142,22 @@ class _GateCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
+                SizedBox(height: 16),
+                Text(
                   'Premium Plan Required',
                   style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w800,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.onCard(context),
                     letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                SizedBox(height: 8),
+                Text(
                   'The BillBook web dashboard is exclusively available to Premium plan members. Upgrade your plan from the mobile app to unlock web access.',
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     height: 1.6,
                   ),
                 ),
@@ -197,12 +197,12 @@ class _FeatureList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           "What's included in Premium:",
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textPrimary,
+            color: AppTheme.onCard(context),
           ),
         ),
         const SizedBox(height: 12),
@@ -220,12 +220,12 @@ class _FeatureList extends StatelessWidget {
                     child: Icon(Icons.check,
                         size: 13, color: AppTheme.success),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       f.$2,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppTheme.textPrimary),
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.onCard(context)),
                     ),
                   ),
                 ],
@@ -295,15 +295,15 @@ class _PremiumPriceBox extends StatelessWidget {
                     ),
                     Text(
                       '₹${price.yearlyRupees * 2}/yr',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textSecondary,
+                          color: AppTheme.subtext(context),
                           decoration: TextDecoration.lineThrough),
                     ),
                     Text(
                       '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
-                      style: const TextStyle(
-                          fontSize: 13, color: AppTheme.textSecondary),
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.subtext(context)),
                     ),
                   ],
                 ),
@@ -408,9 +408,9 @@ class _SignOutLink extends StatelessWidget {
         if (!context.mounted) return;
         await auth.signOut();
       },
-      icon: const Icon(Icons.logout, size: 16, color: AppTheme.textSecondary),
-      label: const Text('Sign out',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+      icon: Icon(Icons.logout, size: 16, color: AppTheme.subtext(context)),
+      label: Text('Sign out',
+          style: TextStyle(color: AppTheme.subtext(context), fontSize: 13)),
     );
   }
 }

@@ -1,0 +1,2560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BillBook – User Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p:#2563EB;--pd:#1D4ED8;--pl:#EFF6FF;
+  --g:#10B981;--w:#F59E0B;--e:#EF4444;
+  --pu:#7C3AED;--or:#F97316;--tl:#0891B2;
+  --dk:#0F172A;--tx:#1E293B;--ts:#64748B;
+  --sf:#F8FAFC;--bd:#E2E8F0;
+  --sh:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -2px rgba(0,0,0,.05);
+  --shl:0 20px 25px -5px rgba(0,0,0,.1),0 8px 10px -6px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;color:var(--tx);background:var(--sf);line-height:1.6}
+.container{max-width:1100px;margin:0 auto;padding:0 24px}
+.sp{height:72px}.sp-sm{height:40px}
+
+/* tags */
+.tag{display:inline-flex;align-items:center;gap:5px;background:var(--pl);color:var(--p);font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.4px;text-transform:uppercase}
+.tag.g{background:#ECFDF5;color:var(--g)}.tag.pu{background:#F5F3FF;color:var(--pu)}
+.tag.or{background:#FFF7ED;color:var(--or)}.tag.tl{background:#ECFEFF;color:var(--tl)}
+.tag.red{background:#FEF2F2;color:var(--e)}.tag.am{background:#FFFBEB;color:#92400E}
+.tag.ent{background:linear-gradient(135deg,#1a1a2e,#2d1b69);color:#e2d9ff}
+
+/* plan pills */
+.pp{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700}
+.pp-free{background:#F1F5F9;color:#475569}
+.pp-lite{background:#DBEAFE;color:#1D4ED8}
+.pp-pro{background:#EDE9FE;color:#5B21B6}
+.pp-prem{background:#FFEDD5;color:#9A3412}
+.pp-ent{background:linear-gradient(135deg,#1a1a2e,#2d1b69);color:#e2d9ff}
+
+/* hero */
+.hero{background:linear-gradient(135deg,#1E40AF 0%,#2563EB 55%,#3B82F6 100%);color:#fff;padding:84px 0 96px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 65% 35%,rgba(255,255,255,.09) 0%,transparent 65%)}
+.hero-logo{width:76px;height:76px;background:rgba(255,255,255,.15);border-radius:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.22);font-size:34px}
+.hero h1{font-size:clamp(34px,5vw,60px);font-weight:900;letter-spacing:-1.5px;margin-bottom:14px}
+.hero h1 span{color:#93C5FD}
+.hero p{font-size:clamp(15px,2vw,19px);color:rgba(255,255,255,.82);max-width:600px;margin:0 auto 36px}
+.hero-chips{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.hc{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.26);color:#fff;padding:7px 16px;border-radius:50px;font-size:13px;font-weight:600}
+
+/* divider */
+.dv{display:flex;align-items:center;gap:14px;margin:68px 0 52px}
+.dv::before,.dv::after{content:'';flex:1;height:1px;background:var(--bd)}
+.dv span{font-size:12px;font-weight:700;color:var(--ts);white-space:nowrap;padding:6px 16px;border:1px solid var(--bd);border-radius:20px;background:#fff;text-transform:uppercase;letter-spacing:.5px}
+
+/* section head */
+.sh{text-align:center;margin-bottom:52px}
+.sh h2{font-size:clamp(26px,3vw,38px);font-weight:900;color:var(--dk);letter-spacing:-.7px;margin:10px 0 14px}
+.sh p{font-size:16px;color:var(--ts);max-width:540px;margin:0 auto}
+
+/* ── iPhone frame ── */
+.iphone{width:220px;height:460px;background:white;border-radius:48px;border:10px solid #1a1a2e;position:relative;box-shadow:0 0 0 1px #2d2d2d,0 30px 70px rgba(0,0,0,.35),inset 0 0 0 1px rgba(255,255,255,.08);flex-shrink:0;overflow:hidden}
+/* side buttons */
+.iphone::after{content:'';position:absolute;top:80px;right:-13px;width:4px;height:60px;background:#2a2a2e;border-radius:0 3px 3px 0}
+/* dynamic island */
+.iphone .di{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:96px;height:28px;background:#1a1a2e;border-radius:14px;z-index:20}
+.iphone-screen{width:100%;height:100%;border-radius:38px;overflow:hidden;background:#F1F5F9;position:relative}
+.iphone.sm{width:174px;height:366px;border-radius:40px;border-width:8px}
+.iphone.sm .di{width:76px;height:22px;border-radius:11px;top:10px}
+.iphone.lg{width:248px;height:520px;border-radius:52px}
+.iphone.lg .di{width:108px;height:30px;border-radius:15px}
+
+/* status bar */
+.sb{height:50px;background:transparent;display:flex;align-items:flex-end;justify-content:space-between;padding:0 18px 8px;position:relative;z-index:5}
+.sb-time{font-size:11px;font-weight:700;color:#0F172A}
+.sb-icons{display:flex;gap:4px;align-items:center}
+.sb-icons svg{width:14px;height:14px;fill:#0F172A}
+
+/* mock UI */
+.mh{background:#fff;padding:12px 14px 10px;border-bottom:1px solid #E2E8F0}
+.mht{font-size:11px;font-weight:700;color:#0F172A}
+.mhs{font-size:8px;color:#64748B;margin-top:1px}
+.mb{padding:10px 12px;overflow:hidden}
+.mc{background:#fff;border-radius:10px;padding:10px 12px;margin-bottom:7px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.mct{font-size:9.5px;font-weight:700;color:#0F172A;margin-bottom:2px}
+.mcs{font-size:8px;color:#64748B}
+.badge{display:inline-block;font-size:7px;font-weight:700;padding:2px 6px;border-radius:10px}
+.b-paid{background:#DCFCE7;color:#16A34A}.b-sent{background:#DBEAFE;color:#2563EB}
+.b-over{background:#FEE2E2;color:#DC2626}.b-draft{background:#F1F5F9;color:#64748B}
+.b-quote{background:#F5F3FF;color:#7C3AED}
+.mtabs{display:flex;background:#fff;border-bottom:1px solid #E2E8F0}
+.mtab{flex:1;text-align:center;padding:6px 2px;font-size:7px;font-weight:600;color:#64748B}
+.mtab.on{color:var(--p);border-bottom:2px solid var(--p)}
+.mfab{width:34px;height:34px;border-radius:50%;background:var(--p);display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;margin-left:auto;margin-top:4px;box-shadow:0 4px 12px rgba(37,99,235,.4)}
+.mstat-row{display:flex;gap:5px;margin-bottom:7px}
+.mstat{flex:1;background:#fff;border-radius:8px;padding:7px 6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.mstat-v{font-size:8.5px;font-weight:800;color:#0F172A}
+.mstat-l{font-size:7px;color:#64748B;margin-top:1px}
+.mgb{border-radius:10px;padding:11px 12px;margin-bottom:7px;color:#fff}
+.mgb .v{font-size:15px;font-weight:800}.mgb .l{font-size:7.5px;opacity:.8}
+.mf{background:#fff;border:1px solid #E2E8F0;border-radius:7px;padding:7px 10px;margin-bottom:6px}
+.mfl{font-size:7px;color:#64748B;margin-bottom:2px}
+.mfv{font-size:9px;color:#0F172A;font-weight:500}
+.msw{width:24px;height:14px;border-radius:7px;background:var(--p);position:relative;flex-shrink:0}
+.msw::after{content:'';width:10px;height:10px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px}
+.msw.off{background:#E2E8F0}.msw.off::after{left:2px;right:auto}
+.mavt{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}
+.mbtn{background:var(--p);color:#fff;font-size:8.5px;font-weight:700;padding:7px 14px;border-radius:8px;text-align:center;margin-top:8px}
+.mbtn.g{background:var(--g)}.mbtn.out{background:transparent;border:1px solid var(--p);color:var(--p)}
+.mchip{display:inline-block;font-size:7px;font-weight:600;padding:3px 8px;border-radius:10px;background:#EFF6FF;color:var(--p);margin-right:4px;margin-bottom:4px}
+.mchip.on{background:var(--p);color:#fff}
+.mpl{height:6px;border-radius:3px;margin:3px 0}
+.mbkt{border-radius:8px;padding:8px 10px;margin-bottom:6px}
+.mrow{display:flex;align-items:center;gap:6px;padding:5px 0}
+.mib{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.mli{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #F1F5F9}
+.mst{font-size:8px;font-weight:700;color:#0F172A;margin:7px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+.dscr{background:#0F172A}
+.dscr .mc{background:#1E293B;border:1px solid #334155}
+.dscr .mct{color:#F1F5F9}
+.dscr .mh{background:#1E293B;border-color:#334155}
+.dscr .mht{color:#F1F5F9}
+.dscr .mstat{background:#1E293B}.dscr .mstat-v{color:#F1F5F9}.dscr .mstat-l{color:#94A3B8}
+.multi-phone{display:flex;gap:20px;align-items:flex-end;justify-content:center}
+
+/* feature cards */
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:28px}
+.fg.single{grid-template-columns:1fr}
+.fg.three{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.fc{background:#fff;border-radius:22px;border:1.5px solid var(--bd);overflow:hidden;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s}
+.fc:hover{transform:translateY(-3px);box-shadow:var(--shl)}
+.cpa{padding:28px 28px 0;background:linear-gradient(180deg,var(--sf) 0%,#fff 100%);display:flex;justify-content:center;min-height:200px;align-items:flex-end}
+.cb{padding:24px 26px 28px}
+.cb h3{font-size:18px;font-weight:800;color:var(--dk);margin:10px 0 8px;letter-spacing:-.2px}
+.cb p{font-size:13.5px;color:var(--ts);line-height:1.7}
+.fl{margin-top:14px;display:flex;flex-direction:column;gap:7px}
+.fl li{display:flex;align-items:flex-start;gap:9px;font-size:13px;list-style:none}
+.fl li::before{content:'✓';color:var(--g);font-weight:700;flex-shrink:0;margin-top:1px}
+
+/* steps inside body */
+.steps{display:flex;flex-direction:column;gap:13px;margin-top:14px}
+.step{display:flex;align-items:flex-start;gap:12px}
+.sn{width:24px;height:24px;border-radius:50%;background:var(--p);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.st{font-size:13px;font-weight:700;color:var(--dk);margin-bottom:3px}
+.sd{font-size:12.5px;color:var(--ts);line-height:1.6}
+.sd code{background:#F1F5F9;padding:1px 5px;border-radius:4px;font-size:11.5px;color:var(--p);font-family:monospace}
+.tip{background:#F0FDF4;border:1px solid #86EFAC;border-radius:10px;padding:11px 14px;display:flex;gap:9px;margin-top:12px}
+.tip p,.warn p,.info p{font-size:12.5px;line-height:1.55}
+.tip p{color:#166534}.warn{background:#FFFBEB;border:1px solid #FCD34D;border-radius:10px;padding:11px 14px;display:flex;gap:9px;margin-top:12px}
+.warn p{color:#92400E}.info{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:11px 14px;display:flex;gap:9px;margin-top:12px}
+.info p{color:#1E40AF}
+
+/* split layout: phone left + content right */
+.split{display:grid;grid-template-columns:auto 1fr;gap:32px;align-items:start}
+@media(max-width:700px){.split{grid-template-columns:1fr}.split .phone-col{display:flex;justify-content:center}}
+
+/* limit table */
+.lt{width:100%;border-collapse:collapse;margin-top:12px}
+.lt th{font-size:11px;font-weight:700;color:var(--ts);text-transform:uppercase;letter-spacing:.4px;padding:6px 10px;border-bottom:2px solid var(--bd);text-align:center}
+.lt th:first-child{text-align:left}
+.lt td{font-size:12.5px;padding:7px 10px;border-bottom:1px solid var(--bd);text-align:center}
+.lt td:first-child{text-align:left;font-weight:500}
+.lt tr:last-child td{border-bottom:none}
+
+/* ── PLAN CARDS ── */
+.plan-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:32px;align-items:stretch}
+.plan-card{background:#fff;border-radius:20px;padding:26px 22px 30px;border:1.5px solid var(--bd);position:relative;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column}
+.plan-card:hover{transform:translateY(-4px);box-shadow:var(--shl)}
+.plan-card.pop{border-color:var(--p);background:linear-gradient(180deg,#EFF6FF 0%,#fff 60%)}
+.plan-card.ent-card{border-color:#7C3AED;background:linear-gradient(160deg,#0F172A 0%,#1E1B4B 60%,#2d1b69 100%);color:#e2d9ff}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--p);color:#fff;font-size:10.5px;font-weight:700;padding:4px 14px;border-radius:20px;white-space:nowrap}
+.plan-name{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;color:var(--ts)}
+.ent-card .plan-name{color:#94A3B8}
+.plan-price{font-size:34px;font-weight:900;color:var(--dk);letter-spacing:-1px;line-height:1}
+.ent-card .plan-price{color:#e2d9ff}
+.plan-price sup{font-size:16px;font-weight:700;vertical-align:top;margin-top:6px}
+.plan-sub{font-size:12px;color:var(--ts);margin:4px 0 2px}
+.ent-card .plan-sub{color:#94A3B8}
+.plan-save{font-size:12px;color:var(--g);font-weight:600;margin-bottom:18px}
+.ent-card .plan-save{color:#86EFAC}
+.plan-div{height:1px;background:var(--bd);margin:14px 0}
+.ent-card .plan-div{background:#334155}
+.pf{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--tx);padding:3px 0}
+.ent-card .pf{color:#CBD5E1}
+.pf .ck{color:var(--g);font-weight:700;flex-shrink:0;margin-top:1px}
+.pf .cx{color:#CBD5E1;flex-shrink:0;margin-top:1px}
+.pf.mt{color:var(--ts)}
+.plan-btn{display:block;text-align:center;padding:11px 0;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:auto;padding-top:14px;text-decoration:none;transition:all .2s}
+.plan-btn.prim{background:var(--p);color:#fff}
+.plan-btn.out{border:1.5px solid var(--p);color:var(--p)}
+.plan-btn.ent-btn{background:linear-gradient(135deg,#7C3AED,#4338CA);color:#fff}
+.plan-btn:hover{opacity:.88}
+
+/* comparison table */
+.ct-wrap{background:#fff;border-radius:20px;border:1.5px solid var(--bd);overflow-x:auto;box-shadow:var(--sh);margin-bottom:40px}
+.ct{width:100%;border-collapse:collapse;min-width:700px}
+.ct th{background:var(--dk);color:#fff;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:14px 14px;text-align:center}
+.ct th:first-child{text-align:left;width:34%}
+.ct th.pop-h{background:var(--p)}
+.ct th.ent-h{background:linear-gradient(135deg,#1a1a2e,#2d1b69)}
+.ct td{padding:10px 14px;font-size:13px;border-bottom:1px solid var(--bd);text-align:center;vertical-align:middle}
+.ct td:first-child{text-align:left;font-weight:500;color:var(--tx)}
+.ct tr:last-child td{border-bottom:none}
+.ct tr:hover td{background:#F8FAFC}
+.cat-r td{background:var(--sf);font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--ts);padding:7px 14px}
+.ck2{color:var(--g);font-size:15px}.cx2{color:#CBD5E1;font-size:15px}
+.cn2{font-size:12px;color:var(--ts);font-style:italic}
+
+/* enterprise section */
+.ent-section{background:linear-gradient(160deg,#0F172A 0%,#1E1B4B 50%,#2d1b69 100%);border-radius:24px;padding:52px 48px;color:#e2d9ff;margin:0 0 40px}
+.ent-section h2{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1px;margin-bottom:14px}
+.ent-section p{font-size:16px;color:#94A3B8;line-height:1.7;max-width:560px;margin-bottom:32px}
+.ent-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:36px}
+.ent-feat{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px 20px}
+.ent-feat-icon{font-size:22px;margin-bottom:10px}
+.ent-feat-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:5px}
+.ent-feat-desc{font-size:12.5px;color:#94A3B8;line-height:1.55}
+.ent-cta{display:inline-block;background:linear-gradient(135deg,#7C3AED,#4338CA);color:#fff;font-size:15px;font-weight:700;padding:14px 36px;border-radius:12px;text-decoration:none;margin-right:14px}
+.ent-cta-2{display:inline-block;border:1.5px solid rgba(255,255,255,.3);color:#e2d9ff;font-size:15px;font-weight:600;padding:13px 28px;border-radius:12px;text-decoration:none}
+
+/* tip box in steps */
+.how-to{background:#fff;border-radius:20px;padding:28px 32px 32px;box-shadow:var(--sh);border:1.5px solid var(--bd);margin-bottom:0}
+.faq-item{background:#fff;border:1.5px solid var(--bd);border-radius:14px;padding:18px 20px;margin-bottom:12px}
+.faq-q{font-size:14px;font-weight:700;color:var(--dk);margin-bottom:6px}
+.faq-a{font-size:13px;color:var(--ts);line-height:1.65}
+
+/* ── Table of Contents ── */
+.toc-block{background:#fff;border:1.5px solid var(--bd);border-radius:24px;padding:36px 40px 40px;box-shadow:var(--sh)}
+.toc-head{text-align:center;margin-bottom:28px}
+.toc-head h2{font-size:24px;font-weight:900;color:var(--dk);letter-spacing:-.5px;margin-bottom:6px}
+.toc-head p{font-size:14px;color:var(--ts)}
+.toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.toc-item{display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:14px;border:1.5px solid var(--bd);text-decoration:none;color:var(--tx);transition:all .15s;background:#fff}
+.toc-item:hover{background:var(--pl);border-color:var(--p);color:var(--p);transform:translateY(-2px);box-shadow:0 4px 12px rgba(37,99,235,.12)}
+.toc-item:hover .toc-title{color:var(--p)}
+.toc-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.toc-title{font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:2px}
+.toc-sub{font-size:11.5px;color:var(--ts)}
+
+/* Plan features flex spacer */
+.plan-feats{flex:1;margin-bottom:20px}
+
+/* back to top */
+.back-top{position:fixed;bottom:28px;right:28px;width:44px;height:44px;background:var(--p);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,.4);opacity:0;pointer-events:none;transition:opacity .2s;z-index:999}
+.back-top.show{opacity:1;pointer-events:auto}
+
+.footer{background:var(--dk);color:rgba(255,255,255,.6);text-align:center;padding:52px 24px;margin-top:80px}
+.footer h3{color:#fff;font-size:24px;font-weight:900;margin-bottom:8px}
+
+/* ══════════════════════════════════════
+   FUTURISTIC ANIMATIONS & APPLE-STYLE
+══════════════════════════════════════ */
+
+/* Scroll-reveal base */
+.reveal{opacity:0;transform:translateY(44px);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1)}
+.reveal.visible{opacity:1;transform:none}
+.reveal-left{opacity:0;transform:translateX(-44px);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1)}
+.reveal-left.visible{opacity:1;transform:none}
+.reveal-right{opacity:0;transform:translateX(44px);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1)}
+.reveal-right.visible{opacity:1;transform:none}
+.reveal-scale{opacity:0;transform:scale(.92);transition:opacity .6s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1)}
+.reveal-scale.visible{opacity:1;transform:scale(1)}
+
+/* Stagger helpers */
+.stagger-1{transition-delay:.08s}.stagger-2{transition-delay:.16s}.stagger-3{transition-delay:.24s}
+.stagger-4{transition-delay:.32s}.stagger-5{transition-delay:.40s}
+
+/* Hero cinematic overhaul */
+.hero{background:#000;padding:110px 0 120px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(37,99,235,.35) 0%,transparent 70%),
+             radial-gradient(ellipse 60% 80% at 80% 100%,rgba(124,58,237,.2) 0%,transparent 60%);
+  pointer-events:none}
+.hero-orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orbFloat 8s ease-in-out infinite alternate}
+.hero-orb.o1{width:500px;height:500px;background:rgba(37,99,235,.18);top:-120px;left:-80px;animation-duration:9s}
+.hero-orb.o2{width:400px;height:400px;background:rgba(124,58,237,.14);bottom:-80px;right:-60px;animation-duration:11s;animation-delay:-3s}
+.hero-orb.o3{width:300px;height:300px;background:rgba(6,182,212,.1);top:40%;left:60%;animation-duration:7s;animation-delay:-5s}
+@keyframes orbFloat{0%{transform:translate(0,0) scale(1)}100%{transform:translate(30px,-40px) scale(1.08)}}
+
+/* Hero text */
+.hero-eyebrow{font-size:13px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:20px}
+.hero h1{font-size:clamp(52px,8vw,96px);font-weight:900;letter-spacing:-3px;color:#fff;line-height:1;margin-bottom:22px}
+.hero h1 span{background:linear-gradient(135deg,#60a5fa,#818cf8,#c084fc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:clamp(17px,2vw,22px);color:rgba(255,255,255,.6);max-width:540px;margin:0 auto 44px;line-height:1.55}
+.hero-chips{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.hc{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.8);padding:8px 18px;border-radius:50px;font-size:13px;font-weight:500;backdrop-filter:blur(12px);transition:all .2s}
+.hc:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.35)}
+
+/* Gradient section dividers */
+.dv{display:flex;align-items:center;gap:14px;margin:68px 0 52px;position:relative}
+.dv::before,.dv::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--bd),transparent)}
+.dv span{font-size:12px;font-weight:700;color:var(--ts);white-space:nowrap;padding:7px 18px;border:1px solid var(--bd);border-radius:20px;background:#fff;text-transform:uppercase;letter-spacing:.6px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+
+/* Section headings with gradient accent */
+.sh h2{background:linear-gradient(135deg,#0F172A 0%,#2563EB 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+/* TOC - glassmorphism */
+.toc-block{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1.5px solid rgba(255,255,255,.9);border-radius:28px;padding:36px 40px 40px;box-shadow:0 8px 32px rgba(37,99,235,.08),0 2px 8px rgba(0,0,0,.04)}
+.toc-item{background:rgba(255,255,255,.7);backdrop-filter:blur(8px);border:1px solid rgba(37,99,235,.1);transition:all .22s cubic-bezier(.22,1,.36,1)}
+.toc-item:hover{background:#fff;border-color:var(--p);transform:translateY(-3px);box-shadow:0 8px 24px rgba(37,99,235,.14)}
+
+/* Feature cards - glass lift */
+.fc{transition:transform .28s cubic-bezier(.22,1,.36,1),box-shadow .28s}
+.fc:hover{transform:translateY(-6px);box-shadow:0 24px 48px rgba(0,0,0,.12),0 6px 12px rgba(0,0,0,.06)}
+
+/* iPhone glow aura */
+.iphone-wrap{position:relative;display:inline-block}
+.iphone-wrap::before{content:'';position:absolute;inset:-24px;border-radius:72px;opacity:.5;filter:blur(28px);z-index:-1;transition:opacity .4s}
+.iphone-wrap.glow-blue::before{background:radial-gradient(ellipse,rgba(37,99,235,.6),transparent 70%)}
+.iphone-wrap.glow-purple::before{background:radial-gradient(ellipse,rgba(124,58,237,.5),transparent 70%)}
+.iphone-wrap.glow-green::before{background:radial-gradient(ellipse,rgba(16,185,129,.5),transparent 70%)}
+.iphone-wrap.glow-orange::before{background:radial-gradient(ellipse,rgba(249,115,22,.45),transparent 70%)}
+.iphone-wrap.glow-cyan::before{background:radial-gradient(ellipse,rgba(6,182,212,.45),transparent 70%)}
+.iphone-wrap:hover::before{opacity:.85}
+.iphone-wrap .iphone{animation:phoneFloat 5s ease-in-out infinite}
+@keyframes phoneFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* cpa area dark gradient */
+.cpa{background:linear-gradient(160deg,#f0f4ff 0%,#fff 100%);padding:36px 28px}
+
+/* Step numbers - glow */
+.sn{background:linear-gradient(135deg,#2563EB,#7C3AED);box-shadow:0 0 12px rgba(37,99,235,.4)}
+
+/* Plan cards - hover glow */
+.plan-card{transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s}
+.plan-card:hover{transform:translateY(-6px);box-shadow:0 24px 48px rgba(37,99,235,.15),0 4px 8px rgba(0,0,0,.06)}
+.plan-card.pop{box-shadow:0 0 0 2px rgba(37,99,235,.3),var(--sh)}
+.plan-card.pop:hover{box-shadow:0 0 0 2px rgba(37,99,235,.5),0 24px 48px rgba(37,99,235,.2)}
+.plan-btn{position:relative;overflow:hidden}
+.plan-btn::after{content:'';position:absolute;inset:0;background:rgba(255,255,255,.15);opacity:0;transition:opacity .2s}
+.plan-btn:hover::after{opacity:1}
+.plan-btn.prim{background:linear-gradient(135deg,#2563EB,#7C3AED);box-shadow:0 4px 20px rgba(37,99,235,.35)}
+.plan-btn.prim:hover{box-shadow:0 8px 28px rgba(37,99,235,.5)}
+
+/* Enterprise section gradient animation */
+.ent-section{background:linear-gradient(160deg,#000 0%,#0d0821 40%,#160d2e 70%,#0a0f1e 100%);position:relative;overflow:hidden}
+.ent-section::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.15),transparent 70%);top:-200px;right:-100px;animation:orbFloat 10s ease-in-out infinite alternate}
+.ent-section::after{content:'';position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.12),transparent 70%);bottom:-100px;left:-50px;animation:orbFloat 8s ease-in-out infinite alternate-reverse}
+.ent-section>*{position:relative;z-index:1}
+
+/* Comparison table - sticky header */
+.ct thead th{position:sticky;top:0;z-index:5}
+
+/* Tip/info boxes - glass */
+.tip,.info,.warn{backdrop-filter:blur(8px)}
+
+/* Animated gradient underline on h3 */
+.cb h3{position:relative;display:inline-block}
+
+/* Number stat reveal */
+@keyframes countPulse{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+.stat-num{animation:countPulse .6s cubic-bezier(.22,1,.36,1) both}
+
+/* Shimmer on plan-badge */
+.plan-badge{background:linear-gradient(135deg,#2563EB,#7C3AED);animation:shimmer 3s infinite}
+@keyframes shimmer{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.plan-badge{background-size:200% 200%}
+
+/* Subtle grid background on plans section */
+#plans ~ .sh{position:relative}
+
+@media(max-width:1080px){
+  .plan-grid{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:700px){
+  .split{grid-template-columns:1fr}
+  .split .phone-col{display:flex;justify-content:center}
+}
+@media(max-width:680px){
+  /* ── ALL scroll-reveal animations: disabled on mobile ────────────────────
+     IntersectionObserver is unreliable on mobile when users navigate via
+     anchor links (TOC taps), when content is below the initial fold, or
+     when the viewport is short. Every .reveal* element starts at opacity:0
+     and stays invisible if the observer never fires. Disable the whole
+     mechanism on mobile — content is always visible; animations are a
+     desktop enhancement only. This covers the hero, the "5 Steps" card,
+     feature cards, plan cards, and every other animated section. */
+  .reveal,.reveal-left,.reveal-right,.reveal-scale{
+    opacity:1 !important;
+    transform:none !important;
+    filter:none !important;
+    transition:none !important;
+    transition-delay:0ms !important;
+  }
+  /* Hero h1 span uses -webkit-text-fill-color:transparent + background-clip.
+     Replace with a solid visible colour on mobile. */
+  .hero h1 span{
+    background:none !important;
+    -webkit-background-clip:unset !important;
+    background-clip:unset !important;
+    -webkit-text-fill-color:#93c5fd !important;
+    color:#93c5fd !important;
+    animation:none !important;
+  }
+  /* Hero sizing and content */
+  .hero{padding:60px 0 68px}
+  .hero h1{font-size:clamp(34px,9vw,54px);letter-spacing:-1.5px;margin-bottom:16px}
+  .hero p{font-size:16px;margin-bottom:28px}
+  .hero-eyebrow{font-size:11px;letter-spacing:3px;margin-bottom:14px}
+  /* Orbs are 300-500px blurred divs — expensive on mobile, not visible anyway */
+  .hero-orb{display:none}
+  /* layout grids */
+  .toc-grid{grid-template-columns:1fr 1fr}
+  .toc-block{padding:24px 20px 28px}
+  .fg{grid-template-columns:1fr}
+  .plan-grid{grid-template-columns:1fr 1fr}
+  /* inline-grid split cards → stack */
+  .fc-split{display:block !important}
+  .fc-split .cpa{border-radius:0;min-height:unset;padding:28px 24px 16px}
+  .fc-split .cb{padding:20px 22px 26px}
+  /* comparison table */
+  .ct{font-size:11px}
+  .ct td,.ct th{padding:8px 8px}
+  /* enterprise */
+  .ent-section{padding:36px 24px}
+  .ent-section h2{font-size:26px}
+  /* section dividers */
+  .dv{margin:44px 0 32px}
+  /* spacers */
+  .sp{height:52px}
+  .sp-sm{height:24px}
+  /* multi-phone: shrink both phones */
+  .multi-phone{gap:10px}
+  .iphone.sm{width:148px;height:310px;border-radius:34px;border-width:7px}
+  .iphone.sm .di{width:64px;height:19px;top:9px}
+  /* announce bar */
+  .announce-bar{font-size:11px;padding:8px 16px}
+  /* reduce aggressive hover lift on touch */
+  .plan-card:hover{transform:translateY(-4px) scale(1)}
+  .fc:hover{transform:translateY(-3px)}
+}
+@media(max-width:440px){
+  /* plan cards: single column */
+  .plan-grid{grid-template-columns:1fr}
+  /* toc: single column */
+  .toc-grid{grid-template-columns:1fr}
+  /* container padding tighter */
+  .container{padding:0 16px}
+  /* hide second phone in multi-phone */
+  .multi-phone .iphone.sm:last-child{display:none}
+  /* hero text tighter on small phones */
+  .hero h1{font-size:clamp(28px,8vw,40px);letter-spacing:-1px}
+  .hero-chips{gap:6px}
+  .hc{font-size:11px;padding:5px 12px}
+  /* feature card phone area */
+  .cpa{min-height:unset}
+  /* enterprise */
+  .ent-section{border-radius:16px;padding:28px 16px}
+  .ent-section h2{font-size:22px}
+  .ent-features{grid-template-columns:1fr}
+  /* plan cards */
+  .plan-card{padding:20px 16px 24px}
+  /* toc */
+  .toc-block{padding:20px 16px 24px}
+  /* section head */
+  .sh{margin-bottom:32px}
+  /* divider and spacers */
+  .dv{margin:28px 0 22px}
+  .sp{height:36px}
+  /* cb content padding */
+  .cb{padding:20px 18px 24px}
+  /* section title font */
+  .sh h2{font-size:clamp(22px,6vw,32px)}
+}
+
+/* ═══════════════════════════════════════════════════
+   APPLE-INSPIRED EXTENDED ANIMATIONS & POLISH
+═══════════════════════════════════════════════════ */
+
+/* Scroll progress bar */
+#scrollProgress{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,#2563EB,#7C3AED,#EC4899);z-index:9999;transition:width .12s linear;border-radius:0 2px 2px 0}
+
+/* Blur-fade on reveal (Apple style) */
+.reveal{filter:blur(10px)}
+.reveal.visible{filter:blur(0)}
+.reveal-left{filter:blur(6px)}
+.reveal-left.visible{filter:blur(0)}
+.reveal-right{filter:blur(6px)}
+.reveal-right.visible{filter:blur(0)}
+.reveal-scale{filter:blur(10px)}
+.reveal-scale.visible{filter:blur(0)}
+
+/* ── PLAN CARDS: button guaranteed at bottom ── */
+.plan-card{display:flex;flex-direction:column;height:100%}
+.plan-card>div:first-child{flex-shrink:0}
+.plan-feats{flex:1 1 auto;display:flex;flex-direction:column;gap:2px}
+.plan-btn{margin-top:auto;display:block;align-self:stretch}
+
+/* Animated shimmer sweep on Pro CTA */
+.plan-btn.prim{background:linear-gradient(135deg,#2563EB,#7C3AED);overflow:hidden}
+.plan-btn.prim::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);animation:shimmerSlide 2.6s ease-in-out infinite;pointer-events:none}
+@keyframes shimmerSlide{0%{left:-60%}100%{left:160%}}
+
+/* Glowing pulsing badge */
+@keyframes badgePulse{0%,100%{box-shadow:0 0 14px rgba(37,99,235,.5),0 0 30px rgba(124,58,237,.3)}50%{box-shadow:0 0 26px rgba(37,99,235,.9),0 0 54px rgba(124,58,237,.6)}}
+.plan-badge{box-shadow:0 0 14px rgba(37,99,235,.5);animation:badgePulse 2.4s ease-in-out infinite}
+
+/* Plan card refined hover */
+.plan-card{transition:transform .38s cubic-bezier(.22,1,.36,1),box-shadow .38s,border-color .38s;will-change:transform}
+.plan-card:hover{transform:translateY(-12px) scale(1.018)}
+.plan-card.pop{border:2px solid rgba(37,99,235,.35);box-shadow:0 0 0 4px rgba(37,99,235,.07),0 18px 56px rgba(37,99,235,.18)}
+.plan-card.pop:hover{border-color:rgba(37,99,235,.6);box-shadow:0 0 0 4px rgba(37,99,235,.14),0 32px 80px rgba(37,99,235,.32)}
+.plan-card.ent-card:hover{box-shadow:0 0 0 2px rgba(124,58,237,.4),0 32px 80px rgba(124,58,237,.25)}
+
+/* Feature check mark bounce on card hover */
+.plan-card:hover .pf .ck{display:inline-block;animation:ckBounce .3s cubic-bezier(.22,1,.36,1)}
+@keyframes ckBounce{0%{transform:scale(1)}45%{transform:scale(1.6)}100%{transform:scale(1)}}
+
+/* ── HERO ── */
+.hero{background:linear-gradient(180deg,#000 0%,#040810 55%,#07101f 100%)}
+.hero h1 span{background-size:300% 300%;animation:gradFlow 6s ease-in-out infinite}
+@keyframes gradFlow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+
+/* Eyebrow animated underline */
+.hero-eyebrow{position:relative;display:inline-block}
+.hero-eyebrow::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1px;background:rgba(255,255,255,.4);animation:eyebrowLine 1.5s .5s ease forwards}
+@keyframes eyebrowLine{to{width:100%}}
+
+/* ── SECTION DIVIDERS ── */
+.dv span{background:linear-gradient(135deg,#fff,#f0f4ff);border:1px solid rgba(37,99,235,.18);box-shadow:0 2px 14px rgba(37,99,235,.1)}
+
+/* ── FEATURE CARDS (glass lift) ── */
+.fc{backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-color:rgba(255,255,255,.9)}
+.fc:hover{transform:translateY(-9px);box-shadow:0 36px 72px rgba(0,0,0,.13),0 8px 16px rgba(0,0,0,.06)}
+
+/* ── TOC ITEMS ── */
+.toc-item{transition:all .25s cubic-bezier(.22,1,.36,1)}
+.toc-item:hover .toc-icon{transform:scale(1.12) rotate(-6deg);transition:transform .3s cubic-bezier(.22,1,.36,1)}
+.toc-item:hover{transform:translateY(-5px);box-shadow:0 14px 36px rgba(37,99,235,.16)}
+
+/* ── COMPARISON TABLE ── */
+.ct-wrap{backdrop-filter:blur(20px);box-shadow:0 24px 64px rgba(0,0,0,.09)}
+.ck2{font-size:17px;font-weight:800}
+.cx2{font-size:17px}
+.ct tr{transition:background .15s}
+
+/* ── STEP NUMBERS ── */
+.sn{background:linear-gradient(135deg,#2563EB,#7C3AED);box-shadow:0 0 16px rgba(37,99,235,.45);transition:transform .2s}
+.step:hover .sn{transform:scale(1.15)}
+
+/* ── TIP / INFO / WARN BOXES ── */
+.tip,.info,.warn{backdrop-filter:blur(10px);transition:transform .2s}
+.tip:hover,.info:hover,.warn:hover{transform:translateX(4px)}
+
+/* ── BACK TO TOP ── */
+.back-top{background:linear-gradient(135deg,#2563EB,#7C3AED)}
+.back-top:hover{box-shadow:0 8px 32px rgba(37,99,235,.65),0 0 0 8px rgba(37,99,235,.1);transform:scale(1.1) translateY(-2px)}
+
+/* ── FOOTER ── */
+.footer{background:linear-gradient(180deg,#000 0%,#050810 100%);border-top:1px solid rgba(255,255,255,.05)}
+
+/* ── IPHONE FLOAT ENHANCED ── */
+.iphone{animation:phoneFloat 5s ease-in-out infinite}
+@keyframes phoneFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-10px) rotate(.4deg)}}
+
+/* Announcement ticker at top */
+.announce-bar{background:linear-gradient(90deg,#000,#0a0f1e,#000);border-bottom:1px solid rgba(255,255,255,.08);text-align:center;padding:9px 24px;font-size:12.5px;color:rgba(255,255,255,.65);letter-spacing:.3px;overflow:hidden;position:relative}
+.announce-bar::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(37,99,235,.1),rgba(124,58,237,.1),rgba(37,99,235,.1));background-size:200%;animation:announceBg 5s linear infinite}
+@keyframes announceBg{0%{background-position:0%}100%{background-position:200%}}
+.announce-bar span{position:relative;z-index:1}
+.announce-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;margin-right:8px;animation:dotPulse 1.5s ease-in-out infinite;vertical-align:middle}
+@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.6}}
+
+/* Gradient hr between major sections */
+.grad-sep{height:1px;background:linear-gradient(90deg,transparent,rgba(37,99,235,.3),rgba(124,58,237,.2),transparent);border:none;margin:0}
+</style>
+</head>
+<body>
+
+<!-- Announcement bar -->
+<div class="announce-bar">
+  <span><span class="announce-dot"></span>BillBook v2.1 — OCR Receipt Scanner, Smart Preferences &amp; Auto Paid Status now live &nbsp;·&nbsp; <b style="color:rgba(255,255,255,.85)">Scan any bill to auto-fill your forms. Start free. Upgrade anytime.</b></span>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-orb o1"></div>
+  <div class="hero-orb o2"></div>
+  <div class="hero-orb o3"></div>
+  <div class="container" style="position:relative;z-index:1">
+    <div class="hero-eyebrow reveal">User Manual · v2.1</div>
+    <h1 class="reveal stagger-1">BillBook<br><span>User Guide</span></h1>
+    <p class="reveal stagger-2">Invoice faster. Track smarter. Scan receipts. Get paid on time — all from your phone.</p>
+    <div class="hero-chips reveal stagger-3">
+      <span class="hc">📱 iOS &amp; Android</span>
+      <span class="hc">☁️ Google Drive Sync</span>
+      <span class="hc">🔐 AES-256 Encrypted</span>
+      <span class="hc">🌐 6 Languages</span>
+      <span class="hc">🌙 Dark Mode</span>
+      <span class="hc">📷 OCR Receipt Scanner</span>
+    </div>
+  </div>
+</section>
+
+<div class="container">
+
+<!-- ══════════ TABLE OF CONTENTS ══════════ -->
+<div class="sp"></div>
+<div class="toc-block">
+  <div class="toc-head">
+    <div style="font-size:22px;margin-bottom:6px">📋</div>
+    <h2>Table of Contents</h2>
+    <p>Jump to any section</p>
+  </div>
+  <div class="toc-grid">
+    <a href="#getting-started" class="toc-item">
+      <div class="toc-icon" style="background:#ECFDF5">🚀</div>
+      <div><div class="toc-title">Getting Started</div><div class="toc-sub">5-step quick setup</div></div>
+    </a>
+    <a href="#invoices" class="toc-item">
+      <div class="toc-icon" style="background:#EFF6FF">📄</div>
+      <div><div class="toc-title">Invoices</div><div class="toc-sub">Create, manage &amp; track</div></div>
+    </a>
+    <a href="#quotations" class="toc-item">
+      <div class="toc-icon" style="background:#F5F3FF">📝</div>
+      <div><div class="toc-title">Quotations &amp; Payments</div><div class="toc-sub">Quotes, partial pay, TDS</div></div>
+    </a>
+    <a href="#expenses" class="toc-item">
+      <div class="toc-icon" style="background:#FFF7ED">💸</div>
+      <div><div class="toc-title">Clients &amp; Expenses</div><div class="toc-sub">Database &amp; expense log</div></div>
+    </a>
+    <a href="#reports" class="toc-item">
+      <div class="toc-icon" style="background:#F5F3FF">📊</div>
+      <div><div class="toc-title">Reports</div><div class="toc-sub">P&amp;L, Outstanding, GST</div></div>
+    </a>
+    <a href="#recurring" class="toc-item">
+      <div class="toc-icon" style="background:#ECFDF5">🔁</div>
+      <div><div class="toc-title">Recurring &amp; POS</div><div class="toc-sub">Auto-invoices &amp; quick billing</div></div>
+    </a>
+    <a href="#templates" class="toc-item">
+      <div class="toc-icon" style="background:#EFF6FF">🎨</div>
+      <div><div class="toc-title">PDF Templates</div><div class="toc-sub">11 designs + dark mode</div></div>
+    </a>
+    <a href="#team" class="toc-item">
+      <div class="toc-icon" style="background:#FFF7ED">👥</div>
+      <div><div class="toc-title">Team Management</div><div class="toc-sub">Roles &amp; permissions</div></div>
+    </a>
+    <a href="#tips" class="toc-item">
+      <div class="toc-icon" style="background:#FFFBEB">💡</div>
+      <div><div class="toc-title">Tips &amp; Tricks</div><div class="toc-sub">Power-user shortcuts</div></div>
+    </a>
+    <a href="#faq" class="toc-item">
+      <div class="toc-icon" style="background:#F1F5F9">❓</div>
+      <div><div class="toc-title">FAQ</div><div class="toc-sub">Common questions</div></div>
+    </a>
+    <a href="#plans" class="toc-item">
+      <div class="toc-icon" style="background:#EFF6FF">💳</div>
+      <div><div class="toc-title">Subscription Plans</div><div class="toc-sub">Pricing &amp; feature table</div></div>
+    </a>
+    <a href="#enterprise" class="toc-item">
+      <div class="toc-icon" style="background:linear-gradient(135deg,#1a1a2e,#2d1b69)">🏢</div>
+      <div><div class="toc-title">Enterprise</div><div class="toc-sub">Teams, API &amp; SLA</div></div>
+    </a>
+    <a href="#delivery-challan" class="toc-item">
+      <div class="toc-icon" style="background:#FFF7ED">🚚</div>
+      <div><div class="toc-title">Delivery Challan</div><div class="toc-sub">Dispatch &amp; convert to invoice</div></div>
+    </a>
+    <a href="#ocr-scanner" class="toc-item">
+      <div class="toc-icon" style="background:#F0FDF4">📷</div>
+      <div><div class="toc-title">OCR Receipt Scanner</div><div class="toc-sub">Scan &amp; auto-fill from any bill photo</div></div>
+    </a>
+    <a href="#purchase-bills" class="toc-item">
+      <div class="toc-icon" style="background:#FEF2F2">🧾</div>
+      <div><div class="toc-title">Purchase Bills</div><div class="toc-sub">Vendor bills, OCR &amp; payments</div></div>
+    </a>
+    <a href="#inventory" class="toc-item">
+      <div class="toc-icon" style="background:#ECFDF5">📦</div>
+      <div><div class="toc-title">Inventory</div><div class="toc-sub">Stock levels &amp; adjustments</div></div>
+    </a>
+    <a href="#cashflow" class="toc-item">
+      <div class="toc-icon" style="background:#EFF6FF">💰</div>
+      <div><div class="toc-title">Cash Flow</div><div class="toc-sub">Inflows vs outflows forecast</div></div>
+    </a>
+    <a href="#category-analytics" class="toc-item">
+      <div class="toc-icon" style="background:#F5F3FF">📈</div>
+      <div><div class="toc-title">Category Analytics</div><div class="toc-sub">Revenue by product &amp; service</div></div>
+    </a>
+    <a href="#client-statement" class="toc-item">
+      <div class="toc-icon" style="background:#ECFDF5">👤</div>
+      <div><div class="toc-title">Client Statement</div><div class="toc-sub">Full transaction history PDF</div></div>
+    </a>
+    <a href="#web-dashboard" class="toc-item">
+      <div class="toc-icon" style="background:#EFF6FF">🖥️</div>
+      <div><div class="toc-title">Web Dashboard</div><div class="toc-sub">Smart insights &amp; KPIs</div></div>
+    </a>
+    <a href="#gst-compliance" class="toc-item">
+      <div class="toc-icon" style="background:#FEF2F2">🏛️</div>
+      <div><div class="toc-title">E-Invoice &amp; E-Way Bill</div><div class="toc-sub">IRP &amp; e-way compliance</div></div>
+    </a>
+    <a href="#import" class="toc-item">
+      <div class="toc-icon" style="background:#F0FDF4">📥</div>
+      <div><div class="toc-title">Import Invoices</div><div class="toc-sub">Migrate existing data via CSV</div></div>
+    </a>
+    <a href="#credit-notes" class="toc-item">
+      <div class="toc-icon" style="background:#FEF2F2">🔴</div>
+      <div><div class="toc-title">Credit Notes</div><div class="toc-sub">Returns &amp; billing corrections</div></div>
+    </a>
+    <a href="#reminders" class="toc-item">
+      <div class="toc-icon" style="background:#FFF7ED">🔔</div>
+      <div><div class="toc-title">Payment Reminders</div><div class="toc-sub">Auto &amp; bulk chase overdue</div></div>
+    </a>
+    <a href="#smart-prefs" class="toc-item">
+      <div class="toc-icon" style="background:#ECFDF5">✅</div>
+      <div><div class="toc-title">Smart Preferences</div><div class="toc-sub">Persistent POS, Purchase Bills &amp; appearance</div></div>
+    </a>
+    <a href="#settings" class="toc-item">
+      <div class="toc-icon" style="background:#F0FDF4">⚙️</div>
+      <div><div class="toc-title">Settings &amp; Setup</div><div class="toc-sub">Profile, catalog, currency, language</div></div>
+    </a>
+  </div>
+</div>
+
+<!-- ══════════ GETTING STARTED ══════════ -->
+<div id="getting-started" class="sp"></div>
+<div class="sh">
+  <div class="tag g">5 minutes</div>
+  <h2>Up and Running in 5 Steps</h2>
+  <p>From install to your first invoice sent — no setup complexity.</p>
+</div>
+
+<div class="fc reveal fc-split" style="display:grid;grid-template-columns:auto 1fr;gap:0;overflow:hidden">
+  <div class="cpa" style="padding:36px 32px 36px;min-height:unset;flex-direction:column;gap:0;align-items:center;background:linear-gradient(160deg,#EFF6FF,#fff)">
+    <div class="iphone-wrap glow-blue">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span><div class="sb-icons"><svg viewBox="0 0 24 24"><rect x="1" y="7" width="3" height="10" rx="1"/><rect x="6" y="4" width="3" height="13" rx="1"/><rect x="11" y="2" width="3" height="15" rx="1"/><rect x="16" y="1" width="3" height="16" rx="1"/></svg></div></div>
+          <div class="mh"><div class="mht">Dashboard</div><div class="mhs">Mon, 2 Jun 2026</div></div>
+          <div class="mb">
+            <div class="mgb" style="background:linear-gradient(135deg,#1E40AF,#3B82F6)">
+              <div class="l">Total Invoices</div>
+              <div class="v">42</div>
+              <div class="l">₹3,24,500 billed</div>
+            </div>
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹2.4L</div><div class="mstat-l">Revenue</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#F59E0B">₹85K</div><div class="mstat-l">Outstanding</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#2563EB">18</div><div class="mstat-l">This Month</div></div>
+            </div>
+            <div class="mst">Recent Invoices</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Rajesh Kumar</div><div class="mcs">INV-0042 · Due 30 Jun</div></div><div style="text-align:right"><div style="font-size:10px;font-weight:800">₹50,660</div><span class="badge b-sent">Sent</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Priya Enterprises</div><div class="mcs">INV-0041 · Due 15 Jun</div></div><div style="text-align:right"><div style="font-size:10px;font-weight:800">₹18,000</div><span class="badge b-paid">Paid</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Amit Shah &amp; Co</div><div class="mcs">INV-0040 · Overdue</div></div><div style="text-align:right"><div style="font-size:10px;font-weight:800">₹75,000</div><span class="badge b-over">Overdue</span></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="cb">
+    <div class="tag g">Quick Start</div>
+    <h3>5 Steps to Your First Invoice</h3>
+    <div class="steps">
+      <div class="step"><div class="sn">1</div><div><div class="st">Sign in with Google</div><div class="sd">Open BillBook and tap <code>Sign in with Google</code>. Your data syncs to your own Google Drive — no extra accounts needed.</div></div></div>
+      <div class="step"><div class="sn">2</div><div><div class="st">Set up Business Profile</div><div class="sd">Go to <code>Settings → Business Profile</code>. Add your name, logo, address and GSTIN. This appears on every invoice.</div></div></div>
+      <div class="step"><div class="sn">3</div><div><div class="st">Add your first Client</div><div class="sd">Tap <code>Clients → +</code>. Enter name, company, phone, email and GSTIN. Clients auto-fill into invoices.</div></div></div>
+      <div class="step"><div class="sn">4</div><div><div class="st">Create an Invoice</div><div class="sd">Tap the blue <code>+</code> button. Select client, add items, pick template, tap <code>Save Invoice</code>.</div></div></div>
+      <div class="step"><div class="sn">5</div><div><div class="st">Send via WhatsApp</div><div class="sd">Tap <code>Mark as Sent</code> — the share sheet opens. Tap WhatsApp to send the PDF instantly.</div></div></div>
+    </div>
+    <div class="tip"><span style="font-size:16px">💡</span><p>Add your UPI ID under <code>Settings → Payment Methods</code> before your first invoice. A scan-to-pay QR appears on every PDF automatically.</p></div>
+  </div>
+</div>
+
+<!-- ══════════ INVOICES ══════════ -->
+<div id="invoices" class="dv"><span>📄 Invoices</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">INV-0043</div><div class="mhs">Draft · tap to edit</div></div>
+          <div class="mb">
+            <div class="mc"><div class="mct">Invoice Details</div>
+              <div style="display:flex;gap:5px;margin-top:6px">
+                <div class="mf" style="flex:1"><div class="mfl">Date</div><div class="mfv">02 Jun 2026</div></div>
+                <div class="mf" style="flex:1"><div class="mfl">Due Date</div><div class="mfv">02 Jul 2026</div></div>
+              </div>
+            </div>
+            <div class="mc"><div class="mct" style="display:flex;justify-content:space-between">Client <span style="color:#2563EB;font-size:8px">Change →</span></div>
+              <div style="font-size:9px;margin-top:4px;font-weight:600">Rajesh Kumar</div>
+              <div style="font-size:8px;color:#64748B">GSTIN: 27ABCDE1234F1Z5</div>
+            </div>
+            <div class="mc"><div class="mct" style="display:flex;justify-content:space-between">Line Items <span style="color:#2563EB;font-size:8px">+ Add</span></div>
+              <div style="margin-top:5px">
+                <div style="display:flex;justify-content:space-between;font-size:8.5px;padding:3px 0;border-bottom:1px solid #F1F5F9"><span>Website Design</span><span style="font-weight:700">₹35,000</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:8.5px;padding:3px 0"><span>SEO Setup</span><span style="font-weight:700">₹8,000</span></div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 4px;font-size:9.5px;font-weight:800"><span>Total (incl. GST)</span><span style="color:#2563EB">₹50,660</span></div>
+            <div class="mbtn">Save Invoice</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag">📝 Create</div>
+      <h3>Creating an Invoice</h3>
+      <p>Build a GST-compliant invoice with auto-calculated totals in under a minute.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Any time you complete a job, deliver goods, or provide a service — create and send the invoice immediately. The faster you invoice, the faster you get paid. Use BillBook at the client's site, over the phone, or at your desk.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Tap the blue + button</div><div class="sd">On the Invoices tab, tap the floating <code>+</code> to start a new invoice. The number auto-generates.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Select a Client</div><div class="sd">Tap <code>Select Client</code> — address, GSTIN and email auto-fill.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Add Line Items</div><div class="sd">Tap <code>+ Add</code>. Enter description, qty, rate and GST %. Pick from your saved catalog for speed.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Save &amp; Send</div><div class="sd">Tap <code>Save Invoice</code>. A share sheet opens — send via WhatsApp, email, or print.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>GST amounts (CGST/SGST or IGST) calculated automatically from the item tax %</li>
+        <li>Client GSTIN auto-fills from your saved client database — no re-typing</li>
+        <li>UPI scan-to-pay QR printed on every PDF — clients can pay immediately</li>
+        <li><b>Benefits:</b> professional PDF in under 60 seconds; get paid faster by sharing instantly via WhatsApp</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Invoices</div></div>
+          <div class="mtabs">
+            <div class="mtab on">All</div><div class="mtab">Draft</div><div class="mtab">Sent</div><div class="mtab">Paid</div><div class="mtab">Overdue</div>
+          </div>
+          <div class="mb">
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Rajesh Kumar</div><div class="mcs">INV-0042 · Due 30 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹50,660</div><span class="badge b-sent">Sent</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Priya Singh</div><div class="mcs">INV-0041 · 15 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹18,000</div><span class="badge b-paid">Paid</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Amit Sharma</div><div class="mcs">INV-0040 · Overdue</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹75,000</div><span class="badge b-over">Overdue</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Vikram Patel</div><div class="mcs">QT-0005 · Quotation</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹1,25,000</div><span class="badge b-quote">Quote</span></div></div></div>
+            <div class="mfab">+</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag">📋 Manage</div>
+      <h3>Managing the Invoice List</h3>
+      <p>Six smart tabs, period filters, search, and swipe actions — every invoice at a glance.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Check the Overdue tab every Monday — chase those invoices first. Use the Period filter before CA meetings to pull the exact date-range your accountant needs. Use Search when a client queries a specific invoice number over the phone.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Tabs: All · Draft · Sent · Paid · Overdue · Quotes — jump to any state instantly</li>
+        <li>Period filter: Today / Week / Month / Year / Custom — perfect for month-end reviews</li>
+        <li>Search by client name or invoice number — find any invoice in seconds</li>
+        <li>Swipe left to Edit or Delete — fast action without opening the invoice</li>
+        <li>Long-press to enter bulk-select — send bulk reminders or delete multiple <span class="pp pp-pro">Pro+</span></li>
+        <li>Duplicate any invoice in one tap from the ⋮ menu — ideal for repeat jobs</li>
+        <li><b>Benefits:</b> complete picture of your billing; nothing falls through the cracks; act on overdue items in seconds</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ DELIVERY CHALLAN ══════════ -->
+<div id="delivery-challan" class="dv"><span>🚚 Delivery Challan</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Delivery Challan</div><div class="mhs">DC-0012 · In Transit</div></div>
+          <div class="mb">
+            <div class="mc">
+              <div class="mct">Client</div>
+              <div style="font-size:9px;margin-top:4px;font-weight:600">Rajesh Kumar</div>
+              <div style="font-size:8px;color:#64748B">DC-0012 · 02 Jun 2026</div>
+            </div>
+            <div class="mc">
+              <div class="mct" style="display:flex;justify-content:space-between">Items <span style="color:#2563EB;font-size:8px">3 items</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8.5px;padding:3px 0;border-bottom:1px solid #F1F5F9"><span>Office Furniture</span><span style="font-weight:700">Qty: 2</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8.5px;padding:3px 0"><span>Steel Rack</span><span style="font-weight:700">Qty: 5</span></div>
+            </div>
+            <div class="mc" style="background:#F0FDF4;border:1px solid #86EFAC">
+              <div class="mbtn g" style="font-size:8px">⇄ Convert to Invoice</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag or">🚚 Delivery Challan <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Delivery Challans</h3>
+      <p>Issue a dispatch document before the invoice. Track goods in transit and convert to a live invoice once delivery is confirmed.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Use a Delivery Challan when goods leave your premises before billing — for approvals, consignments, or free samples. The challan is <em>not</em> a tax document.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Create a Challan</div><div class="sd">Go to <code>Invoices → ⋮ menu → Delivery Challan</code>. The form mirrors the invoice editor with the same client and item fields.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Share with Transporter</div><div class="sd">Tap <code>Share PDF</code> — send via WhatsApp or print. The PDF header clearly reads "DELIVERY CHALLAN", not an invoice.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Convert to Invoice</div><div class="sd">Once goods are delivered and accepted, open the challan and tap <code>Convert to Invoice</code>. All items, quantities and client details carry over instantly; the original challan remains for records.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Separate list — searchable and filterable by client name or challan number</li>
+        <li>PDF header clearly marked "DELIVERY CHALLAN" — not a GST invoice</li>
+        <li>Original challan is retained after conversion for audit trail purposes</li>
+        <li>Useful for traders, manufacturers, and businesses with approval-based billing</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ QUOTATIONS & PAYMENTS ══════════ -->
+<div id="quotations" class="dv"><span>📝 Quotations &amp; Payments</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">QT-0005</div><div class="mhs">Quotation · Approved</div></div>
+          <div class="mb">
+            <div style="margin-bottom:8px"><span class="mchip">Draft</span><span class="mchip on">Approved</span><span class="mchip">Declined</span></div>
+            <div class="mc"><div class="mct">Mark as Quotation / Estimate</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px">
+                <span style="font-size:8px;color:#64748B">PDF shows "QUOTATION"</span><div class="msw"></div>
+              </div>
+            </div>
+            <div class="mc" style="background:#F0FDF4;border:1px solid #86EFAC">
+              <div style="font-size:9px;font-weight:700;color:#16A34A">✓ Client approved this quote</div>
+              <div class="mbtn g" style="margin-top:7px;font-size:8px">⇄ Convert to Invoice</div>
+            </div>
+            <div class="mc"><div class="mct">Website Redesign Project</div><div style="display:flex;justify-content:space-between;margin-top:4px;font-size:9px"><span style="color:#64748B">5 line items</span><span style="font-weight:800">₹1,25,000</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag pu">📝 Quotations <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Quotations &amp; Estimates</h3>
+      <p>Send quotes before invoices. When the client approves, convert to a live invoice in one tap — no re-entry.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Before confirming the scope or price of a project. Sending a formal quote gives the client something to approve — it sets expectations, reduces disputes, and makes conversion to invoice effortless when work is done.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Toggle Quotation Mode</div><div class="sd">In the invoice editor, turn on <code>Mark as Quotation / Estimate</code>. The PDF header changes to "QUOTATION".</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Track Status</div><div class="sd">Update status to <code>Draft → Sent → Approved / Declined</code> using the status chips.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Convert to Invoice</div><div class="sd">When approved, tap <code>Convert to Invoice</code>. All items, amounts and client details carry over instantly.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>PDF header reads "QUOTATION" — never mistaken for a tax invoice by the client</li>
+        <li>Draft → Sent → Approved / Declined workflow tracks every quote's outcome</li>
+        <li>One-tap conversion to invoice — zero re-entry, no scope disputes</li>
+        <li><b>Benefits:</b> get written approval before work starts; eliminate payment disputes; win more projects with professional quotes</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Record Payment</div></div>
+          <div class="mb">
+            <div style="display:flex;gap:5px;margin-bottom:7px">
+              <div class="mf" style="flex:1;text-align:center"><div class="mfl">Invoice Total</div><div class="mfv" style="font-weight:800">₹50,000</div></div>
+              <div class="mf" style="flex:1;text-align:center"><div class="mfl">Balance Due</div><div class="mfv" style="color:#EF4444;font-weight:800">₹50,000</div></div>
+            </div>
+            <div class="mf"><div class="mfl">Amount Received</div><div class="mfv">₹ 45,000</div></div>
+            <div class="mc" style="background:#EFF6FF">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div><div style="font-size:9px;font-weight:700">TDS Deducted by Client</div><div style="font-size:7.5px;color:#64748B">Section 194J / 194C</div></div>
+                <div class="msw"></div>
+              </div>
+              <div class="mf" style="margin-top:7px"><div class="mfl">TDS Amount</div><div class="mfv">₹ 5,000 (10%)</div></div>
+            </div>
+            <div class="mbtn" style="margin-top:8px">Confirm Payment</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag">💳 Payments <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Partial Payments &amp; TDS</h3>
+      <p>Record milestone payments and TDS deductions — the invoice settles automatically when fully paid.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Whenever a client pays in milestones (advance + balance), or when a corporate client deducts TDS under Section 194J, 194C, or 194H. Record every payment as it arrives — the invoice automatically moves to <em>Paid</em> once all payments and TDS credits cover the full amount.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Multiple partial payments per invoice — record each instalment as it arrives</li>
+        <li>TDS deduction with auto-% calculation — BillBook treats TDS as a tax credit toward the invoice</li>
+        <li>Cash received + TDS credit shown on PDF — full transparency for the client</li>
+        <li>Balance Due updates in real time after each payment</li>
+        <li><b>Invoice auto-moves to Paid</b> when the sum of all payments and TDS covers the full invoice amount</li>
+        <li><b>Benefits:</b> never lose track of partial payments; no manual status changes; TDS compliance built-in</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Toggle <b>Show payments on invoice</b> in Invoice Settings to include a full payment history table on the client's PDF — ideal for milestone-based projects.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ EXPENSES ══════════ -->
+<div id="expenses" class="dv"><span>💸 Clients &amp; Expenses</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Expenses</div><div class="mhs">June 2026 · ₹42,500</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">₹18K</div><div class="mstat-l">Salary</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#F97316">₹12K</div><div class="mstat-l">Rent</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#F59E0B">₹8K</div><div class="mstat-l">Utilities</div></div>
+            </div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Office Rent – June</div><div class="mcs">🏠 Rent · 01 Jun</div></div><div style="font-size:10px;font-weight:800;color:#F97316">₹12,000</div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Staff Salary</div><div class="mcs">👥 Salary · 01 Jun 📷</div></div><div style="font-size:10px;font-weight:800;color:#EF4444">₹18,000</div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Electricity Bill</div><div class="mcs">⚡ Utilities · 28 May</div></div><div style="font-size:10px;font-weight:800;color:#F59E0B">₹4,500</div></div></div>
+            <div class="mfab">+</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag or">💸 Expenses <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Expense Tracking</h3>
+      <p>Log every business cost by category, attach receipt photos, scan to auto-fill, and feed directly into your P&amp;L report.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Log expenses immediately as they happen — at the petrol pump, after paying a supplier, when receiving a utility bill. Real-time logging gives you an accurate P&amp;L at month-end without scrambling through paper receipts or bank statements.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Add an Expense</div><div class="sd">Tap <code>Expenses → +</code>. Enter amount, select category, add description and date.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Attach &amp; Scan Receipt</div><div class="sd">Tap the <b>Receipt</b> section → choose <code>Camera</code> or <code>Gallery</code>. Once the photo is attached, tap <code>Scan &amp; Fill</code> — OCR reads the receipt and offers to auto-fill Amount, Date, and Vendor name. You confirm each field individually before it's applied.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Mark as Recurring</div><div class="sd">Toggle <code>Repeat monthly</code> for fixed costs like rent, salaries, or subscriptions. The expense recurs automatically without re-entry.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Add Custom Category</div><div class="sd">Don't see your category? Tap <code>New</code> in the category grid to create a custom category (e.g. "Marketing", "Equipment"). It's saved for future use.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>9 built-in categories + unlimited custom categories</li>
+        <li>Receipt photo stored in Google Drive backup alongside your data</li>
+        <li>OCR auto-fill reads Amount, Date, and Vendor name from any receipt photo</li>
+        <li>Filter expenses by period (Today / Week / Month / Year) and category</li>
+        <li><b>Benefits:</b> accurate P&amp;L without manual totalling; full receipt archive in Drive; tax-ready documentation for your CA</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- P&L Report -->
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">P &amp; L Report</div><div class="mhs">This Month</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹2.4L</div><div class="mstat-l">Revenue</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">₹42K</div><div class="mstat-l">Expenses</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#2563EB">₹1.98L</div><div class="mstat-l">Net Profit</div></div>
+            </div>
+            <div class="mst">Revenue by Client</div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>Rajesh Kumar</span><span style="font-weight:700">₹90K</span></div><div class="mpl" style="background:#2563EB;width:90%"></div></div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>Priya Enterprises</span><span style="font-weight:700">₹75K</span></div><div class="mpl" style="background:#2563EB;width:75%"></div></div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>Amit Shah</span><span style="font-weight:700">₹50K</span></div><div class="mpl" style="background:#2563EB;width:50%"></div></div>
+            <div class="mst">Expenses by Category</div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0"><span>🏠 Rent</span><span style="font-weight:700">₹12K</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0"><span>👥 Salary</span><span style="font-weight:700">₹18K</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag pu">📈 P&amp;L <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Profit &amp; Loss Report</h3>
+      <p>See exactly how much you earned vs spent. Revenue from paid invoices minus expenses = your true profit.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Review monthly before meeting your CA, at the end of each financial quarter, or any time you need to know if your business is profitable. The P&amp;L is your single source of financial truth — revenue from paid invoices vs all logged expenses.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Revenue vs Expenses vs Net Profit summary cards — your financial snapshot at a glance</li>
+        <li>Top-5 clients by revenue with progress bars — know who drives your income</li>
+        <li>Expense breakdown by category — see exactly where money is going</li>
+        <li>Period filter: Today / Week / Month / Year / Custom — match any reporting period</li>
+        <li><b>Benefits:</b> know your true profit without spreadsheets; hand the PDF straight to your CA; spot loss-making months early and act</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Check P&amp;L every Monday morning — tap <code>Reports → P&amp;L → This Week</code>. Know your numbers before the week gets busy.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ OCR RECEIPT SCANNER ══════════ -->
+<div id="ocr-scanner" class="dv"><span>📷 OCR Receipt Scanner</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Add Expense</div><div class="mhs">Receipt attached</div></div>
+          <div class="mb">
+            <div class="mc" style="background:#F0FDF4;border:1px solid #86EFAC;padding:10px 12px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:48px;height:48px;background:#DCFCE7;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">🧾</div>
+                <div style="flex:1">
+                  <div style="font-size:9px;font-weight:700;color:#16A34A">Receipt attached</div>
+                  <div style="display:flex;gap:5px;margin-top:4px">
+                    <div style="background:#BBF7D0;border-radius:10px;padding:2px 8px;font-size:7px;font-weight:700;color:#15803D">📷 Scan &amp; Fill</div>
+                    <div style="background:#D1FAE5;border-radius:10px;padding:2px 8px;font-size:7px;font-weight:700;color:#065F46">✏️ Change</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mc" style="background:#EFF6FF;border:1px solid #BFDBFE;margin-top:7px">
+              <div style="font-size:8.5px;font-weight:700;color:#1E40AF;margin-bottom:5px">📄 Receipt Scan Results</div>
+              <div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #E0EEFF">
+                <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                <div style="font-size:8px;color:#64748B;flex:1">Amount</div>
+                <div style="font-size:8.5px;font-weight:700;color:#2563EB">₹4,500</div>
+              </div>
+              <div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid #E0EEFF">
+                <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                <div style="font-size:8px;color:#64748B;flex:1">Date</div>
+                <div style="font-size:8.5px;font-weight:700;color:#2563EB">02 Jun 2026</div>
+              </div>
+              <div style="display:flex;align-items:center;padding:4px 0">
+                <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                <div style="font-size:8px;color:#64748B;flex:1">Vendor</div>
+                <div style="font-size:8.5px;font-weight:700;color:#2563EB">ABC Suppliers</div>
+              </div>
+              <div class="mbtn" style="margin-top:8px;font-size:8px">✨ Apply Selected Fields</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag g">📷 OCR Scanner <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>OCR Receipt Scanner — Scan to Auto-Fill</h3>
+      <p>Photograph any bill, receipt, or vendor invoice — BillBook's on-device OCR reads the text and offers to automatically fill in Amount, Date, Vendor Name, Bill Number, and GSTIN. Works completely offline. No API key or cloud service required.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Every time you receive a paper receipt or vendor bill. Instead of typing amounts and dates manually, just take a photo — OCR does the data entry for you. Works for expense receipts (petrol, utilities, supplies) and purchase bills from vendors. A clear, well-lit photo gives the best results.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Attach a Receipt Photo</div><div class="sd">On the <em>Add Expense</em> or <em>New Purchase Bill</em> screen, tap the <b>Receipt</b> card at the top. Choose <code>Camera</code> (take a new photo) or <code>Gallery</code> (pick an existing one). The image is attached and stored in your Google Drive backup.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Tap "Scan &amp; Fill"</div><div class="sd">With the image attached, tap the <code>Scan &amp; Fill</code> chip. The on-device OCR engine (Google ML Kit) reads the text — no internet needed. A loading indicator shows while processing (usually 1–3 seconds).</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Review Extracted Fields</div><div class="sd">A <b>Receipt Scan Results</b> sheet appears showing every detected field with a checkbox beside it. Fields detected: Amount, Date, Vendor Name (expenses) plus Bill Number and GSTIN (purchase bills). Uncheck any field you don't want applied.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Apply &amp; Verify</div><div class="sd">Tap <code>Apply Selected Fields</code>. The form fields fill instantly. Always glance at the filled values — OCR is very accurate but may occasionally misread a digit on blurry images. Edit any field as needed before saving.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>Expenses:</b> detects Amount, Date, Vendor Name — fills form with one tap</li>
+        <li><b>Purchase Bills:</b> detects Vendor Name, Bill Number, Date, Total Amount, and GSTIN</li>
+        <li>On-device processing — fully offline, no data sent to any server</li>
+        <li>Per-field checkboxes — apply only the fields you want; existing form data is never overwritten</li>
+        <li>Supports common Indian receipt formats: DD/MM/YYYY dates, ₹ / Rs. amounts, 15-char GSTIN</li>
+        <li>Receipt photo stored in Google Drive backup alongside your expense/bill records</li>
+        <li><b>Benefits:</b> 5× faster data entry; eliminate typos; build a complete digital receipt archive; CA-ready documentation with zero extra effort</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>For best OCR results: photograph the receipt flat on a contrasting surface with good lighting. Hold the phone steady and make sure the entire receipt fits in frame. The "Total" or "Grand Total" line at the bottom gives the most reliable amount extraction.</p></div>
+      <div class="warn"><span style="font-size:15px">⚠️</span><p>Always verify OCR-filled values before saving, especially amounts. Blurry images or stylised fonts on some receipts may result in imprecise text extraction. The original receipt photo is your ground truth.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PURCHASE BILLS ══════════ -->
+<div id="purchase-bills" class="dv"><span>🧾 Purchase Bills &amp; Vendors</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Purchase Bills</div><div class="mhs">June 2026</div></div>
+          <div class="mtabs">
+            <div class="mtab on">All</div><div class="mtab">Unpaid</div><div class="mtab">Partial</div><div class="mtab">Paid</div>
+          </div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">₹85K</div><div class="mstat-l">Unpaid</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#F59E0B">₹32K</div><div class="mstat-l">Partial</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹1.2L</div><div class="mstat-l">Paid</div></div>
+            </div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">ABC Suppliers</div><div class="mcs">BILL-0031 · Due 15 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹45,000</div><span class="badge b-over">Unpaid</span></div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Office Depot</div><div class="mcs">BILL-0030 · 01 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800">₹12,500</div><span class="badge b-paid">Paid</span></div></div></div>
+            <div class="mfab">+</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag red">🧾 Purchase Bills <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Purchase Bills &amp; Vendor Management</h3>
+      <p>Track every bill you receive from suppliers. Attach the bill photo, OCR-scan to auto-fill vendor details, record partial or full payments, and monitor everything you owe — payables in one place.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Any time you receive a bill from a supplier, contractor, or vendor. Keeping purchase bills in BillBook gives you a complete picture of payables alongside receivables — essential for accurate P&amp;L, Cash Flow, and Input Tax Credit (ITC) reconciliation.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Scan or Enter the Bill</div><div class="sd">Tap <code>Purchase Bills → +</code>. Attach the bill photo with the <b>Receipt</b> card at the top, tap <code>Scan &amp; Fill</code> to auto-fill Vendor, Bill No., Date, Amount, and GSTIN — or enter the details manually.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Add Line Items</div><div class="sd">Enter individual items with quantity, rate, and GST % for accurate ITC tracking. Or enter a single total-line if you don't need item-level detail.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Set Due Date &amp; Reminder</div><div class="sd">Enter the payment due date and toggle <code>Payment Reminder</code> to get a push notification before it's due — never miss a supplier payment deadline.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Record Payments</div><div class="sd">Open the bill → tap <code>Record Payment</code>. Supports multiple partial payments — bill status automatically moves to <em>Partially Paid</em> or <em>Paid</em> based on the cumulative payments.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Filter by status: All / Unpaid / Partial / Paid</li>
+        <li>Search by vendor name, bill number, or GSTIN</li>
+        <li>OCR auto-fills: Vendor Name, Bill Number, Date, Total, and GSTIN from the bill photo</li>
+        <li>Vendor GSTIN stored for Input Tax Credit (ITC) reconciliation</li>
+        <li>Purchase bills feed directly into the Cash Flow forecast and P&amp;L report</li>
+        <li>Receipt image stored in Google Drive backup alongside the bill record</li>
+        <li><b>Benefits:</b> never miss a payment deadline; complete payables picture; ITC-ready records; digital receipt archive for every vendor bill</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ INVENTORY ══════════ -->
+<div id="inventory" class="dv"><span>📦 Inventory &amp; Stock</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Inventory</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v">48</div><div class="mstat-l">Items</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#F59E0B">5</div><div class="mstat-l">Low Stock</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">2</div><div class="mstat-l">Out of Stock</div></div>
+            </div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Office Chair</div><div class="mcs">SKU-001 · ₹4,500</div></div><div style="font-size:10px;font-weight:800;color:#10B981">12 units</div></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Printer Paper A4</div><div class="mcs">SKU-004 · ₹480</div></div><div style="font-size:10px;font-weight:800;color:#F59E0B">3 packs</div></div></div>
+            <div class="mc" style="background:#FEF2F2"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">USB-C Hub</div><div class="mcs">SKU-007 · ₹1,200</div></div><div style="font-size:10px;font-weight:800;color:#EF4444">0 units</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag tl">📦 Inventory <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Inventory &amp; Stock Tracking</h3>
+      <p>Keep tabs on how much stock you have for every product. Get low-stock alerts and adjust quantities in seconds — stock reduces automatically when an invoice is saved.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> If you sell physical products, enable inventory tracking on any item. Ideal for traders, retailers, distributors, and product-based businesses to avoid over-selling or running out of stock.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Enable per Item</div><div class="sd">Go to <code>Settings → Items &amp; Services → Edit Item → Track Inventory</code>. Set the opening quantity and low-stock threshold.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">View Inventory Screen</div><div class="sd">Navigate to <code>Inventory</code> from the main menu. See all tracked items with current stock, low-stock count, and out-of-stock count at the top.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Adjust Stock Manually</div><div class="sd">Tap any item → tap <code>Adjust</code>. Enter the new quantity on hand — useful after receiving new stock or correcting counts.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Stock reduces automatically each time a sales invoice is saved</li>
+        <li>Low-stock items highlighted in amber; out-of-stock in red</li>
+        <li>Dashboard shows low-stock and out-of-stock count at a glance</li>
+        <li>Benefits: prevent over-selling; know when to reorder without manual counting</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ REPORTS ══════════ -->
+<div id="reports" class="dv"><span>📊 More Reports</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Outstanding Analysis</div></div>
+          <div class="mb">
+            <div class="mgb" style="background:linear-gradient(135deg,#1E40AF,#3B82F6)">
+              <div class="l">Total Outstanding</div><div class="v">₹3,45,000</div><div class="l">12 invoices unpaid</div>
+            </div>
+            <div class="mbkt" style="background:#EFF6FF;border-left:3px solid #2563EB"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">Not Yet Due</span><span>4 · ₹1,20,000</span></div></div>
+            <div class="mbkt" style="background:#FFFBEB;border-left:3px solid #F59E0B"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">1–30 Days</span><span>3 · ₹85,000</span></div></div>
+            <div class="mbkt" style="background:#FED7AA;border-left:3px solid #F97316"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">31–60 Days</span><span>2 · ₹70,000</span></div></div>
+            <div class="mbkt" style="background:#FEE2E2;border-left:3px solid #EF4444"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">90+ Days</span><span>2 · ₹40,000</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag am">⏰ Outstanding <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Age-wise Outstanding</h3>
+      <p>Know exactly which invoices are overdue and by how many days. Tap any bucket to see the individual invoices.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Every Friday afternoon — review the 31–60 and 60+ day buckets and chase those clients immediately. The older a debt, the harder it is to collect. Use this report before board meetings, CA reviews, or whenever you need to know your total receivables exposure.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>5 colour-coded buckets: Not Due → 1–30 → 31–60 → 61–90 → 90+ days</li>
+        <li>Expand any bucket to see client name, amount and due date</li>
+        <li>Tap any invoice to open it and record payment or send a WhatsApp reminder immediately</li>
+        <li><b>Benefits:</b> prioritise your collection calls; catch aging debt early; know exactly how much is owed and for how long</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">GST Report</div><div class="mhs">May 2026 · Intra-state</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v">₹2.4L</div><div class="mstat-l">Taxable</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#E65100">₹21.6K</div><div class="mstat-l">CGST 9%</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#E65100">₹21.6K</div><div class="mstat-l">SGST 9%</div></div>
+            </div>
+            <div class="mst">B2B Invoices (with GSTIN)</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>Rajesh Kumar · 27ABCDE</span><span style="font-weight:700">₹59,000</span></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>Priya Enterprises · 27FGHIJ</span><span style="font-weight:700">₹21,240</span></div></div>
+            <div class="mst">HSN Summary</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>998313 · Dev Services</span><span style="font-weight:700">₹1.8L</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag red">🏛️ GST Reports <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>GST Reports (GSTR-1 Style)</h3>
+      <p>Auto-split CGST/SGST or IGST. Generates GSTR-1 style reports with B2B, B2C and HSN/SAC summary.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> At the end of each month before filing your GSTR-1 return (due by the 11th of the following month). Export the PDF and share it with your CA — it has everything they need: B2B invoices with GSTINs, B2C totals, HSN summary, and CGST/SGST/IGST split.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Auto intra-state (CGST+SGST) vs inter-state (IGST) detection — based on buyer GSTIN state code</li>
+        <li>B2B invoices (with client GSTIN) section — required for ITC claims by your clients</li>
+        <li>B2C invoices (without GSTIN) section — aggregate and invoice-wise</li>
+        <li>HSN/SAC code-wise tax summary — required if turnover exceeds ₹5 crore</li>
+        <li>Export PDF to share with your CA for manual portal filing</li>
+        <li><b>Benefits:</b> GST filing prep in minutes not hours; hand a complete, CA-ready PDF directly; no manual totalling or spreadsheet work</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CASH FLOW ══════════ -->
+<div id="cashflow" class="dv"><span>💰 Cash Flow</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Cash Flow</div><div class="mhs">Upcoming 30 days</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹2.1L</div><div class="mstat-l">Expected In</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">₹85K</div><div class="mstat-l">Expected Out</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#2563EB">₹1.25L</div><div class="mstat-l">Net</div></div>
+            </div>
+            <div class="mst">Inflows (Outstanding Invoices)</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>Rajesh Kumar · INV-0042</span><span style="font-weight:700;color:#10B981">₹50,660</span></div><div style="font-size:7.5px;color:#64748B">Due 30 Jun</div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>Priya Enterprises · INV-0041</span><span style="font-weight:700;color:#10B981">₹45,000</span></div><div style="font-size:7.5px;color:#64748B">Due 15 Jun</div></div>
+            <div class="mst">Outflows (Purchase Bills)</div>
+            <div class="mc" style="background:#FEF2F2"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>ABC Suppliers · BILL-0031</span><span style="font-weight:700;color:#EF4444">₹45,000</span></div><div style="font-size:7.5px;color:#64748B">Due 15 Jun · Overdue</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag g">💰 Cash Flow <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Cash Flow Forecast</h3>
+      <p>See all money expected to come in (outstanding invoices) vs money going out (unpaid purchase bills) — sorted by due date so nothing surprises you.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Review every week before making large purchases or salary payments. Knowing your net position prevents cash crunches and helps you decide when you can safely spend.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Inflows = all sent/overdue invoices with amounts still due</li>
+        <li>Outflows = all unpaid and partially-paid purchase bills</li>
+        <li>Entries sorted by due date — overdue items flagged in red</li>
+        <li>Net position (Expected In minus Expected Out) shown at the top</li>
+        <li>Tap any entry to open the invoice or purchase bill directly to take action</li>
+        <li>Benefits: avoid cash surprises; time your payments and follow-ups confidently</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CATEGORY ANALYTICS ══════════ -->
+<div id="category-analytics" class="dv"><span>📈 Category Analytics</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Category Analytics</div></div>
+          <div class="mtabs">
+            <div class="mtab on">Revenue</div><div class="mtab">Top Items</div><div class="mtab">Top Services</div>
+          </div>
+          <div class="mb">
+            <div class="mst">Revenue by Category</div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>Web Development</span><span style="font-weight:700">₹1.2L</span></div><div class="mpl" style="background:#7C3AED;width:90%"></div></div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>Consulting</span><span style="font-weight:700">₹75K</span></div><div class="mpl" style="background:#7C3AED;width:60%"></div></div>
+            <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:8px;margin-bottom:2px"><span>SEO Services</span><span style="font-weight:700">₹48K</span></div><div class="mpl" style="background:#7C3AED;width:38%"></div></div>
+            <div class="mst">Top Items</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">Website Design</span><span>₹90,000 · 12 sales</span></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span style="font-weight:700">Monthly Retainer</span><span>₹60,000 · 6 sales</span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag pu">📈 Category Analytics <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Category Analytics</h3>
+      <p>Understand which services and products drive your revenue. Three tabs show Revenue by Category, Top Items, and Top Services — all filterable by date range.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Review monthly to decide where to focus your sales energy. If one service consistently outperforms others, that's where to invest more time. Use it to cut or reprice underperforming offerings.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>Revenue tab</b> — bar chart of income grouped by line-item description or category</li>
+        <li><b>Top Items tab</b> — most-billed products ranked by total revenue and sales count</li>
+        <li><b>Top Services tab</b> — service-based items ranked the same way</li>
+        <li>Period filter: Today / Week / Month / Year / Custom date range</li>
+        <li>Benefits: data-driven pricing decisions; identify your most profitable offerings</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CLIENT STATEMENT & PROFILE ══════════ -->
+<div id="client-statement" class="dv"><span>👤 Client Statement &amp; Profile</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Rajesh Kumar</div><div class="mhs">Client Profile</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹3.6L</div><div class="mstat-l">Total Billed</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#2563EB">₹3.1L</div><div class="mstat-l">Collected</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#EF4444">₹50K</div><div class="mstat-l">Outstanding</div></div>
+            </div>
+            <div class="mc" style="background:#ECFDF5;border:1px solid #86EFAC">
+              <div style="font-size:9px;font-weight:800;color:#16A34A">Payment Score: Excellent</div>
+              <div style="font-size:8px;color:#64748B;margin-top:2px">Avg 3 days to pay · 92% on-time</div>
+            </div>
+            <div class="mbtn" style="margin-top:8px;font-size:8px">📄 Generate Statement PDF</div>
+            <div class="mst">Recent Invoices</div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>INV-0042 · 02 Jun</span><span style="font-weight:700">₹50,660 <span class="badge b-sent">Sent</span></span></div></div>
+            <div class="mc"><div style="display:flex;justify-content:space-between;font-size:8.5px"><span>INV-0038 · 01 May</span><span style="font-weight:700">₹42,000 <span class="badge b-paid">Paid</span></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag tl">👤 Client Profile &amp; Statement <span class="pp pp-lite" style="margin-left:4px">Lite+</span></div>
+      <h3>Client Profile &amp; Statement PDF</h3>
+      <p>Every client has a full profile showing their payment behaviour score, complete billing history, and a shareable PDF statement — all from one screen.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Before chasing a payment, check the client's profile to understand their payment habits. Send a Statement PDF for month-end reconciliation or to resolve billing disputes.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Open Client Profile</div><div class="sd">Go to the <code>Clients</code> tab → tap any client name to see their full profile with totals and history.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Review Payment Score</div><div class="sd">The score (Excellent / Good / Fair / Poor) is calculated from average days-to-pay and on-time % across all paid invoices.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Generate a Statement</div><div class="sd">Tap <code>Generate Statement PDF</code>. Pick a date range — the PDF lists all invoices, payments received, and the closing balance due.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Payment score grades: New / Excellent / Good / Fair / Poor / No Payments</li>
+        <li>Shows average days to pay and on-time payment percentage</li>
+        <li>Statement PDF ready to share via WhatsApp or email instantly</li>
+        <li>Tap any invoice in the profile to open and edit it directly</li>
+        <li>Benefits: know which clients to trust with larger credit; impress clients with professional statements</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ WEB DASHBOARD ══════════ -->
+<div id="web-dashboard" class="dv"><span>🖥️ Web Dashboard</span></div>
+
+<div class="fc" style="overflow:visible">
+  <div class="fc-split" style="display:grid;grid-template-columns:auto 1fr;gap:0;overflow:hidden;border-radius:22px">
+    <div class="cpa" style="padding:36px 32px;min-height:unset;background:linear-gradient(160deg,#EFF6FF,#fff)">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Web Dashboard</div><div class="mhs">Premium · Smart Insights</div></div>
+          <div class="mb">
+            <div class="mstat-row">
+              <div class="mstat"><div class="mstat-v" style="color:#10B981">₹5.2L</div><div class="mstat-l">Revenue</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#2563EB">87%</div><div class="mstat-l">Collection</div></div>
+              <div class="mstat"><div class="mstat-v" style="color:#7C3AED">3.2×</div><div class="mstat-l">Growth</div></div>
+            </div>
+            <div class="mc" style="background:linear-gradient(135deg,#EFF6FF,#F5F3FF)">
+              <div style="font-size:8px;font-weight:700;color:#2563EB;margin-bottom:3px">✨ Smart Insight</div>
+              <div style="font-size:7.5px;color:#334155">Rajesh Kumar hasn't been invoiced in 45 days — consider following up.</div>
+            </div>
+            <div class="mst">KPI Metrics</div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0"><span>Avg Invoice Value</span><span style="font-weight:700">₹38,500</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0"><span>Collection Rate</span><span style="font-weight:700">87%</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0"><span>3-Month Forecast</span><span style="font-weight:700">₹6.8L</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag pu">🖥️ Web Dashboard <span class="pp pp-prem" style="margin-left:4px">Premium</span></div>
+      <h3>Web Dashboard &amp; Smart Insights</h3>
+      <p>A fully customisable analytics dashboard with 11 panels — revenue charts, KPIs, cash flow trends, top clients, revenue forecasts, and AI-powered business insights — all on one screen.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Open the Web Dashboard at the end of each month for a full business health check. Pin the panels most relevant to you and hide the ones you don't need.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>Smart Insights</b> — AI-generated recommendations (inactive clients, overdue spikes, seasonal trends)</li>
+        <li><b>KPI Metrics</b> — avg invoice value, collection rate, overdue rate, MoM growth</li>
+        <li><b>Revenue Chart</b> — 12-month paid vs outstanding trend bars</li>
+        <li><b>Cash Flow Panel</b> — invoiced vs collected by month</li>
+        <li><b>Top Clients</b> — ranked by lifetime value and revenue contribution</li>
+        <li><b>Customer Insights</b> — retention rate, churn risk, new vs returning clients</li>
+        <li><b>Revenue by Service</b> — top products and services by revenue</li>
+        <li><b>Overdue Aging</b> — age-bucket breakdown of all unpaid invoices</li>
+        <li><b>Revenue Forecast</b> — 3-month projected revenue based on trends</li>
+        <li>All 11 panels are <b>pinnable and reorderable</b> — build your own layout</li>
+        <li>Benefits: one-screen business review; act on insights before issues escalate</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ E-INVOICE & E-WAY BILLS ══════════ -->
+<div id="gst-compliance" class="dv"><span>🏛️ E-Invoice &amp; E-Way Bill</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">E-Invoice (IRP)</div><div class="mhs">GST Compliance</div></div>
+          <div class="mtabs">
+            <div class="mtab on">Pending IRN</div><div class="mtab">Generated</div>
+          </div>
+          <div class="mb">
+            <div class="mc">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div><div class="mct">Rajesh Kumar</div><div class="mcs">INV-0042 · ₹50,660</div></div>
+                <div class="mbtn" style="margin:0;padding:5px 10px;font-size:7.5px">Generate IRN</div>
+              </div>
+            </div>
+            <div class="mc" style="background:#ECFDF5;border:1px solid #86EFAC">
+              <div><div class="mct" style="color:#16A34A">Priya Enterprises</div><div class="mcs">INV-0041 · IRN: ABC123...XYZ</div></div>
+              <div style="font-size:7.5px;color:#16A34A;margin-top:3px">✓ E-Invoice Generated · QR embedded on PDF</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag red">🏛️ E-Invoice (IRP) <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>E-Invoice Generation (IRN)</h3>
+      <p>For GST-registered businesses with turnover above ₹5 crore, generate Invoice Reference Numbers (IRN) from the IRP portal directly within BillBook. The IRN and QR code auto-embed in the PDF.</p>
+      <div class="warn"><span style="font-size:15px">⚠️</span><p><b>When to use:</b> Mandatory for B2B transactions if your annual turnover exceeds ₹5 crore as per GST rules. The IRN and QR code must appear on the invoice before sharing it with the buyer.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Set Up GSTIN</div><div class="sd">Ensure your GSTIN is entered under <code>Settings → Business Profile → GST Setup</code>.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Open E-Invoice Screen</div><div class="sd">Navigate to <code>Reports → E-Invoice (IRP)</code>. All eligible invoices appear under the <em>Pending IRN</em> tab.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Generate IRN</div><div class="sd">Tap <code>Generate IRN</code> on any invoice. The IRN and QR code are fetched from the IRP and automatically embedded into the invoice PDF.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Only GST-registered businesses with valid GSTIN are eligible</li>
+        <li>Quotations, credit notes, and delivery challans are excluded</li>
+        <li>Generated tab shows all invoices with IRNs for easy reference</li>
+        <li>Benefits: stay GST compliant; IRN + QR auto-embedded, no manual copy-paste</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">E-Way Bills</div><div class="mhs">Goods in Transit</div></div>
+          <div class="mtabs">
+            <div class="mtab on">Pending</div><div class="mtab">Generated</div>
+          </div>
+          <div class="mb">
+            <div class="mc">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div><div class="mct">Amit Shah &amp; Co</div><div class="mcs">INV-0040 · ₹75,000</div></div>
+                <div class="mbtn" style="margin:0;padding:5px 10px;font-size:7.5px">Generate EWB</div>
+              </div>
+            </div>
+            <div class="mc" style="background:#ECFDF5;border:1px solid #86EFAC">
+              <div><div class="mct" style="color:#16A34A">Vikram Patel</div><div class="mcs">EWB No: 12345678901</div></div>
+              <div style="font-size:7.5px;color:#16A34A;margin-top:3px">✓ Valid until 05 Jun 2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag or">🚛 E-Way Bills <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>E-Way Bill Management</h3>
+      <p>Generate and track E-Way Bills for goods movement valued above ₹50,000. Two tabs keep pending and generated bills clearly separated.</p>
+      <div class="warn"><span style="font-size:15px">⚠️</span><p><b>When to use:</b> Required whenever goods worth more than ₹50,000 are transported within or across state borders. Must be generated <em>before</em> goods leave your premises.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Open E-Way Bills</div><div class="sd">Go to <code>Reports → E-Way Bills</code>. All eligible invoices appear under the <em>Pending</em> tab.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Generate E-Way Bill</div><div class="sd">Tap <code>Generate EWB</code> on an invoice — enter transporter details and vehicle number. The EWB number is saved against that invoice automatically.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Track &amp; Manage</div><div class="sd">View all active E-Way Bills in the <em>Generated</em> tab. Bills nearing expiry are highlighted so you can extend them in time.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Quotations, credit notes, and delivery challans are not eligible</li>
+        <li>EWB number stored against the invoice for future reference</li>
+        <li>Benefits: avoid GST penalties; never ship goods without a valid EWB again</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ RECURRING & POS ══════════ -->
+<div id="recurring" class="dv"><span>🔁 Recurring &amp; POS</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Recurring Invoices</div></div>
+          <div class="mb">
+            <div class="mc">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="width:28px;height:28px;border-radius:7px;background:#EFF6FF;display:flex;align-items:center;justify-content:center;font-size:13px">🔁</div>
+                <div style="flex:1"><div class="mct">Rajesh Kumar – Monthly</div><div class="mcs">Next: 01 Jul 2026 · Generated: 6</div></div>
+                <div class="msw"></div>
+              </div>
+            </div>
+            <div class="mc">
+              <div style="display:flex;align-items:center;gap:7px">
+                <div style="width:28px;height:28px;border-radius:7px;background:#FFF7ED;display:flex;align-items:center;justify-content:center;font-size:13px">📅</div>
+                <div style="flex:1"><div class="mct">Priya Retainer – Quarterly</div><div class="mcs">Next: 01 Sep 2026 · Generated: 2</div></div>
+                <div class="msw"></div>
+              </div>
+            </div>
+            <div class="mc" style="background:#F0FDF4;border:1px solid #86EFAC">
+              <div style="font-size:8.5px;font-weight:700;color:#16A34A;margin-bottom:4px">Set Frequency</div>
+              <div><span class="mchip">Weekly</span><span class="mchip on">Monthly</span><span class="mchip">Quarterly</span><span class="mchip">Yearly</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag g">🔁 Recurring <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Auto-Generate Recurring Invoices</h3>
+      <p>Set any invoice to repeat on a schedule. BillBook auto-generates the next invoice every time you open the app.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> For any regular, fixed-fee client — monthly retainers, SaaS subscriptions, annual maintenance contracts, or weekly service fees. Set it once and forget it; the invoice appears in your list automatically without you touching it.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>5 frequencies: Weekly, Fortnightly, Monthly, Quarterly, Yearly</li>
+        <li>Set from any saved invoice — one tap setup from the invoice editor</li>
+        <li>Choose days until due date (e.g. Net-30) — due date auto-calculates on each new invoice</li>
+        <li>Enable / disable each schedule independently — pause without deleting</li>
+        <li>Manage all schedules from <code>Settings → Recurring Invoices</code></li>
+        <li><b>Benefits:</b> never forget a retainer; remove manual work for repeat clients; get paid consistently without chasing or re-entering data</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Point of Sale</div></div>
+          <div style="background:#fff;border-bottom:1px solid #E2E8F0;padding:6px 10px;display:flex;gap:6px;overflow:hidden">
+            <span class="mchip on">All</span><span class="mchip">Food</span><span class="mchip">Drinks</span><span class="mchip">Desserts</span>
+          </div>
+          <div class="mb" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px">
+            <div class="mc" style="text-align:center;padding:8px">
+              <div style="font-size:18px;margin-bottom:4px">🍛</div>
+              <div style="font-size:8.5px;font-weight:700">Paneer Masala</div>
+              <div style="font-size:8px;color:#64748B">₹240</div>
+              <div style="width:20px;height:20px;border-radius:50%;background:#2563EB;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin:4px auto 0">+</div>
+            </div>
+            <div class="mc" style="text-align:center;padding:8px;border:1.5px solid #2563EB">
+              <div style="font-size:18px;margin-bottom:4px">🍞</div>
+              <div style="font-size:8.5px;font-weight:700">Garlic Naan</div>
+              <div style="font-size:8px;color:#64748B">₹40</div>
+              <div style="font-size:8px;color:#2563EB;font-weight:700;margin-top:4px">2× in cart</div>
+            </div>
+            <div class="mc" style="text-align:center;padding:8px">
+              <div style="font-size:18px;margin-bottom:4px">🥤</div>
+              <div style="font-size:8.5px;font-weight:700">Cold Drink</div>
+              <div style="font-size:8px;color:#64748B">₹60</div>
+              <div style="width:20px;height:20px;border-radius:50%;background:#2563EB;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin:4px auto 0">+</div>
+            </div>
+            <div class="mc" style="text-align:center;padding:8px">
+              <div style="font-size:18px;margin-bottom:4px">🍮</div>
+              <div style="font-size:8.5px;font-weight:700">Gulab Jamun</div>
+              <div style="font-size:8px;color:#64748B">₹80</div>
+              <div style="width:20px;height:20px;border-radius:50%;background:#2563EB;color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin:4px auto 0">+</div>
+            </div>
+          </div>
+          <div style="background:#fff;padding:8px 12px;border-top:1px solid #E2E8F0;margin-top:auto">
+            <div style="background:linear-gradient(135deg,#2563EB,#1D4ED8);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center">
+              <span style="color:#fff;font-size:8.5px;font-weight:700">2 items</span>
+              <span style="color:#fff;font-size:8.5px;font-weight:700">View Cart · ₹120</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag tl">🛒 POS Screen <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Point of Sale Screen</h3>
+      <p>Quickly bill walk-in customers from your product catalog. Perfect for cafes, retail counters, and service shops.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Any time you have walk-in customers with known products — restaurants, grocery shops, salons, retail counters, service centres. POS is faster than the invoice editor because you just tap products; no typing required. Enable it once from Settings and it stays enabled.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Enable POS</div><div class="sd"><code>Settings → Point of Sale → toggle ON</code>. A POS tab appears in the bottom navigation immediately.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Tap Items to Add</div><div class="sd">Tap any product tile to add to cart. Tap again to increase quantity. Filter by category using the chips at the top.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Checkout</div><div class="sd">Tap the cart bar at bottom → select client (or "Walk-in") → choose payment method → tap <code>Charge &amp; Save Invoice</code>. A PDF receipt is generated instantly.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Items displayed as a visual grid — tap to add, tap again to increase quantity</li>
+        <li>Category filter chips at top — navigate large catalogs in seconds</li>
+        <li>Works with your existing product catalog — no duplicate data entry</li>
+        <li><b>Benefits:</b> serve customers faster; no keyboard needed; instant professional receipt; inventory deducts automatically with each sale</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PDF TEMPLATES ══════════ -->
+<div id="templates" class="dv"><span>🎨 PDF Templates</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Choose Template</div></div>
+          <div class="mb" style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <div class="mc" style="text-align:center;border:1.5px solid #2563EB;background:#EFF6FF"><div style="font-size:14px;margin-bottom:3px">🟦</div><div style="font-size:8px;font-weight:700;color:#2563EB">Classic</div><div style="font-size:7px;color:#64748B">Free</div></div>
+            <div class="mc" style="text-align:center"><div style="font-size:14px;margin-bottom:3px">⬜</div><div style="font-size:8px;font-weight:700">Minimal</div><div style="font-size:7px;color:#64748B">Lite+</div></div>
+            <div class="mc" style="text-align:center"><div style="font-size:14px;margin-bottom:3px">🖤</div><div style="font-size:8px;font-weight:700">Corporate</div><div style="font-size:7px;color:#64748B">Lite+</div></div>
+            <div class="mc" style="text-align:center"><div style="font-size:14px;margin-bottom:3px">🟩</div><div style="font-size:8px;font-weight:700">Modern</div><div style="font-size:7px;color:#64748B">Pro+</div></div>
+            <div class="mc" style="text-align:center"><div style="font-size:14px;margin-bottom:3px">🏛️</div><div style="font-size:8px;font-weight:700">GST Bill</div><div style="font-size:7px;color:#64748B">Pro+</div></div>
+            <div class="mc" style="text-align:center"><div style="font-size:14px;margin-bottom:3px">🖨️</div><div style="font-size:8px;font-weight:700">Thermal</div><div style="font-size:7px;color:#64748B">Pro+</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag">🎨 Templates</div>
+      <h3>11 PDF Templates</h3>
+      <p>Every template shows your logo, UPI QR, bank details, and digital signature. Pick the one that matches your industry and brand.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Choose your template once from <code>Invoice Settings → Default Template</code> — all future invoices use it automatically. Change templates per-invoice for special clients or document types. Match the template to your business: thermal for retail POS, GST Bill for GST-registered traders, Professional for CAs and lawyers.</p></div>
+      <table class="lt" style="margin-top:14px">
+        <thead><tr><th>Template</th><th>Best For</th><th>Plan</th></tr></thead>
+        <tbody>
+          <tr><td>Classic</td><td>Any business</td><td><span class="pp pp-free">Free</span></td></tr>
+          <tr><td>Minimal / Corporate</td><td>Freelancers, formal</td><td><span class="pp pp-lite">Lite+</span></td></tr>
+          <tr><td>Modern / Restaurant</td><td>Startups, cafes</td><td><span class="pp pp-pro">Pro+</span></td></tr>
+          <tr><td>Receipt / Thermal</td><td>Retail, POS</td><td><span class="pp pp-pro">Pro+</span></td></tr>
+          <tr><td>Professional / Letterhead / Legal Pro</td><td>CAs, Lawyers</td><td><span class="pp pp-pro">Pro+</span></td></tr>
+          <tr><td>GST Bill</td><td>GST-registered</td><td><span class="pp pp-pro">Pro+</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Dark Mode -->
+  <div class="fc">
+    <div class="cpa">
+      <div class="multi-phone">
+        <div class="iphone sm">
+          <div class="di"></div>
+          <div class="iphone-screen">
+            <div class="sb" style="background:#F1F5F9"><span class="sb-time" style="font-size:10px">9:41</span></div>
+            <div class="mh"><div class="mht">Dashboard</div></div>
+            <div class="mb" style="background:#F1F5F9">
+              <div class="mgb" style="background:linear-gradient(135deg,#1E40AF,#3B82F6)"><div class="l">Invoices</div><div class="v">28</div></div>
+              <div class="mstat-row">
+                <div class="mstat"><div class="mstat-v" style="color:#10B981">₹2.4L</div><div class="mstat-l">Revenue</div></div>
+                <div class="mstat"><div class="mstat-v" style="color:#F59E0B">₹85K</div><div class="mstat-l">Due</div></div>
+              </div>
+              <div style="text-align:center;font-size:8px;color:#64748B;margin-top:4px">☀️ Light Mode</div>
+            </div>
+          </div>
+        </div>
+        <div class="iphone sm">
+          <div class="di"></div>
+          <div class="iphone-screen dscr">
+            <div class="sb" style="background:#0F172A"><span class="sb-time" style="font-size:10px;color:#F1F5F9">9:41</span></div>
+            <div class="mh"><div class="mht">Dashboard</div></div>
+            <div class="mb" style="background:#0F172A">
+              <div class="mgb" style="background:linear-gradient(135deg,#1E40AF,#3B82F6)"><div class="l">Invoices</div><div class="v">28</div></div>
+              <div class="mstat-row">
+                <div class="mstat"><div class="mstat-v" style="color:#10B981">₹2.4L</div><div class="mstat-l">Revenue</div></div>
+                <div class="mstat"><div class="mstat-v" style="color:#F59E0B">₹85K</div><div class="mstat-l">Due</div></div>
+              </div>
+              <div style="text-align:center;font-size:8px;color:#94A3B8;margin-top:4px">🌙 Dark Mode</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag" style="background:#F1F5F9;color:#334155">🌙 Dark Mode &amp; Sharing</div>
+      <h3>Dark Mode &amp; Sharing</h3>
+      <p>Full dark theme across every screen. Share invoices via WhatsApp, email or print in one tap. All appearance preferences are saved automatically — they never reset when you restart the app.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Enable dark mode at night or in low-light environments to reduce eye strain. Your preference is saved persistently — you never need to set it again. Share via WhatsApp to get client payment faster: the PDF lands on their phone in seconds, and they can scan the UPI QR immediately.</p></div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Toggle: <code>Settings → Appearance</code> — saved permanently, never resets</li>
+        <li>System mode follows your phone's system appearance setting automatically</li>
+        <li>WhatsApp text message with pre-filled invoice details and amount</li>
+        <li>PDF via WhatsApp share sheet — client receives the full invoice instantly</li>
+        <li>Email with PDF attached (Gmail, Outlook, etc.)</li>
+        <li>Print or save as PDF via AirPrint / system print</li>
+        <li>Custom WhatsApp &amp; email message templates <span class="pp pp-prem">Premium</span></li>
+        <li><b>Benefits:</b> professional delivery in one tap; clients receive invoice before you even leave their premises</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ TEAM MANAGEMENT ══════════ -->
+<div id="team" class="dv"><span>👥 Team Management</span></div>
+
+<div class="fc" style="overflow:visible">
+  <div class="fc-split" style="display:grid;grid-template-columns:auto 1fr;gap:0;overflow:hidden;border-radius:22px">
+    <div class="cpa" style="padding:36px 32px;min-height:unset;background:linear-gradient(160deg,#F5F3FF,#fff)">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Manage Team</div><div class="mhs">Premium · 3 of 5 members</div></div>
+          <div class="mb">
+            <div class="mc"><div class="mrow"><div class="mavt" style="background:#2563EB">R</div><div style="flex:1"><div style="font-size:9px;font-weight:700">Ravi Sharma</div><div style="font-size:8px;color:#64748B">Manager</div></div><span class="badge b-paid">Active</span></div></div>
+            <div class="mc"><div class="mrow"><div class="mavt" style="background:#10B981">P</div><div style="flex:1"><div style="font-size:9px;font-weight:700">Pooja Verma</div><div style="font-size:8px;color:#64748B">Staff</div></div><span class="badge b-paid">Active</span></div></div>
+            <div class="mc"><div class="mrow"><div class="mavt" style="background:#7C3AED">S</div><div style="flex:1"><div style="font-size:9px;font-weight:700">Sunil Gupta</div><div style="font-size:8px;color:#64748B">Viewer</div></div><span class="badge b-paid">Active</span></div></div>
+            <div class="mbtn" style="background:#0F766E">+ Invite Employee</div>
+            <div class="mc" style="margin-top:8px;background:#FFFBEB;border:1px solid #FCD34D">
+              <div style="font-size:8px;color:#92400E;text-align:center">🔒 Viewer mode — no create/edit buttons shown</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag or">👥 Team <span class="pp pp-prem" style="margin-left:4px">Premium</span></div>
+      <h3>Role-Based Employee Access</h3>
+      <p>Add up to 5 employees. Permissions are enforced at the UI level — Viewers literally cannot see the "New Invoice" button.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> As soon as you have a helper, accountant, or counter staff who needs access to BillBook. Invite them as the appropriate role — a billing staff member gets Staff access (create invoices, can't delete), your CA gets Viewer access (read-only, can't change anything), your manager gets Manager access (everything except billing). Each employee connects via a secure QR code — no password sharing ever.</p></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0">
+        <div style="background:#EFF6FF;border:1.5px solid #BFDBFE;border-radius:12px;padding:13px">
+          <div style="font-size:14px;margin-bottom:5px">👑</div>
+          <div style="font-size:13px;font-weight:800;color:var(--p);margin-bottom:4px">Owner</div>
+          <div style="font-size:11.5px;color:var(--ts)">Full access — all features, billing, team management.</div>
+        </div>
+        <div style="background:var(--sf);border:1.5px solid var(--bd);border-radius:12px;padding:13px">
+          <div style="font-size:14px;margin-bottom:5px">🔧</div>
+          <div style="font-size:13px;font-weight:800;color:var(--dk);margin-bottom:4px">Manager</div>
+          <div style="font-size:11.5px;color:var(--ts)">Everything except billing plans and employee settings.</div>
+        </div>
+        <div style="background:var(--sf);border:1.5px solid var(--bd);border-radius:12px;padding:13px">
+          <div style="font-size:14px;margin-bottom:5px">💼</div>
+          <div style="font-size:13px;font-weight:800;color:var(--dk);margin-bottom:4px">Staff</div>
+          <div style="font-size:11.5px;color:var(--ts)">Create/edit invoices and clients. Cannot delete or access reports.</div>
+        </div>
+        <div style="background:var(--sf);border:1.5px solid var(--bd);border-radius:12px;padding:13px">
+          <div style="font-size:14px;margin-bottom:5px">👁️</div>
+          <div style="font-size:13px;font-weight:800;color:var(--dk);margin-bottom:4px">Viewer</div>
+          <div style="font-size:11.5px;color:var(--ts)">View-only. No action buttons shown at all.</div>
+        </div>
+      </div>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Employees connect via QR code scan — no password sharing. Go to <code>Settings → Manage Team → + Invite Employee</code> and share the generated QR.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ IMPORT INVOICES ══════════ -->
+<div id="import" class="dv"><span>📥 Import &amp; Export</span></div>
+
+<div class="fc" style="overflow:visible">
+  <div class="fc-split" style="display:grid;grid-template-columns:auto 1fr;gap:0;overflow:hidden;border-radius:22px">
+    <div class="cpa" style="padding:36px 32px;min-height:unset;background:linear-gradient(160deg,#F0FDF4,#fff)">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Import Invoices</div><div class="mhs">CSV Migration</div></div>
+          <div class="mb">
+            <div class="mc" style="background:#F0FDF4;border:1px solid #86EFAC">
+              <div style="text-align:center;font-size:22px;margin-bottom:6px">📄</div>
+              <div style="font-size:9px;font-weight:700;color:#16A34A;text-align:center">invoices_export.csv</div>
+              <div style="font-size:7.5px;color:#64748B;text-align:center;margin-top:2px">247 invoices · 1.2 MB</div>
+            </div>
+            <div class="mst">Column Mapping</div>
+            <div class="mf"><div class="mfl">Client Name</div><div class="mfv">→ client_name</div></div>
+            <div class="mf"><div class="mfl">Amount</div><div class="mfv">→ total_amount</div></div>
+            <div class="mf"><div class="mfl">Date</div><div class="mfv">→ invoice_date</div></div>
+            <div class="mf"><div class="mfl">Status</div><div class="mfv">→ payment_status</div></div>
+            <div class="mbtn g" style="margin-top:8px">Import 247 Invoices</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag g">📥 Import / Export</div>
+      <h3>Import Invoices via CSV</h3>
+      <p>Migrate all your existing invoices from Excel, Tally, or another billing app in minutes — no manual re-entry needed. Export at any time to get a clean spreadsheet of your full invoice history.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Import when switching to BillBook from another tool so your reports and client statements are complete from day one. Export for your accountant, for archiving, or to move data elsewhere.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Prepare Your CSV</div><div class="sd">Export invoices from your current tool as CSV. Required columns: <code>client name</code>, <code>invoice number</code>, <code>date</code>, <code>amount</code>, <code>status</code>. Optional: <code>due date</code>, <code>tax amount</code>, <code>notes</code>.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Open Import Screen</div><div class="sd">Go to <code>Settings → Import &amp; Export → Import Invoices</code>. Tap <code>Choose File</code> and select your CSV from local storage or Google Drive.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Map Columns</div><div class="sd">BillBook auto-detects common column names. Manually map any unrecognised column to its corresponding field. A 5-row preview confirms the mapping is correct.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Confirm &amp; Import</div><div class="sd">Tap <code>Import</code>. All invoices are created instantly. Duplicates (same invoice number + client) are automatically skipped to prevent double entries.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>Export to CSV:</b> <code>Settings → Import &amp; Export → Export CSV</code> — includes all invoice fields</li>
+        <li>Exported CSVs upload automatically to your Google Drive backup folder</li>
+        <li>Accepted date formats: DD/MM/YYYY · MM/DD/YYYY · YYYY-MM-DD</li>
+        <li>Accepted status values: Paid · Sent · Draft · Overdue · Cancelled</li>
+        <li>Benefits: zero data loss when switching apps; keep your full billing history intact from day one</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ CREDIT NOTES ══════════ -->
+<div id="credit-notes" class="dv"><span>🔴 Credit Notes</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Credit Note</div><div class="mhs">CN-0003 · Against INV-0038</div></div>
+          <div class="mb">
+            <div class="mc" style="background:#FEF2F2;border:1px solid #FECACA">
+              <div class="mct" style="color:#DC2626">Credit Note</div>
+              <div style="font-size:8px;color:#64748B;margin-top:3px">Issued against INV-0038 · Priya Enterprises</div>
+            </div>
+            <div class="mc">
+              <div class="mct">Reason</div>
+              <div style="font-size:8.5px;color:#64748B;margin-top:3px">Returned goods — damaged in transit</div>
+            </div>
+            <div class="mc">
+              <div style="display:flex;justify-content:space-between;font-size:8.5px;padding:3px 0;border-bottom:1px solid #F1F5F9"><span>Web Design Package (partial return)</span><span style="font-weight:700;color:#DC2626">-₹15,000</span></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:6px 4px;font-size:9.5px;font-weight:800"><span>Credit Amount</span><span style="color:#DC2626">₹15,000</span></div>
+            <div class="mbtn" style="background:#DC2626">Issue Credit Note PDF</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag red">🔴 Credit Notes <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Credit Notes</h3>
+      <p>Issue a formal credit note against any existing invoice — for returns, cancellations, or billing corrections. The credit note is linked to the original invoice and tracked with its own CN-prefix number.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> When a client returns goods, an invoice needs partial correction, or a service was cancelled after billing. A credit note is the GST-compliant way to reduce or reverse an invoice — <em>never delete the original invoice</em>.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Open the Original Invoice</div><div class="sd">Navigate to the invoice you need to credit. Tap <code>⋮ menu → Issue Credit Note</code>.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Enter Credit Details</div><div class="sd">Select the items being returned or adjusted, enter the quantities or amounts, and add a reason (e.g., "Returned goods", "Billing error", "Service cancellation").</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Issue &amp; Share</div><div class="sd">Tap <code>Issue Credit Note</code>. A CN-prefixed PDF is generated — share via WhatsApp or email. The original invoice stays unchanged for full audit trail.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>Credit note is linked to the original invoice — easy cross-reference in the list</li>
+        <li>PDF header clearly reads "CREDIT NOTE" — never confused with a tax invoice</li>
+        <li>Appears with CN- prefix in the invoice list and is filterable</li>
+        <li>GST-compliant — required for proper GSTR-1 amendments when reversing B2B invoices</li>
+        <li><b>Required:</b> Pro+ plan, and the original invoice must exist in BillBook</li>
+        <li>Benefits: handle returns professionally; maintain a clean audit trail; stay GST compliant</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ PAYMENT REMINDERS ══════════ -->
+<div id="reminders" class="dv"><span>🔔 Payment Reminders</span></div>
+
+<div class="fg">
+  <div class="fc">
+    <div class="cpa">
+      <div class="iphone">
+        <div class="di"></div>
+        <div class="iphone-screen">
+          <div class="sb"><span class="sb-time">9:41</span></div>
+          <div class="mh"><div class="mht">Payment Reminders</div></div>
+          <div class="mb">
+            <div class="mc">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div><div class="mct">Before Due Date</div><div class="mcs">Remind 3 days before · 9:00 AM</div></div>
+                <div class="msw"></div>
+              </div>
+            </div>
+            <div class="mc">
+              <div style="display:flex;align-items:center;justify-content:space-between">
+                <div><div class="mct">After Due Date</div><div class="mcs">Remind 1 day after overdue</div></div>
+                <div class="msw"></div>
+              </div>
+            </div>
+            <div class="mc" style="background:#EFF6FF">
+              <div style="font-size:8px;color:#64748B">Message Template</div>
+              <div style="font-size:7.5px;color:#334155;margin-top:3px;line-height:1.4">Hi {client_name}, your invoice INV-{number} for ₹{amount} is due on {due_date}. Please arrange payment. – {business_name}</div>
+            </div>
+            <div class="mst">Bulk Reminders</div>
+            <div class="mc" style="background:#FEF2F2;border:1px solid #FECACA">
+              <div style="font-size:8.5px;font-weight:700;color:#DC2626">3 Overdue Invoices Selected</div>
+              <div class="mbtn" style="background:#DC2626;margin-top:6px;font-size:8px">📱 Send WhatsApp Reminders</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cb">
+      <div class="tag or">🔔 Reminders <span class="pp pp-prem" style="margin-left:4px">Premium</span></div>
+      <h3>Automated Payment Reminders</h3>
+      <p>Set up automatic push notifications before and after the invoice due date — so you never have to manually chase a client. For immediate action, bulk-send personalised WhatsApp reminders to all overdue clients in one tap.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Enable scheduled reminders as soon as you set up BillBook. Use bulk WhatsApp reminders at the end of each month to chase all overdue accounts simultaneously — takes 60 seconds instead of 60 minutes.</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Enable Scheduled Reminders</div><div class="sd">Go to <code>Settings → Payment Reminders</code>. Toggle <em>Before Due Date</em> and/or <em>After Due Date</em>. Choose days gap (1, 3, 5, or 7) and the time of day. Device notifications must be enabled.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Customise Message Template</div><div class="sd">Tap <code>Edit Template</code> to personalise the reminder text. Use dynamic variables: <code>{client_name}</code>, <code>{amount}</code>, <code>{due_date}</code>, <code>{invoice_number}</code>, <code>{business_name}</code>.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Send Bulk WhatsApp Reminders</div><div class="sd">On the Invoices tab, long-press any invoice → enter select mode → tick all overdue invoices → tap <code>Send Reminders → WhatsApp</code>. Each client gets a personalised message with their invoice details pre-filled.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>Scheduled reminders</b> (push notifications): Premium &amp; Enterprise only</li>
+        <li><b>Bulk WhatsApp reminders:</b> Pro+ and above — long-press to enter multi-select mode</li>
+        <li><b>Custom message templates:</b> Premium &amp; Enterprise only</li>
+        <li>Device must have notifications enabled for scheduled push alerts to fire</li>
+        <li>WhatsApp must be installed on the device for the bulk send feature</li>
+        <li>Benefits: get paid faster without awkward calls; automate your collections workflow</li>
+      </ul>
+      <div class="warn"><span style="font-size:15px">⚠️</span><p>Scheduled reminders are generated locally on your device — the app must be installed and notifications allowed. They do <em>not</em> send automatically from the cloud while the app is uninstalled.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ SETTINGS & CUSTOMIZATION ══════════ -->
+<div id="settings" class="dv"><span>⚙️ Settings &amp; Customization</span></div>
+
+<div class="sh" style="margin-bottom:32px">
+  <div class="tag g">Configure Once</div>
+  <h2>Set Up BillBook Your Way</h2>
+  <p>Spend 5 minutes configuring these areas and every invoice you create will look professional and fill in automatically.</p>
+</div>
+
+<div class="fg three">
+
+  <!-- Business Profile -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag g">🏢 Business Profile</div>
+      <h3>Business Profile Setup</h3>
+      <p>Everything on your invoices — logo, name, address, GSTIN — is pulled from your Business Profile. Set it once and it appears on every PDF automatically.</p>
+      <div class="steps">
+        <div class="step"><div class="sn">1</div><div><div class="st">Open Profile Settings</div><div class="sd">Go to <code>Settings → Business Profile</code>. Fill in company name, owner name, email, phone, and full address.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Upload Your Logo</div><div class="sd">Tap <code>Upload Logo</code> — pick from gallery or camera. The logo appears top-left on all PDF templates.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Add GSTIN &amp; Signature</div><div class="sd">Enter your GSTIN for GST compliance. Upload a signature image — it renders at the bottom of every invoice PDF.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>14+ business types: Restaurant · Retail · Freelancer · Professional · Healthcare · Construction · Salon · Technology · Manufacturing · Wholesale · Transport and more</li>
+        <li>Website URL shown in the invoice footer</li>
+        <li>GSTIN required to unlock E-Invoice (IRN) generation</li>
+        <li>Digital signature auto-embeds on every PDF — no need to sign printouts</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Set up Business Profile <em>before</em> your first invoice — takes 2 minutes and makes every PDF look professional from the very first send.</p></div>
+    </div>
+  </div>
+
+  <!-- Items & Services Catalog -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag pu">⚡ Items &amp; Services Catalog</div>
+      <h3>Items &amp; Services Catalog</h3>
+      <p>Save your standard products and services once. When creating invoices, type the first few letters — the item auto-fills with its rate, tax %, unit, and HSN/SAC code. Invoice creation goes from minutes to seconds.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Add your 5–10 most common services or products before your first invoice. You'll autocomplete 90% of future line items in under 30 seconds each.</p></div>
+      <ul class="fl" style="margin-top:8px">
+        <li>Fields per item: Name · Description · Rate · Tax % · Unit · HSN/SAC code · Category</li>
+        <li>Enable <b>Inventory Tracking</b> per item to track stock levels automatically</li>
+        <li>Set a <b>Low-Stock Threshold</b> — get alerted before you run out</li>
+        <li>Categories group items for analytics (Category Analytics report) and POS screen filtering</li>
+        <li>Navigate: <code>Settings → Items &amp; Services → +</code></li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Add items with HSN/SAC codes set correctly — BillBook uses them automatically in your GST Reports and E-Invoice generation without any manual entry later.</p></div>
+    </div>
+  </div>
+
+  <!-- Invoice Settings -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag or">📝 Invoice Settings</div>
+      <h3>Invoice Customization</h3>
+      <p>Tailor how every invoice looks and behaves — from the number prefix to brand colour and which fields appear on the PDF.</p>
+      <ul class="fl">
+        <li><b>Invoice prefix</b> — e.g. "INV-", "BILL-", your brand abbreviation <span class="pp pp-pro">Pro+</span></li>
+        <li><b>Default tax rate</b> — pre-fills on every new line item</li>
+        <li><b>Thank-you message</b> — custom text on every PDF footer</li>
+        <li><b>Theme colour</b> — your brand colour applied to all supported templates</li>
+        <li><b>Show payment history on PDF</b> — toggle to include a payment table on the client copy</li>
+        <li><b>Custom fields</b> — add PO Number, Project Name, Reference, or any label–value pair</li>
+        <li><b>Client acknowledgment line</b> — adds a "Received by" signature line for the buyer</li>
+        <li><b>Show/hide quantity column</b> — for service businesses that bill by value, not units</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Use custom fields for PO Numbers if your corporate clients require them for their accounts payable — it prevents payment delays caused by missing reference numbers.</p></div>
+    </div>
+  </div>
+
+  <!-- Multi-Currency -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag tl">💱 Multi-Currency <span class="pp pp-pro" style="margin-left:4px">Pro+</span></div>
+      <h3>Multi-Currency Invoicing</h3>
+      <p>Invoice international clients in their preferred currency. BillBook shows the live exchange rate at invoice creation and converts all amounts to your base currency in P&amp;L reports.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Any time you invoice clients in USD, EUR, GBP, AED, SGD, or other currencies. Keeps your P&amp;L accurate without manual conversion.</p></div>
+      <ul class="fl" style="margin-top:8px">
+        <li>Set default currency: <code>Settings → Business Profile → Currency</code></li>
+        <li>Override currency per invoice — select from 30+ currencies on the invoice editor</li>
+        <li>Real-time indicative exchange rate shown at invoice creation</li>
+        <li>P&amp;L report converts all foreign-currency invoices to your base currency</li>
+        <li>Currencies include: USD · EUR · GBP · AED · SGD · CAD · AUD · JPY and more</li>
+      </ul>
+      <div class="warn"><span style="font-size:15px">⚠️</span><p>Exchange rates shown are indicative (from a public data feed). Always verify the exact rate with your bank or payment platform before reconciling.</p></div>
+    </div>
+  </div>
+
+  <!-- Language Settings -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag">🌐 Language Settings</div>
+      <h3>6 Indian Languages</h3>
+      <p>Change the app language in one tap. The entire UI switches instantly — menus, labels, buttons, and invoice PDFs all render in the selected language, making BillBook accessible to every team member and client.</p>
+      <ul class="fl">
+        <li>English · Hindi (हिन्दी) · Gujarati (ગુજરાતી)</li>
+        <li>Marathi (मराठी) · Tamil (தமிழ்) · Telugu (తెలుగు)</li>
+        <li>Change language: <code>Settings → Language</code></li>
+        <li>Applies immediately across the whole app — no restart needed</li>
+        <li>Available on all plans at no extra cost</li>
+        <li>Invoice PDF renders item names and labels in the selected language</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Smart Preferences -->
+  <div id="smart-prefs" class="fc">
+    <div class="cb">
+      <div class="tag g">✅ Smart Preferences — Saved Automatically</div>
+      <h3>Smart Preferences — Set Once, Never Again</h3>
+      <p>All your app preferences — POS mode, Purchase Bills, Appearance (dark/light mode), Thank-you message, Invoice customisations — are saved automatically and persist across app restarts, phone reboots, and app updates. You never have to re-configure them.</p>
+      <div class="info"><span style="font-size:15px">ℹ️</span><p><b>When to use:</b> Configure your preferences once after initial setup — BillBook remembers them permanently. If you enable POS mode, enable Purchase Bills, turn on dark mode, or customise your thank-you message, those choices stick. No need to reconfigure after updates or reinstalls (as long as Google Drive sync is enabled on Lite+).</p></div>
+      <div class="steps" style="margin-top:14px">
+        <div class="step"><div class="sn">1</div><div><div class="st">Enable POS (once)</div><div class="sd"><code>Settings → Point of Sale → toggle ON</code>. The POS tab stays visible permanently — it won't disappear after a restart. Disable it the same way when you no longer need it.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Enable Purchase Bills (once)</div><div class="sd"><code>Settings → Purchase Bills → toggle ON</code>. The Purchase Bills tab appears in navigation and stays there. No need to toggle it on every session.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Set Appearance (once)</div><div class="sd"><code>Settings → Appearance → Dark / Light / System</code>. Your choice is saved immediately and applies on every launch going forward.</div></div></div>
+        <div class="step"><div class="sn">4</div><div><div class="st">Customise Invoice Message (once)</div><div class="sd"><code>Settings → Invoice Settings → Thank-you Message</code>. Your custom footer text is saved and appears on every future PDF — no need to re-enter it.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li><b>POS mode</b> — enabled/disabled state persists across restarts</li>
+        <li><b>Purchase Bills</b> — enabled/disabled state persists</li>
+        <li><b>Appearance</b> — dark/light/system choice is permanent</li>
+        <li><b>Invoice customisations</b> — prefix, thank-you message, template, theme colour, toggles all saved</li>
+        <li><b>Language</b> — language selection is permanent</li>
+        <li>All preferences backed up to Google Drive (Lite+) — restored automatically on a new device</li>
+        <li><b>Benefits:</b> zero reconfiguration friction; your app is always exactly how you left it; preferences survive updates and new-device restores</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Spend 5 minutes on first install configuring all your preferences correctly — after that, BillBook always opens ready to use with your exact setup. No prompts, no resets.</p></div>
+    </div>
+  </div>
+
+  <!-- Payment Methods -->
+  <div class="fc">
+    <div class="cb">
+      <div class="tag g">💳 Payment Methods Setup</div>
+      <h3>Payment Methods</h3>
+      <p>Add your bank account, UPI ID, or cash details once — they appear on every invoice PDF automatically so clients always know exactly how to pay you. A UPI ID generates a scan-to-pay QR on every PDF.</p>
+      <div class="steps">
+        <div class="step"><div class="sn">1</div><div><div class="st">Add a Payment Method</div><div class="sd">Go to <code>Settings → Payment Methods → +</code>. Choose type: Cash · Bank Account · UPI · Other.</div></div></div>
+        <div class="step"><div class="sn">2</div><div><div class="st">Fill in Details</div><div class="sd">For <em>Bank Account</em>: account number, IFSC, branch. For <em>UPI</em>: your UPI ID (e.g. name@upi). For <em>Other</em>: custom label and details.</div></div></div>
+        <div class="step"><div class="sn">3</div><div><div class="st">Reorder Methods</div><div class="sd">Long-press and drag to reorder. The top method appears most prominently on the PDF. Put UPI first for fastest payment.</div></div></div>
+      </div>
+      <ul class="fl" style="margin-top:14px">
+        <li>UPI ID generates a dynamic scan-to-pay QR code on every invoice PDF</li>
+        <li>Free plan: 1 method · Lite: 2 methods · Pro+: unlimited</li>
+        <li>Benefits: clients can pay instantly by scanning the QR — reduces average collection time</li>
+      </ul>
+      <div class="tip"><span style="font-size:15px">💡</span><p>Add your UPI ID before your very first invoice. Clients scan the QR on the PDF and pay in seconds — this single step is the biggest driver of faster payments.</p></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════ TIPS ══════════ -->
+<div id="tips" class="dv"><span>💡 Power-User Tips</span></div>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:40px">
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🔁</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Auto-bill retainers</div><div style="font-size:12.5px;color:var(--ts)">Open any invoice → Save → tap <b>Set as Recurring → Monthly</b>. Never manually create a retainer again.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">📷</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Photograph every receipt &amp; let OCR fill it in</div><div style="font-size:12.5px;color:var(--ts)">When adding an expense or purchase bill, tap the Receipt card → take a photo → tap <b>Scan &amp; Fill</b>. Amount, date and vendor are filled for you in 2 seconds. Your CA gets a full digital archive automatically.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🧾</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Scan vendor bills on the spot</div><div style="font-size:12.5px;color:var(--ts)">When a supplier hands you a paper bill, open <b>Purchase Bills → +</b>, photograph it, and tap <b>Scan &amp; Fill</b>. Vendor name, bill number, date, total, and GSTIN auto-fill. Enter it before you leave and you'll never lose a supplier bill again.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">📣</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Bulk chase overdue clients</div><div style="font-size:12.5px;color:var(--ts)">Long-press any invoice → enter select mode → check all overdue → <b>Send Reminders</b>. Chase 10 clients in 60 seconds.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🗒️</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Quote before invoicing</div><div style="font-size:12.5px;color:var(--ts)">Send a quotation first → client approves → one tap converts it. No re-entry, no disputes about scope.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">⚡</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Build your item catalog</div><div style="font-size:12.5px;color:var(--ts)"><code>Settings → Items &amp; Services</code>. Add items once with price and GST. Autocomplete in future invoices — creates in 10 seconds.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">📊</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Monday P&amp;L check</div><div style="font-size:12.5px;color:var(--ts)"><code>Settings → P&amp;L Report → This Week</code>. Know revenue vs expenses before the week gets busy.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🎨</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Match your brand colour</div><div style="font-size:12.5px;color:var(--ts)"><code>Invoice Settings → Theme Colour</code>. Applies to Classic, Corporate, Modern, Restaurant and GST Bill templates.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🔐</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Restore on a new phone</div><div style="font-size:12.5px;color:var(--ts)">Lost your phone? Sign in with the same Google account — all data restores automatically from Drive (Lite+).</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">💱</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Invoice overseas clients in their currency</div><div style="font-size:12.5px;color:var(--ts)">On the invoice editor, tap the currency symbol → switch to USD, EUR, AED, etc. P&amp;L auto-converts back to ₹ using that day's rate. Requires Pro+.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🚚</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Use Delivery Challan before billing</div><div style="font-size:12.5px;color:var(--ts)">For goods dispatched before client approval, create a Delivery Challan first. Once accepted, hit <b>Convert to Invoice</b> — everything carries over in one tap, no re-entry.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🔴</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Never delete an invoice — use Credit Notes</div><div style="font-size:12.5px;color:var(--ts)">If a client returns goods or you over-billed, open the invoice → <b>⋮ → Issue Credit Note</b>. Keeps your audit trail clean and your GST records accurate. Requires Pro+.</div></div>
+  <div style="background:#fff;border:1.5px solid var(--bd);border-radius:15px;padding:18px 20px;box-shadow:var(--sh)"><div style="font-size:22px;margin-bottom:9px">🏷️</div><div style="font-size:13.5px;font-weight:700;color:var(--dk);margin-bottom:5px">Add PO Number as a Custom Field</div><div style="font-size:12.5px;color:var(--ts)"><code>Invoice Settings → Custom Fields → + Add Field</code>. Label it "PO Number" and enter it per invoice. Corporate clients need this on the PDF to approve payment — missing it is the #1 cause of payment delays.</div></div>
+</div>
+
+<!-- ══════════ FAQ ══════════ -->
+<div id="faq" class="dv"><span>❓ FAQ</span></div>
+<div class="faq-item"><div class="faq-q">Can I use BillBook without internet?</div><div class="faq-a">Yes. BillBook is offline-first — all data is stored locally. Create invoices, record payments and view reports with no internet. Changes sync to Google Drive when you reconnect.</div></div>
+<div class="faq-item"><div class="faq-q">What happens to my data if I lose my phone?</div><div class="faq-a">On Lite, Pro, Premium and Enterprise, all data is backed up continuously to your Google Drive (AES-256 encrypted). Sign in with the same Google account on a new device — everything restores automatically. Free plan is local only.</div></div>
+<div class="faq-item"><div class="faq-q">What happens when I hit the Free plan limit of 5 invoices?</div><div class="faq-a">On the 6th invoice attempt a paywall sheet appears showing the Lite plan details. Tap "Upgrade to Lite" or "Maybe later" — your draft is never lost.</div></div>
+<div class="faq-item"><div class="faq-q">Can my CA / accountant access my data?</div><div class="faq-a">Yes — on Premium invite them as a Viewer. They can browse all invoices and reports without being able to edit anything. On Pro, export the GST Report or P&amp;L as PDF and share it.</div></div>
+<div class="faq-item"><div class="faq-q">Is GST data submitted to the government automatically?</div><div class="faq-a">No. BillBook is a private invoicing app. Use the exported GSTR-1 style report to file manually on the GST portal or hand it to your CA.</div></div>
+<div class="faq-item"><div class="faq-q">Can I cancel my subscription anytime?</div><div class="faq-a">Yes — subscriptions are managed through Google Play or App Store. Cancel anytime; your plan stays active until the end of the billing period. Data is never deleted.</div></div>
+<div class="faq-item"><div class="faq-q">How do I add my team members / employees?</div><div class="faq-a">Go to <strong>Settings → Manage Team → + Invite Employee</strong>. A QR code is generated — the employee scans it from their own device using BillBook's pairing screen. No password sharing needed. Team management requires the Premium plan (up to 5 members) or Enterprise (unlimited).</div></div>
+<div class="faq-item"><div class="faq-q">What is a Credit Note and when should I issue one?</div><div class="faq-a">A Credit Note is a formal document that reduces or reverses an existing invoice — used for returned goods, billing corrections, or cancelled services. Open the original invoice → tap ⋮ → Issue Credit Note. Never delete an invoice to fix a mistake; a credit note keeps your audit trail clean and your GST records accurate. Requires Pro+.</div></div>
+<div class="faq-item"><div class="faq-q">How do I invoice in USD or other foreign currencies?</div><div class="faq-a">On the invoice creation screen, tap the currency symbol (₹) next to the total and select any currency — USD, EUR, GBP, AED, SGD, and 30+ more. BillBook shows the live indicative exchange rate and converts the amount to your base currency in P&amp;L reports. Multi-currency invoicing requires Pro+.</div></div>
+<div class="faq-item"><div class="faq-q">How does inventory tracking work — will stock reduce automatically?</div><div class="faq-a">Yes. Enable inventory tracking per item under <strong>Settings → Items &amp; Services → Edit Item → Track Inventory</strong>. Set the opening quantity and low-stock threshold. Every time you save a sent invoice containing that item, BillBook deducts the quantity automatically. The Inventory screen shows current stock, low-stock items (amber) and out-of-stock items (red) at a glance. Requires Pro+.</div></div>
+<div class="faq-item"><div class="faq-q">How do I switch the app language to Hindi or Gujarati?</div><div class="faq-a">Go to <strong>Settings → Language</strong> and select your preferred language. The entire app switches instantly — menus, labels, and invoice PDFs all render in the chosen language. BillBook supports English, Hindi, Gujarati, Marathi, Tamil, and Telugu. Language switching is available on all plans at no extra cost.</div></div>
+<div class="faq-item"><div class="faq-q">How does the OCR Receipt Scanner work and what does it detect?</div><div class="faq-a">The OCR scanner uses Google ML Kit, an on-device text recognition engine — no internet is needed and no data leaves your phone. Take a photo of any receipt or vendor bill using the Receipt card on the Add Expense or New Purchase Bill screen, then tap <strong>Scan &amp; Fill</strong>. For expenses it detects: Amount, Date, and Vendor Name. For purchase bills it also detects: Bill Number and GSTIN. Each detected field appears in a confirmation sheet with a checkbox — you choose which fields to apply before anything is written to the form.</div></div>
+<div class="faq-item"><div class="faq-q">Why did OCR not detect my receipt correctly?</div><div class="faq-a">OCR accuracy depends on image quality. For best results: photograph in good lighting, hold the phone steady, and make sure the entire receipt fits in frame. Blurry, crumpled, or very dark receipts may give partial results. You can always fill in the remaining fields manually — the photo is still attached and stored in your Google Drive backup for your CA's reference.</div></div>
+<div class="faq-item"><div class="faq-q">Do my settings (POS, Purchase Bills, dark mode) reset after an update?</div><div class="faq-a">No. All preferences are saved permanently in your local storage and Google Drive backup. Enabling POS, enabling Purchase Bills, choosing dark mode, setting a custom thank-you message — all of these persist across app restarts, phone reboots, and app updates. On Lite+ with Google Drive sync enabled, preferences also restore automatically when you sign in on a new device.</div></div>
+<div class="faq-item"><div class="faq-q">Will the invoice automatically move to "Paid" after multiple partial payments?</div><div class="faq-a">Yes, automatically. Each time you record a payment (partial or full), BillBook recalculates the total paid amount. The moment the sum of all payments covers the invoice total, the invoice status changes to <strong>Paid</strong> without any manual action needed. This works across both the invoice detail screen and the invoice list screen status sheet.</div></div>
+
+<!-- ════════════════════════════════
+     SUBSCRIPTION PLANS  (at the end)
+════════════════════════════════ -->
+<div id="plans" class="dv"><span>💳 Subscription Plans</span></div>
+<div class="sh">
+  <div class="tag g">Pricing</div>
+  <h2>Choose the Right Plan</h2>
+  <p>Start free. Upgrade as your business grows. Cancel anytime — your data always stays in your own Google Drive.</p>
+</div>
+
+<!-- 5 Plan Cards -->
+<div class="plan-grid">
+
+  <!-- FREE -->
+  <div class="plan-card reveal">
+    <div>
+      <div class="plan-name">Free</div>
+      <div class="plan-price"><sup>₹</sup>0</div>
+      <div class="plan-sub">forever free</div>
+      <div class="plan-save">&nbsp;</div>
+      <div class="plan-div"></div>
+    </div>
+    <div class="plan-feats">
+      <div class="pf"><span class="ck">✓</span>5 invoices / month</div>
+      <div class="pf"><span class="ck">✓</span>10 clients · 10 items</div>
+      <div class="pf"><span class="ck">✓</span>Classic template only</div>
+      <div class="pf"><span class="ck">✓</span>1 payment method</div>
+      <div class="pf mt"><span class="cx">✗</span>No cloud sync</div>
+      <div class="pf mt"><span class="cx">✗</span>No reports / expenses</div>
+    </div>
+    <a class="plan-btn out" href="#">Get Started Free</a>
+  </div>
+
+  <!-- LITE -->
+  <div class="plan-card reveal">
+    <div>
+      <div class="plan-name">Lite</div>
+      <div class="plan-price"><sup>₹</sup>499</div>
+      <div class="plan-sub">per year</div>
+      <div class="plan-save">₹42 / month · Best for solo</div>
+      <div class="plan-div"></div>
+    </div>
+    <div class="plan-feats">
+      <div class="pf"><span class="ck">✓</span>50 invoices / month</div>
+      <div class="pf"><span class="ck">✓</span>50 clients · 50 items</div>
+      <div class="pf"><span class="ck">✓</span>3 templates</div>
+      <div class="pf"><span class="ck">✓</span>Quotations &amp; partial payments</div>
+      <div class="pf"><span class="ck">✓</span>Expense tracking</div>
+      <div class="pf"><span class="ck">✓</span>P&amp;L · Outstanding · Statement</div>
+      <div class="pf"><span class="ck">✓</span>Google Drive sync</div>
+    </div>
+    <a class="plan-btn out" href="#">Upgrade to Lite</a>
+  </div>
+
+  <!-- PRO -->
+  <div class="plan-card pop reveal">
+    <div>
+      <div class="plan-badge">⭐ Most Popular</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-price"><sup>₹</sup>1,499</div>
+      <div class="plan-sub">per year</div>
+      <div class="plan-save">₹125 / month · Save 17%</div>
+      <div class="plan-div"></div>
+    </div>
+    <div class="plan-feats">
+      <div class="pf"><span class="ck">✓</span>Unlimited invoices &amp; clients</div>
+      <div class="pf"><span class="ck">✓</span>All 11 PDF templates</div>
+      <div class="pf"><span class="ck">✓</span>Recurring invoices &amp; credit notes</div>
+      <div class="pf"><span class="ck">✓</span>Inventory &amp; POS screen</div>
+      <div class="pf"><span class="ck">✓</span>GST reports &amp; category analytics</div>
+      <div class="pf"><span class="ck">✓</span>Multi-currency · custom prefix</div>
+      <div class="pf"><span class="ck">✓</span>Bulk reminders</div>
+    </div>
+    <a class="plan-btn prim" href="#">Upgrade to Pro</a>
+  </div>
+
+  <!-- PREMIUM -->
+  <div class="plan-card reveal">
+    <div>
+      <div class="plan-name">Premium</div>
+      <div class="plan-price"><sup>₹</sup>2,999</div>
+      <div class="plan-sub">per year</div>
+      <div class="plan-save">₹250 / month · Save 17%</div>
+      <div class="plan-div"></div>
+    </div>
+    <div class="plan-feats">
+      <div class="pf"><span class="ck">✓</span>Everything in Pro</div>
+      <div class="pf"><span class="ck">✓</span>Team management (up to 5)</div>
+      <div class="pf"><span class="ck">✓</span>Custom message templates</div>
+      <div class="pf"><span class="ck">✓</span>Scheduled payment reminders</div>
+      <div class="pf"><span class="ck">✓</span>Web dashboard &amp; smart insights</div>
+      <div class="pf"><span class="ck">✓</span>Priority email + chat support</div>
+    </div>
+    <a class="plan-btn out" href="#">Upgrade to Premium</a>
+  </div>
+
+  <!-- ENTERPRISE -->
+  <div class="plan-card ent-card reveal">
+    <div>
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price"><sup style="font-size:14px">₹</sup>9,999</div>
+      <div class="plan-sub">per year · or custom</div>
+      <div class="plan-save">₹833 / month · Volume discounts</div>
+      <div class="plan-div"></div>
+    </div>
+    <div class="plan-feats">
+      <div class="pf"><span class="ck">✓</span>Everything in Premium</div>
+      <div class="pf"><span class="ck">✓</span>Unlimited team members</div>
+      <div class="pf"><span class="ck">✓</span>Dedicated account manager</div>
+      <div class="pf"><span class="ck">✓</span>Phone &amp; WhatsApp support</div>
+      <div class="pf"><span class="ck">✓</span>Custom onboarding session</div>
+      <div class="pf"><span class="ck">✓</span>SLA guarantee · API access</div>
+    </div>
+    <a class="plan-btn ent-btn" href="#">Contact Sales</a>
+  </div>
+
+</div>
+
+<!-- Full comparison table -->
+<div class="sh" style="margin-bottom:24px"><h2 style="font-size:26px">Full Feature Comparison</h2></div>
+<div class="ct-wrap">
+<table class="ct">
+  <thead>
+    <tr>
+      <th>Feature</th>
+      <th>Free</th>
+      <th>Lite<br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">₹499/yr</span></th>
+      <th class="pop-h">Pro<br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">₹1,499/yr</span></th>
+      <th>Premium<br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">₹2,999/yr</span></th>
+      <th class="ent-h">Enterprise<br><span style="font-weight:400;font-size:10px;text-transform:none;letter-spacing:0">₹9,999/yr</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="cat-r"><td colspan="6">Core Invoicing</td></tr>
+    <tr><td>Monthly invoices</td><td><span class="cn2">5</span></td><td><span class="cn2">50</span></td><td class="pop-h"><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td></tr>
+    <tr><td>Clients</td><td><span class="cn2">10</span></td><td><span class="cn2">50</span></td><td class="pop-h"><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td></tr>
+    <tr><td>Service items catalog</td><td><span class="cn2">10</span></td><td><span class="cn2">50</span></td><td class="pop-h"><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td></tr>
+    <tr><td>Payment methods</td><td><span class="cn2">1</span></td><td><span class="cn2">2</span></td><td class="pop-h"><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td><td><span class="ck2">∞</span></td></tr>
+    <tr><td>Invoice templates</td><td><span class="cn2">1</span></td><td><span class="cn2">3</span></td><td class="pop-h"><span class="cn2">All 11</span></td><td><span class="cn2">All 11</span></td><td><span class="cn2">All 11</span></td></tr>
+    <tr><td>Custom invoice prefix</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Custom fields (PO#, project)</td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>UPI QR on every PDF</td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Multi-currency invoicing</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Quotations, Payments &amp; Credit</td></tr>
+    <tr><td>Quotations &amp; estimates</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Partial payments &amp; TDS</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Credit notes</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Expenses &amp; Inventory</td></tr>
+    <tr><td>Expense tracking + receipt photos</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>OCR receipt scanner — auto-fill forms</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Purchase bills + vendor management</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Inventory &amp; stock tracking</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Reports &amp; Analytics</td></tr>
+    <tr><td>P&amp;L Report</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Age-wise outstanding</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Client statement (PDF)</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Category analytics</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>GST reports (GSTR-1 style)</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Web dashboard &amp; smart insights</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Automation &amp; Communication</td></tr>
+    <tr><td>Recurring invoices</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Bulk payment reminders</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Custom message templates</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Scheduled payment reminders</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>POS (Point of Sale) screen</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>80mm thermal receipt</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Team &amp; Access</td></tr>
+    <tr><td>Team members</td><td><span class="cn2">Solo</span></td><td><span class="cn2">Solo</span></td><td class="pop-h"><span class="cn2">Solo</span></td><td><span class="cn2">Up to 5</span></td><td><span class="ck2">∞</span></td></tr>
+    <tr><td>Role-based access (4 roles)</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Custom per-employee permissions</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Activity audit log</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Sync, Security &amp; Platform</td></tr>
+    <tr><td>Google Drive sync + AES-256</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Offline-first</td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Dark mode</td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>6 Indian languages</td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>API &amp; webhook access</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+
+    <tr class="cat-r"><td colspan="6">Support</td></tr>
+    <tr><td>Email support</td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Priority email + chat support</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Dedicated account manager</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Phone &amp; WhatsApp support</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>Custom onboarding session</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+    <tr><td>SLA guarantee</td><td><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td class="pop-h"><span class="cx2">✗</span></td><td><span class="cx2">✗</span></td><td><span class="ck2">✓</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- How to upgrade -->
+<div class="fc">
+  <div class="cb">
+    <div class="tag g">⬆️ Upgrade</div>
+    <h3>How to Upgrade Your Plan</h3>
+    <div class="steps">
+      <div class="step"><div class="sn">1</div><div><div class="st">Open Settings</div><div class="sd">Tap the <code>Settings</code> tab at the bottom of the app.</div></div></div>
+      <div class="step"><div class="sn">2</div><div><div class="st">Tap the Plan Banner</div><div class="sd">Your current plan is shown as a coloured banner near the top. Tap it to open the Plans screen.</div></div></div>
+      <div class="step"><div class="sn">3</div><div><div class="st">Choose Yearly or Monthly</div><div class="sd">Toggle between yearly (save up to 22%) and monthly billing, then tap your plan.</div></div></div>
+      <div class="step"><div class="sn">4</div><div><div class="st">Complete Purchase</div><div class="sd">Payment is processed by Google Play or App Store. Your plan activates instantly after confirmation.</div></div></div>
+    </div>
+    <div class="tip"><span style="font-size:15px">💡</span><p>Any feature you try before upgrading shows a paywall with a clear explanation. Tap "Maybe later" — your work is never lost.</p></div>
+  </div>
+</div>
+
+<!-- Enterprise section -->
+<div id="enterprise" class="sp-sm"></div>
+<div class="ent-section">
+  <div style="display:inline-block;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#e2d9ff;font-size:12px;font-weight:700;padding:5px 14px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:24px">🏢 Enterprise</div>
+  <h2>Built for Growing Teams &amp; Large Organisations</h2>
+  <p>Everything in Premium plus unlimited team members, a dedicated account manager, phone support, custom onboarding, API access, and an SLA guarantee. Perfect for CA firms, franchise chains, and companies billing at scale.</p>
+  <div class="ent-features">
+    <div class="ent-feat"><div class="ent-feat-icon">👥</div><div class="ent-feat-title">Unlimited Team Members</div><div class="ent-feat-desc">No cap on employees. Add accountants, sales staff, operations — all with role-based permissions.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">🤝</div><div class="ent-feat-title">Dedicated Account Manager</div><div class="ent-feat-desc">A named contact who knows your business. Onboards your team and handles your questions personally.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">📞</div><div class="ent-feat-title">Phone &amp; WhatsApp Support</div><div class="ent-feat-desc">Direct line when you need it. No ticket queues, no waiting — call or message your account manager.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">🎓</div><div class="ent-feat-title">Custom Onboarding Session</div><div class="ent-feat-desc">Live walkthrough with your team. We configure your profile, templates, and workflows together.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">⚡</div><div class="ent-feat-title">SLA Guarantee</div><div class="ent-feat-desc">48-hour response SLA. Priority resolution for any critical issues affecting your billing operations.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">🔌</div><div class="ent-feat-title">API &amp; Webhook Access</div><div class="ent-feat-desc">Integrate BillBook with your ERP, CRM or custom systems. Automate invoice creation and status updates.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">📋</div><div class="ent-feat-title">Activity Audit Log</div><div class="ent-feat-desc">Full log of who created, edited or deleted any invoice or record. Essential for compliance and multi-location teams.</div></div>
+    <div class="ent-feat"><div class="ent-feat-icon">💰</div><div class="ent-feat-title">Volume Discounts</div><div class="ent-feat-desc">Multi-seat and multi-business pricing available. Contact sales for a custom quote tailored to your team size.</div></div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:14px">
+    <a class="ent-cta" href="#">Contact Sales</a>
+    <a class="ent-cta-2" href="#">View Enterprise FAQ</a>
+  </div>
+  <div style="margin-top:28px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);font-size:13px;color:#64748B">Enterprise starts at ₹9,999/year. Custom pricing available for 10+ seats or multiple business profiles.</div>
+</div>
+
+</div><!-- /container -->
+
+<footer class="footer">
+  <h3>📒 BillBook</h3>
+  <p style="margin-bottom:8px">The complete billing &amp; invoicing app for Indian businesses</p>
+  <p style="font-size:13px;opacity:.5">Invoice faster · Track smarter · Get paid on time</p>
+  <div style="margin-top:24px;padding-top:24px;border-top:1px solid rgba(255,255,255,.1);font-size:12px;opacity:.4">
+    © 2026 BillBook &nbsp;·&nbsp; AES-256 Encrypted &nbsp;·&nbsp; Data stored in your own Google Drive &nbsp;·&nbsp; v2.1 — OCR Receipt Scanner · Smart Preferences · Auto Paid Status
+  </div>
+</footer>
+<!-- Back to top -->
+<a href="#" class="back-top" id="backTop" title="Back to top">↑</a>
+<script>
+  /* Scroll progress bar */
+  const progress = document.createElement('div');
+  progress.id = 'scrollProgress';
+  document.body.prepend(progress);
+ 
+  const allRevealEls = [];
+ 
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.05, rootMargin: '0px 0px -40px 0px' });
+ 
+  function observe(el) {
+    io.observe(el);
+    allRevealEls.push(el);
+  }
+ 
+  // Observe all reveal elements, but skip plan-card elements here —
+  // the plan-card loop below assigns them a stagger delay and observes them.
+  // Observing twice caused unobserve() to fire prematurely on some browsers.
+  document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale').forEach(el => {
+    if (!el.classList.contains('plan-card')) observe(el);
+  });
+ 
+  document.querySelectorAll('.plan-card').forEach((el, i) => {
+    if (!el.classList.contains('reveal')) el.classList.add('reveal');
+    el.style.transitionDelay = (i * 75) + 'ms';
+    observe(el);
+  });
+ 
+  document.querySelectorAll('.toc-item').forEach((el, i) => {
+    if (!el.classList.contains('reveal')) el.classList.add('reveal');
+    el.style.transitionDelay = (i * 40) + 'ms';
+    observe(el);
+  });
+ 
+  document.querySelectorAll('#tips ~ div > div').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = (i * 55) + 'ms';
+    observe(el);
+  });
+ 
+  document.querySelectorAll('.faq-item').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = (i * 60) + 'ms';
+    observe(el);
+  });
+ 
+  document.querySelectorAll('.ent-feat').forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.transitionDelay = (i * 55) + 'ms';
+    observe(el);
+  });
+ 
+  /* KEY FIX: Immediately reveal elements already visible in the viewport on load */
+  function revealInView() {
+    allRevealEls.forEach(el => {
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) {
+        el.classList.add('visible');
+      }
+    });
+  }
+  requestAnimationFrame(() => requestAnimationFrame(revealInView));
+  window.addEventListener('load', revealInView);
+ 
+  const bt = document.getElementById('backTop');
+  window.addEventListener('scroll', () => {
+    const scrolled = scrollY;
+    const docH = document.documentElement.scrollHeight - innerHeight;
+    progress.style.width = (scrolled / docH * 100) + '%';
+    bt.classList.toggle('show', scrolled > 400);
+    document.querySelectorAll('.hero-orb').forEach((orb, i) => {
+      orb.style.transform = 'translateY(' + (scrolled * (i % 2 === 0 ? 0.22 : -0.15)) + 'px)';
+    });
+  }, { passive: true });
+ 
+  document.querySelectorAll('.iphone-wrap').forEach(wrap => {
+    const phone = wrap.querySelector('.iphone');
+    wrap.addEventListener('mousemove', e => {
+      const r = wrap.getBoundingClientRect();
+      const x = ((e.clientX - r.left) / r.width - .5) * 14;
+      const y = ((e.clientY - r.top) / r.height - .5) * -14;
+      phone.style.animation = 'none';
+      phone.style.transform = 'perspective(900px) rotateY(' + x + 'deg) rotateX(' + y + 'deg) translateY(-6px)';
+    });
+    wrap.addEventListener('mouseleave', () => {
+      phone.style.transform = '';
+      phone.style.animation = 'phoneFloat 5s ease-in-out infinite';
+    });
+  });
+</script>
+</body>
+</html>

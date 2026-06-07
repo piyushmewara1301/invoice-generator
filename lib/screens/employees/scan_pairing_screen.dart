@@ -101,11 +101,11 @@ class _ScanPairingScreenState extends State<ScanPairingScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
-            const Text(
+            SizedBox(height: 12),
+            Text(
               'Your own data stays separate and is restored when you disconnect.',
               style: TextStyle(
-                  fontSize: 12, color: AppTheme.textSecondary),
+                  fontSize: 12, color: AppTheme.subtext(context)),
             ),
           ],
         ),

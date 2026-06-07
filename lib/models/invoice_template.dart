@@ -1,4 +1,4 @@
-enum InvoiceTemplate { classic, minimal, corporate, modern, restaurant, receipt, professional, gstBill, letterhead, legalPro }
+enum InvoiceTemplate { classic, minimal, corporate, modern, restaurant, receipt, professional, gstBill, letterhead, legalPro, thermalReceipt }
 
 extension InvoiceTemplateInfo on InvoiceTemplate {
   String get displayName {
@@ -23,6 +23,8 @@ extension InvoiceTemplateInfo on InvoiceTemplate {
         return 'Letterhead';
       case InvoiceTemplate.legalPro:
         return 'Legal Pro';
+      case InvoiceTemplate.thermalReceipt:
+        return 'Thermal Receipt';
     }
   }
 
@@ -48,6 +50,8 @@ extension InvoiceTemplateInfo on InvoiceTemplate {
         return 'Double-rule header · Sr.No/Particulars/Amount · for advocates & CAs';
       case InvoiceTemplate.legalPro:
         return 'Logo+info header · Dated/Particulars/Amount · for lawyers & advocates';
+      case InvoiceTemplate.thermalReceipt:
+        return '80mm thermal printer · POS-style · restaurants, retail & cafes';
     }
   }
 }

@@ -234,9 +234,9 @@ class _EmployeeCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -286,11 +286,11 @@ class _EmployeeCard extends StatelessWidget {
                           _RoleBadge(role: employee.role, color: roleColor),
                         ],
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         employee.email,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary),
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.subtext(context)),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -513,12 +513,12 @@ class _EmptyView extends StatelessWidget {
             const SizedBox(height: 20),
             const Text('No team members yet',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Add employees and control exactly what\neach person can do in the app.',
               textAlign: TextAlign.center,
               style:
-                  TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  TextStyle(fontSize: 13, color: AppTheme.subtext(context)),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(

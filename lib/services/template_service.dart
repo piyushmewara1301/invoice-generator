@@ -1,4 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/client.dart';
 import '../models/invoice.dart';
 import '../models/business_profile.dart';
 import '../utils/formatters.dart';
@@ -7,6 +8,38 @@ class TemplateService {
   static const _waKey = 'tpl_whatsapp';
   static const _emailSubjectKey = 'tpl_email_subject';
   static const _emailBodyKey = 'tpl_email_body';
+
+  // ── Offer / Bulk-messaging templates ─────────────────────────────────────
+  static const _offerWaKey          = 'tpl_offer_whatsapp';
+  static const _offerEmailSubjectKey = 'tpl_offer_email_subject';
+  static const _offerEmailBodyKey    = 'tpl_offer_email_body';
+
+  static const defaultOfferWhatsApp =
+      'Dear {client_name},\n\n'
+      '🎉 *Special offer from {business_name}!*\n\n'
+      '{offer_details}\n\n'
+      'For details, call/WhatsApp us: {business_phone}\n\n'
+      'Regards,\n'
+      '{business_name}';
+
+  static const defaultOfferEmailSubject =
+      'Special Offer from {business_name}';
+
+  static const defaultOfferEmailBody =
+      'Dear {client_name},\n\n'
+      '{offer_details}\n\n'
+      'Feel free to reach us at {business_email} or {business_phone}.\n\n'
+      'Warm regards,\n'
+      '{business_name}';
+
+  /// Offer-specific variable list (client context, no Invoice needed).
+  static const List<(String, String)> offerVariables = [
+    ('{client_name}',    'Client Name'),
+    ('{offer_details}',  'Your Offer / Message'),
+    ('{business_name}',  'Business Name'),
+    ('{business_phone}', 'Your Phone'),
+    ('{business_email}', 'Your Email'),
+  ];
 
   static const defaultWhatsApp = 'Dear {client_name},\n\n'
       'Please find the invoice attached.\n\n'
@@ -75,6 +108,61 @@ class TemplateService {
     await prefs.remove(_emailSubjectKey);
     await prefs.remove(_emailBodyKey);
   }
+
+  // ── Offer template CRUD ───────────────────────────────────────────────────
+
+  static Future<String> getOfferWhatsApp() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_offerWaKey) ?? defaultOfferWhatsApp;
+  }
+
+  static Future<String> getOfferEmailSubject() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_offerEmailSubjectKey) ?? defaultOfferEmailSubject;
+  }
+
+  static Future<String> getOfferEmailBody() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_offerEmailBodyKey) ?? defaultOfferEmailBody;
+  }
+
+  static Future<void> saveOfferWhatsApp(String t) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_offerWaKey, t);
+  }
+
+  static Future<void> saveOfferEmailSubject(String t) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_offerEmailSubjectKey, t);
+  }
+
+  static Future<void> saveOfferEmailBody(String t) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_offerEmailBodyKey, t);
+  }
+
+  static Future<void> resetOfferTemplates() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_offerWaKey);
+    await prefs.remove(_offerEmailSubjectKey);
+    await prefs.remove(_offerEmailBodyKey);
+  }
+
+  /// Fills an offer template for a specific [client] — no Invoice required.
+  /// [offerDetails] is the core offer text that replaces `{offer_details}`.
+  static String fillOffer(
+    String template, {
+    required Client client,
+    required BusinessProfile profile,
+    String offerDetails = '',
+  }) =>
+      template
+          .replaceAll('{client_name}',
+              client.displayName.isNotEmpty ? client.displayName : 'Valued Customer')
+          .replaceAll('{offer_details}', offerDetails)
+          .replaceAll('{business_name}', profile.name)
+          .replaceAll('{business_phone}', profile.phone)
+          .replaceAll('{business_email}', profile.email);
 
   /// Fills a template with real invoice + profile values.
   static String fill(

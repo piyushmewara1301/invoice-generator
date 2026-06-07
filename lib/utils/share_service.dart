@@ -47,14 +47,17 @@ class ShareService {
     );
   }
 
-  /// Opens WhatsApp with pre-filled message (no attachment).
-  /// Web and mobile both use the wa.me link.
+  /// Opens WhatsApp with a pre-filled text message (no attachment).
+  /// On iOS tries the `whatsapp://` deep link first (direct, no Safari hop),
+  /// then falls back to the universal `https://wa.me/` link.
   static Future<void> shareViaWhatsApp(
       Invoice invoice, BusinessProfile profile) async {
     try {
       final success = await openWhatsAppDirectly(invoice, profile);
       if (!success) {
-        throw Exception('Could not open WhatsApp. Please ensure the phone number is available and WhatsApp is installed.');
+        throw Exception(
+            'Could not open WhatsApp. '
+            'Please ensure the phone number is correct and WhatsApp is installed.');
       }
     } catch (e) {
       print('Error in shareViaWhatsApp: $e');
@@ -62,38 +65,56 @@ class ShareService {
     }
   }
 
-  /// Opens wa.me deep link with pre-filled text message.
-  /// Returns false if phone is missing or URL can't be launched.
+  /// Opens WhatsApp with a pre-filled text message.
+  /// Tries the native `whatsapp://send` scheme first (no Safari hop on iOS),
+  /// then falls back to `https://wa.me/` for web and cases where WhatsApp
+  /// is not installed.
   static Future<bool> openWhatsAppDirectly(
       Invoice invoice, BusinessProfile profile) async {
     try {
       final phone = _cleanPhone(invoice.client?.phone ?? '');
       if (phone.isEmpty) {
-        throw Exception('Client phone number is required. Please add phone to client details.');
+        throw Exception(
+            'Client phone number is required. '
+            'Please add a phone number to the client.');
       }
-      
+
       final tpl = await TemplateService.getWhatsApp();
       final message =
           TemplateService.fill(tpl, invoice: invoice, profile: profile);
-      
-      final uri = Uri.parse(
-          'https://wa.me/$phone?text=${Uri.encodeComponent(message)}');
-      
-      final canLaunch = await canLaunchUrl(uri);
-      if (!canLaunch) {
-        throw Exception('Could not open WhatsApp. Make sure WhatsApp is installed.');
+      final encodedMsg = Uri.encodeComponent(message);
+
+      // 1️⃣  Native deep link — works on iOS without opening Safari first.
+      //    Requires `whatsapp` in LSApplicationQueriesSchemes (Info.plist).
+      if (!kIsWeb) {
+        final nativeUri =
+            Uri.parse('whatsapp://send?phone=$phone&text=$encodedMsg');
+        if (await canLaunchUrl(nativeUri)) {
+          return launchUrl(nativeUri, mode: LaunchMode.externalApplication);
+        }
       }
-      
-      return launchUrl(uri, mode: LaunchMode.externalApplication);
+
+      // 2️⃣  Universal link fallback — works on web and when WhatsApp handles
+      //    the wa.me universal link via iOS.
+      final webUri =
+          Uri.parse('https://wa.me/$phone?text=$encodedMsg');
+      if (await canLaunchUrl(webUri)) {
+        return launchUrl(webUri, mode: LaunchMode.externalApplication);
+      }
+
+      throw Exception(
+          'Could not open WhatsApp. Make sure WhatsApp is installed.');
     } catch (e) {
       print('Error in openWhatsAppDirectly: $e');
       return false;
     }
   }
 
-  /// Shares the PDF via the native share sheet (user picks the app).
-  /// Pass [sharePositionOrigin] (the tapped widget's rect) to avoid iOS
-  /// UIActivityViewController presentation failures from inside a modal sheet.
+  /// Shares the invoice PDF via the native share sheet (user picks the app).
+  ///
+  /// [sharePositionOrigin] **must** be supplied on iPad to anchor the
+  /// UIActivityViewController popover.  On iPhone it is optional but prevents
+  /// presentation issues when called from inside a modal bottom sheet.
   static Future<void> sharePdf(
     Invoice invoice,
     BusinessProfile profile, {
@@ -111,15 +132,26 @@ class ShareService {
     }
   }
 
-  /// Email: subject + body + PDF attachment.
-  /// Web falls back to mailto (no attachment — browser limitation).
+  /// Sends the invoice as an email with the PDF attached.
+  ///
+  /// Strategy (mobile):
+  ///   1. Try `flutter_email_sender` → uses Apple Mail / MFMailComposeVC.
+  ///   2. If Mail is not configured or the user cancels, fall back to the
+  ///      native share sheet (they can pick Gmail, Outlook, etc.).
+  ///
+  /// [sharePositionOrigin] is forwarded to the share-sheet fallback so iOS
+  /// can anchor the UIActivityViewController correctly.
   static Future<void> shareViaEmail(
-      Invoice invoice, BusinessProfile profile) async {
+    Invoice invoice,
+    BusinessProfile profile, {
+    Rect? sharePositionOrigin,
+  }) async {
     try {
       final clientEmail = invoice.client?.email ?? '';
-      
       if (clientEmail.isEmpty) {
-        throw Exception('Client email is required. Please add email to client details.');
+        throw Exception(
+            'Client email is required. '
+            'Please add an email address to the client.');
       }
 
       final subjectTpl = await TemplateService.getEmailSubject();
@@ -129,6 +161,7 @@ class ShareService {
       final body =
           TemplateService.fill(bodyTpl, invoice: invoice, profile: profile);
 
+      // ── Web: mailto deep link (no attachment — browser limitation) ──────
       if (kIsWeb) {
         final uri = Uri(
           scheme: 'mailto',
@@ -138,16 +171,17 @@ class ShareService {
         if (await canLaunchUrl(uri)) {
           await launchUrl(uri);
         } else {
-          throw Exception('Could not launch email client');
+          throw Exception('Could not launch email client.');
         }
         return;
       }
 
-      // Save PDF first
+      // ── Mobile: generate PDF then try email → share-sheet fallback ──────
       final path = await _savePdfTemp(invoice, profile);
-      
-      // Try sending via email
+
       try {
+        // flutter_email_sender uses MFMailComposeViewController on iOS.
+        // Works when Apple Mail is configured; throws otherwise.
         await FlutterEmailSender.send(Email(
           subject: subject,
           body: body,
@@ -155,17 +189,78 @@ class ShareService {
           attachmentPaths: [path],
         ));
       } catch (emailError) {
-        print('Email send failed: $emailError, falling back to share sheet');
-        // Fallback to share sheet
+        print('flutter_email_sender failed ($emailError) — '
+            'opening native share sheet as fallback.');
+        // Fallback: native iOS share sheet — user picks Gmail, Outlook, etc.
+        // Passing sharePositionOrigin avoids UIActivityViewController crashes
+        // on iPad and presentation failures from inside modal sheets.
         await Share.shareXFiles(
           [XFile(path, mimeType: 'application/pdf')],
           subject: subject,
           text: body,
+          sharePositionOrigin: sharePositionOrigin,
         );
       }
     } catch (e) {
       print('Error in shareViaEmail: $e');
       rethrow;
+    }
+  }
+
+  // ── Offer / bulk-message helpers (no Invoice required) ───────────────────
+
+  /// Opens WhatsApp for [phone] with [message] pre-filled.
+  /// Returns true if WhatsApp was launched successfully.
+  static Future<bool> sendWhatsAppOffer(String phone, String message) async {
+    final cleaned = _cleanPhone(phone);
+    if (cleaned.isEmpty) return false;
+    final encoded = Uri.encodeComponent(message);
+    if (!kIsWeb) {
+      final native = Uri.parse('whatsapp://send?phone=$cleaned&text=$encoded');
+      if (await canLaunchUrl(native)) {
+        return launchUrl(native, mode: LaunchMode.externalApplication);
+      }
+    }
+    final web = Uri.parse('https://wa.me/$cleaned?text=$encoded');
+    if (await canLaunchUrl(web)) {
+      return launchUrl(web, mode: LaunchMode.externalApplication);
+    }
+    return false;
+  }
+
+  /// Opens the email client pre-filled with [recipients], [subject], and [body].
+  /// On mobile tries `flutter_email_sender` first, then falls back to `mailto:`.
+  /// No PDF attachment — suitable for plain-text offer messages.
+  static Future<void> sendEmailOffer({
+    required List<String> recipients,
+    required String subject,
+    required String body,
+  }) async {
+    if (recipients.isEmpty) return;
+
+    if (kIsWeb) {
+      final uri = Uri(
+        scheme: 'mailto',
+        path: recipients.join(','),
+        queryParameters: {'subject': subject, 'body': body},
+      );
+      if (await canLaunchUrl(uri)) await launchUrl(uri);
+      return;
+    }
+
+    try {
+      await FlutterEmailSender.send(Email(
+        subject: subject,
+        body: body,
+        recipients: recipients,
+      ));
+    } catch (_) {
+      final uri = Uri(
+        scheme: 'mailto',
+        path: recipients.join(','),
+        queryParameters: {'subject': subject, 'body': body},
+      );
+      if (await canLaunchUrl(uri)) await launchUrl(uri);
     }
   }
 
@@ -224,6 +319,16 @@ class _ShareSheetState extends State<_ShareSheet> {
   bool _loadingPdf   = false;
 
   bool get _busy => _loadingWa || _loadingWaPdf || _loadingEmail || _loadingPdf;
+
+  /// Computes the bounding rect of this bottom sheet in global coordinates.
+  /// Passed to [Share.shareXFiles] so iOS can anchor the
+  /// UIActivityViewController popover (required on iPad, prevents
+  /// presentation issues from inside modal sheets on iPhone).
+  Rect? get _shareAnchor {
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -376,7 +481,9 @@ class _ShareSheetState extends State<_ShareSheet> {
                       setState(() => _loadingWaPdf = true);
                       try {
                         await ShareService.sharePdf(
-                            widget.invoice, widget.profile);
+                          widget.invoice, widget.profile,
+                          sharePositionOrigin: _shareAnchor,
+                        );
                       } catch (e) {
                         _showError(e.toString().replaceAll('Exception: ', ''));
                       } finally {
@@ -404,7 +511,9 @@ class _ShareSheetState extends State<_ShareSheet> {
                       setState(() => _loadingEmail = true);
                       try {
                         await ShareService.shareViaEmail(
-                            widget.invoice, widget.profile);
+                          widget.invoice, widget.profile,
+                          sharePositionOrigin: _shareAnchor,
+                        );
                       } catch (e) {
                         _showError(e.toString().replaceAll('Exception: ', ''));
                       } finally {

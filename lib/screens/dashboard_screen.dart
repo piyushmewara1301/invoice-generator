@@ -9,32 +9,27 @@ import '../widgets/banner_ad_widget.dart';
 import '../widgets/summary_card.dart';
 import '../widgets/status_badge.dart';
 import '../models/invoice.dart';
+import '../models/purchase_bill.dart';
 import 'create_invoice_screen.dart';
 import 'invoice_list_screen.dart';
-import 'client_list_screen.dart';
+import 'expense_list_screen.dart';
+import 'purchase_bill_list_screen.dart';
+import 'cash_flow_screen.dart';
 import 'settings_screen.dart';
 import 'gst_report_screen.dart';
 import 'category_analytics_screen.dart';
 import 'pos_screen.dart';
+import '../l10n/app_localizations.dart';
+import '../models/employee.dart';
+import '../models/invoice.dart' show InvoiceStatus;
+import 'pl_report_screen.dart';
+import 'agewise_report_screen.dart';
+import '../models/subscription_limits.dart' show LimitType;
+import '../widgets/feature_guide_sheet.dart';
+import '../widgets/paywall_sheet.dart';
 
 enum _Period { today, week, month, year, custom }
 
-extension _PeriodLabel on _Period {
-  String get label {
-    switch (this) {
-      case _Period.today:
-        return 'Today';
-      case _Period.week:
-        return 'This Week';
-      case _Period.month:
-        return 'This Month';
-      case _Period.year:
-        return 'This Year';
-      case _Period.custom:
-        return 'Custom';
-    }
-  }
-}
 
 // ─── Root shell ──────────────────────────────────────────────────────────────
 
@@ -58,6 +53,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       duration: const Duration(milliseconds: 200),
       value: 1.0,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showFeatureGuide(context, AppGuides.dashboard);
+    });
   }
 
   @override
@@ -80,27 +78,31 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final appProvider = context.watch<AppProvider>();
     final posEnabled = appProvider.profile.posEnabled;
+    final purchaseBillEnabled = appProvider.profile.purchaseBillEnabled;
     final isFreeTier =
         appProvider.profile.subscriptionTier == SubscriptionTier.free;
+
+    final l10n = AppLocalizations.of(context)!;
 
     final screens = [
       const _DashboardHome(),
       const InvoiceListScreen(),
       if (posEnabled) const PosScreen(),
-      const ClientListScreen(),
+      const ExpenseListScreen(),
+      if (purchaseBillEnabled) const PurchaseBillListScreen(),
       const SettingsScreen(),
     ];
 
     final destinations = [
-      const NavigationDestination(
-        icon: Icon(Icons.dashboard_outlined),
-        selectedIcon: Icon(Icons.dashboard),
-        label: 'Dashboard',
+      NavigationDestination(
+        icon: const Icon(Icons.dashboard_outlined),
+        selectedIcon: const Icon(Icons.dashboard),
+        label: l10n.dashboard,
       ),
-      const NavigationDestination(
-        icon: Icon(Icons.receipt_long_outlined),
-        selectedIcon: Icon(Icons.receipt_long),
-        label: 'Invoices',
+      NavigationDestination(
+        icon: const Icon(Icons.receipt_long_outlined),
+        selectedIcon: const Icon(Icons.receipt_long),
+        label: l10n.invoices,
       ),
       if (posEnabled)
         const NavigationDestination(
@@ -108,15 +110,21 @@ class _DashboardScreenState extends State<DashboardScreen>
           selectedIcon: Icon(Icons.point_of_sale_rounded),
           label: 'POS',
         ),
-      const NavigationDestination(
-        icon: Icon(Icons.people_outline),
-        selectedIcon: Icon(Icons.people),
-        label: 'Clients',
+      NavigationDestination(
+        icon: const Icon(Icons.account_balance_wallet_outlined),
+        selectedIcon: const Icon(Icons.account_balance_wallet),
+        label: l10n.expenses,
       ),
-      const NavigationDestination(
-        icon: Icon(Icons.settings_outlined),
-        selectedIcon: Icon(Icons.settings),
-        label: 'Settings',
+      if (purchaseBillEnabled)
+        const NavigationDestination(
+          icon: Icon(Icons.receipt_outlined),
+          selectedIcon: Icon(Icons.receipt_rounded),
+          label: 'Bills',
+        ),
+      NavigationDestination(
+        icon: const Icon(Icons.settings_outlined),
+        selectedIcon: const Icon(Icons.settings),
+        label: l10n.settings,
       ),
     ];
 
@@ -134,7 +142,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           if (isFreeTier) const BannerAdWidget(),
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.card(context),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.06),
@@ -263,10 +271,22 @@ class _DashboardHomeState extends State<_DashboardHome>
     }
   }
 
+  String _periodLabel(AppLocalizations l10n, _Period p) {
+    switch (p) {
+      case _Period.today:   return l10n.today;
+      case _Period.week:    return l10n.thisWeek;
+      case _Period.month:   return l10n.thisMonth;
+      case _Period.year:    return l10n.thisYear;
+      case _Period.custom:  return l10n.custom;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
     final fx = context.watch<ExchangeRateService>();
+    final canCreateInvoice = provider.canDo(AppPermission.createInvoice);
     final all = provider.invoices;
     final filtered = _filtered(all);
     final currency = provider.profile.currency;
@@ -289,21 +309,20 @@ class _DashboardHomeState extends State<_DashboardHome>
     final isConverting = fx.isConverting(all.map((i) => i.currency));
 
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Dashboard'),
+            Text(l10n.dashboard),
             Text(
               provider.profile.name.isNotEmpty
                   ? provider.profile.name
-                  : 'Set up your business profile',
+                  : l10n.businessProfile,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 12,
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.subtext(context),
                   fontWeight: FontWeight.w400),
             ),
           ],
@@ -319,11 +338,12 @@ class _DashboardHomeState extends State<_DashboardHome>
                     strokeWidth: 2, color: AppTheme.primary),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _createInvoice(context),
-            tooltip: 'New Invoice',
-          ),
+          if (canCreateInvoice)
+            IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => _createInvoice(context),
+              tooltip: l10n.newInvoice,
+            ),
         ],
       ),
       body: RefreshIndicator(
@@ -339,14 +359,14 @@ class _DashboardHomeState extends State<_DashboardHome>
               _FadeSlide(
                 animation: _bannerAnim,
                 beginOffset: const Offset(0, -0.1),
-                child: _overviewBanner(all, provider),
+                child: _overviewBanner(all, provider, l10n),
               ),
               const SizedBox(height: 20),
 
               // ── Period selector ─────────────────────────────────────
               _FadeSlide(
                 animation: _statsAnim,
-                child: _periodSelector(),
+                child: _periodSelector(l10n),
               ),
               const SizedBox(height: 14),
 
@@ -365,29 +385,26 @@ class _DashboardHomeState extends State<_DashboardHome>
                     childAspectRatio: cardW / 148,
                     children: [
                       SummaryCard(
-                        title: 'Revenue',
+                        title: l10n.revenue,
                         value: Fmt.currencyAmount(periodRevenue, currency),
                         icon: Icons.trending_up_rounded,
                         color: AppTheme.success,
                       ),
                       SummaryCard(
-                        title: 'Outstanding',
-                        value:
-                            Fmt.currencyAmount(periodOutstanding, currency),
+                        title: l10n.outstanding,
+                        value: Fmt.currencyAmount(periodOutstanding, currency),
                         icon: Icons.hourglass_empty_rounded,
                         color: AppTheme.warning,
                       ),
                       SummaryCard(
-                        title: 'Invoices',
+                        title: l10n.invoices,
                         value: '${filtered.length}',
-                        subtitle: 'in period',
                         icon: Icons.receipt_outlined,
                         color: AppTheme.primary,
                       ),
                       SummaryCard(
-                        title: 'Overdue',
+                        title: l10n.overdue,
                         value: '$periodOverdue',
-                        subtitle: 'invoices',
                         icon: Icons.warning_amber_rounded,
                         color: AppTheme.error,
                       ),
@@ -401,6 +418,59 @@ class _DashboardHomeState extends State<_DashboardHome>
                 _conversionNotice(fx, currency),
               ],
               const SizedBox(height: 28),
+
+              // ── P&L Summary card ────────────────────────────────────────
+              _FadeSlide(
+                animation: _recentAnim,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _PLSummaryCard(
+                    invoices: all,
+                    expenses: provider.expenses,
+                    currency: currency,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PLReportScreen()),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Outstanding Analysis card ────────────────────────────────
+              _FadeSlide(
+                animation: _recentAnim,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _OutstandingCard(
+                    invoices: all,
+                    currency: currency,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AgewiseReportScreen()),
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Cash Flow Forecast card ─────────────────────────────────
+              _FadeSlide(
+                animation: _recentAnim,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: _CashFlowCard(
+                    invoices: all,
+                    purchaseBills: provider.purchaseBills,
+                    currency: currency,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const CashFlowScreen()),
+                    ),
+                  ),
+                ),
+              ),
 
               // ── GST Reports quick-access (shown only when GST registered) ──
               if (provider.profile.isGstRegistered)
@@ -417,12 +487,17 @@ class _DashboardHomeState extends State<_DashboardHome>
                 animation: _recentAnim,
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: _CategoryInsightsCard(invoices: all, onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const CategoryAnalyticsScreen()),
-                    );
+                  child: _CategoryInsightsCard(invoices: all, onTap: () async {
+                    final info = context.read<AppProvider>().checkFeature(LimitType.categoryAnalytics);
+                    if (info != null) {
+                      final up = await showPaywallSheet(context, info); // ignore: use_build_context_synchronously
+                      if (up && context.mounted) Navigator.pushNamed(context, '/plans');
+                      return;
+                    }
+                    if (context.mounted) {
+                      Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => const CategoryAnalyticsScreen()));
+                    }
                   }),
                 ),
               ),
@@ -430,7 +505,7 @@ class _DashboardHomeState extends State<_DashboardHome>
               // ── Recent invoices ─────────────────────────────────────
               _FadeSlide(
                 animation: _recentAnim,
-                child: _sectionHeader(context, 'Recent Invoices',
+                child: _sectionHeader(context, l10n.recentInvoices,
                     onViewAll: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -454,12 +529,14 @@ class _DashboardHomeState extends State<_DashboardHome>
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _createInvoice(context),
-        icon: const Icon(Icons.add),
-        label: const Text('New Invoice'),
-        elevation: 2,
-      ),
+      floatingActionButton: canCreateInvoice
+          ? FloatingActionButton.extended(
+              onPressed: () => _createInvoice(context),
+              icon: const Icon(Icons.add),
+              label: Text(l10n.newInvoice),
+              elevation: 2,
+            )
+          : null,
     );
   }
 
@@ -488,17 +565,17 @@ class _DashboardHomeState extends State<_DashboardHome>
                   ? Icons.currency_exchange
                   : Icons.wifi_off_outlined,
           size: 12,
-          color: AppTheme.textSecondary,
+          color: AppTheme.subtext(context),
         ),
         const SizedBox(width: 4),
         Text(label,
-            style: const TextStyle(
-                fontSize: 11, color: AppTheme.textSecondary)),
+            style: TextStyle(
+                fontSize: 11, color: AppTheme.subtext(context))),
       ],
     );
   }
 
-  Widget _periodSelector() {
+  Widget _periodSelector(AppLocalizations l10n) {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -511,19 +588,19 @@ class _DashboardHomeState extends State<_DashboardHome>
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeOutCubic,
                 child: ChoiceChip(
-                  label: Text(p.label),
+                  label: Text(_periodLabel(l10n, p)),
                   selected: selected,
                   onSelected: (_) => setState(() => _period = p),
                   selectedColor: AppTheme.primary,
                   labelStyle: TextStyle(
-                    color: selected ? Colors.white : AppTheme.textPrimary,
+                    color: selected ? Colors.white : AppTheme.onCard(context),
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
                   side: BorderSide(
-                    color: selected ? AppTheme.primary : AppTheme.divider,
+                    color: selected ? AppTheme.primary : AppTheme.outline(context),
                   ),
-                  backgroundColor: Colors.white,
+                  backgroundColor: AppTheme.card(context),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 ),
@@ -539,11 +616,11 @@ class _DashboardHomeState extends State<_DashboardHome>
                   Text(
                     _period == _Period.custom && _customRange != null
                         ? '${Fmt.shortDate(_customRange!.start)} – ${Fmt.shortDate(_customRange!.end)}'
-                        : 'Custom',
+                        : l10n.custom,
                     style: TextStyle(
                       color: _period == _Period.custom
                           ? AppTheme.primary
-                          : AppTheme.textPrimary,
+                          : AppTheme.onCard(context),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -554,7 +631,7 @@ class _DashboardHomeState extends State<_DashboardHome>
                     size: 14,
                     color: _period == _Period.custom
                         ? AppTheme.primary
-                        : AppTheme.textSecondary,
+                        : AppTheme.subtext(context),
                   ),
                 ],
               ),
@@ -562,11 +639,11 @@ class _DashboardHomeState extends State<_DashboardHome>
               side: BorderSide(
                 color: _period == _Period.custom
                     ? AppTheme.primary
-                    : AppTheme.divider,
+                    : AppTheme.outline(context),
               ),
               backgroundColor: _period == _Period.custom
                   ? AppTheme.primary.withValues(alpha: 0.08)
-                  : Colors.white,
+                  : AppTheme.card(context),
               padding:
                   const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             ),
@@ -576,7 +653,7 @@ class _DashboardHomeState extends State<_DashboardHome>
     );
   }
 
-  Widget _overviewBanner(List<Invoice> all, AppProvider provider) {
+  Widget _overviewBanner(List<Invoice> all, AppProvider provider, AppLocalizations l10n) {
     final draft = all.where((i) => i.status == InvoiceStatus.draft).length;
     final sent = all.where((i) => i.status == InvoiceStatus.sent).length;
     final paid = all.where((i) => i.status == InvoiceStatus.paid).length;
@@ -629,9 +706,8 @@ class _DashboardHomeState extends State<_DashboardHome>
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Total Invoices',
-                  style:
-                      TextStyle(color: Colors.white70, fontSize: 13)),
+              Text(l10n.totalInvoices,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
               const SizedBox(height: 4),
               // Count-up animation on the total
               TweenAnimationBuilder<int>(
@@ -652,12 +728,11 @@ class _DashboardHomeState extends State<_DashboardHome>
               const SizedBox(height: 14),
               Row(
                 children: [
-                  _statChip('Draft', draft, Colors.white24),
+                  _statChip(l10n.draft, draft, Colors.white24),
                   const SizedBox(width: 8),
-                  _statChip('Sent', sent, Colors.white24),
+                  _statChip(l10n.sent, sent, Colors.white24),
                   const SizedBox(width: 8),
-                  _statChip('Paid', paid,
-                      AppTheme.success.withValues(alpha: 0.35)),
+                  _statChip(l10n.paid, paid, AppTheme.success.withValues(alpha: 0.35)),
                 ],
               ),
             ],
@@ -691,12 +766,12 @@ class _DashboardHomeState extends State<_DashboardHome>
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+                color: AppTheme.onCard(context))),
         if (onViewAll != null)
-          TextButton(onPressed: onViewAll, child: const Text('View all')),
+          TextButton(onPressed: onViewAll, child: Text(AppLocalizations.of(context)!.viewAll)),
       ],
     );
   }
@@ -706,7 +781,7 @@ class _DashboardHomeState extends State<_DashboardHome>
       width: double.infinity,
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: AppTheme.cardShadow,
       ),
@@ -723,20 +798,21 @@ class _DashboardHomeState extends State<_DashboardHome>
                 size: 30, color: AppTheme.primary),
           ),
           const SizedBox(height: 16),
-          const Text('No invoices yet',
+          Text(AppLocalizations.of(context)!.noInvoicesYet,
               style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
+                  color: AppTheme.onCard(context))),
           const SizedBox(height: 6),
-          const Text('Create your first invoice to get started',
+          Text(AppLocalizations.of(context)!.noInvoicesHint,
               style: TextStyle(
-                  fontSize: 13, color: AppTheme.textSecondary)),
+                  fontSize: 13, color: AppTheme.subtext(context))),
           const SizedBox(height: 20),
-          ElevatedButton(
-            onPressed: () => _createInvoice(context),
-            child: const Text('Create Invoice'),
-          ),
+          if (context.read<AppProvider>().canDo(AppPermission.createInvoice))
+            ElevatedButton(
+              onPressed: () => _createInvoice(context),
+              child: Text(AppLocalizations.of(context)!.createInvoice),
+            ),
         ],
       ),
     );
@@ -825,7 +901,7 @@ class _InvoiceTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(14),
         boxShadow: AppTheme.cardShadow,
       ),
@@ -857,16 +933,16 @@ class _InvoiceTile extends StatelessWidget {
                   children: [
                     Text(
                       invoice.client?.displayName ?? 'No Client',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: AppTheme.textPrimary),
+                          color: AppTheme.onCard(context)),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${invoice.invoiceNumber} · Due ${Fmt.date(invoice.dueDate)}',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.subtext(context)),
                     ),
                   ],
                 ),
@@ -883,10 +959,10 @@ class _InvoiceTile extends StatelessWidget {
                       child: Text(
                         Fmt.currencyAmount(
                             invoice.grandTotal, invoice.currency),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
-                            color: AppTheme.textPrimary),
+                            color: AppTheme.onCard(context)),
                       ),
                     ),
                   ),
@@ -915,7 +991,7 @@ class _GstReportCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.card(context),
           borderRadius: BorderRadius.circular(14),
           boxShadow: AppTheme.cardShadow,
         ),
@@ -932,7 +1008,7 @@ class _GstReportCard extends StatelessWidget {
                   color: Color(0xFFE65100), size: 22),
             ),
             const SizedBox(width: 14),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -940,18 +1016,18 @@ class _GstReportCard extends StatelessWidget {
                       style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
-                          color: AppTheme.textPrimary)),
-                  SizedBox(height: 2),
+                          color: AppTheme.onCard(context))),
+                  const SizedBox(height: 2),
                   Text(
                     'CGST/SGST/IGST · HSN summary · Invoice register',
                     style: TextStyle(
-                        fontSize: 11, color: AppTheme.textSecondary),
+                        fontSize: 11, color: AppTheme.subtext(context)),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: AppTheme.textSecondary),
+            Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.subtext(context)),
           ],
         ),
       ),
@@ -998,7 +1074,7 @@ class _CategoryInsightsCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.card(context),
           borderRadius: BorderRadius.circular(14),
           boxShadow: AppTheme.cardShadow,
         ),
@@ -1019,11 +1095,11 @@ class _CategoryInsightsCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Category Insights',
+                  Text('Category Insights',
                       style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
-                          color: AppTheme.textPrimary)),
+                          color: AppTheme.onCard(context))),
                   const SizedBox(height: 2),
                   Text(
                     catCount == 0
@@ -1031,16 +1107,16 @@ class _CategoryInsightsCard extends StatelessWidget {
                         : topCat != null
                             ? '$catCount categor${catCount == 1 ? 'y' : 'ies'} · top: $topCat'
                             : '$catCount categor${catCount == 1 ? 'y' : 'ies'} tracked',
-                    style: const TextStyle(
-                        fontSize: 11, color: AppTheme.textSecondary),
+                    style: TextStyle(
+                        fontSize: 11, color: AppTheme.subtext(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right,
-                size: 18, color: AppTheme.textSecondary),
+            Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.subtext(context)),
           ],
         ),
       ),
@@ -1056,3 +1132,343 @@ class DashboardHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) => const _DashboardHome();
 }
+
+// ─── P&L Summary card ─────────────────────────────────────────────────────────
+
+class _PLSummaryCard extends StatelessWidget {
+  final List<Invoice> invoices;
+  final List expenses; // List<Expense> — typed as dynamic to avoid import
+  final String currency;
+  final VoidCallback onTap;
+
+  const _PLSummaryCard({
+    required this.invoices,
+    required this.expenses,
+    required this.currency,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, 1);
+    final end = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+    final revenue = invoices
+        .where((i) =>
+            !i.isQuotation &&
+            i.status == InvoiceStatus.paid &&
+            !i.invoiceDate.isBefore(start) &&
+            !i.invoiceDate.isAfter(end))
+        .fold(0.0, (s, i) => s + i.grandTotal);
+
+    // expenses is List<Expense> but typed dynamically to avoid import cycle
+    double expTotal = 0;
+    for (final e in expenses) {
+      final date = e.date as DateTime;
+      if (!date.isBefore(start) && !date.isAfter(end)) {
+        expTotal += (e.amount as num).toDouble();
+      }
+    }
+
+    final net = revenue - expTotal;
+    final netColor = net >= 0 ? AppTheme.success : AppTheme.error;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.card(context),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.account_balance_outlined,
+                  color: Color(0xFF7C3AED), size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('P & L — This Month',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppTheme.onCard(context))),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Text(
+                        '↑ ${Fmt.currencyAmount(revenue, currency)}',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.success,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const Text('  ',
+                          style: TextStyle(fontSize: 11)),
+                      Text(
+                        '↓ ${Fmt.currencyAmount(expTotal, currency)}',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.error,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'Net ${Fmt.currencyAmount(net.abs(), currency)}',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: netColor),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.subtext(context)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Cash Flow preview card ───────────────────────────────────────────────────
+
+class _CashFlowCard extends StatelessWidget {
+  final List<Invoice> invoices;
+  final List<PurchaseBill> purchaseBills;
+  final String currency;
+  final VoidCallback onTap;
+
+  const _CashFlowCard({
+    required this.invoices,
+    required this.purchaseBills,
+    required this.currency,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sym = Fmt.currencySymbol(currency);
+    final now = DateTime.now();
+
+    final in7 = invoices
+        .where((inv) =>
+            !inv.isQuotation &&
+            !inv.isCreditNote &&
+            inv.status != InvoiceStatus.paid &&
+            inv.status != InvoiceStatus.cancelled &&
+            inv.status != InvoiceStatus.draft &&
+            !inv.dueDate.isAfter(now.add(const Duration(days: 7))))
+        .fold(0.0, (s, inv) => s + inv.amountRemaining);
+
+    final out7 = purchaseBills
+        .where((b) =>
+            b.status != PurchaseBillStatus.paid &&
+            b.dueDate != null &&
+            !b.dueDate!.isAfter(now.add(const Duration(days: 7))))
+        .fold(0.0, (s, b) => s + b.amountDue);
+
+    final net7 = in7 - out7;
+    final isPositive = net7 >= 0;
+    final netColor = isPositive ? AppTheme.success : AppTheme.error;
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.card(context),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppTheme.outline(context)),
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C3AED).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.show_chart_rounded,
+                      size: 18, color: Color(0xFF7C3AED)),
+                ),
+                const SizedBox(width: 10),
+                Text('Cash Flow (7-day)',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.onCard(context))),
+                const Spacer(),
+                Icon(Icons.chevron_right,
+                    size: 18, color: AppTheme.subtext(context)),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                    child: _cfStat(context, 'Inflows',
+                        '$sym${Fmt.compact(in7)}', AppTheme.success)),
+                Expanded(
+                    child: _cfStat(context, 'Outflows',
+                        '$sym${Fmt.compact(out7)}', AppTheme.error)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Net',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.subtext(context))),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${isPositive ? '+' : ''}$sym${Fmt.compact(net7)}',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: netColor),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cfStat(
+      BuildContext context, String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 11, color: AppTheme.subtext(context))),
+        const SizedBox(height: 2),
+        Text(value,
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.w700, color: color)),
+      ],
+    );
+  }
+}
+
+// ─── Outstanding Analysis card ────────────────────────────────────────────────
+
+class _OutstandingCard extends StatelessWidget {
+  final List<Invoice> invoices;
+  final String currency;
+  final VoidCallback onTap;
+
+  const _OutstandingCard({
+    required this.invoices,
+    required this.currency,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final outstanding = invoices.where((i) =>
+        !i.isQuotation &&
+        i.status != InvoiceStatus.paid &&
+        i.status != InvoiceStatus.cancelled).toList();
+
+    final overdueNow = outstanding.where((i) => i.dueDate.isBefore(now)).toList();
+    final over30 = overdueNow.where((i) =>
+        now.difference(i.dueDate).inDays > 30).length;
+    final totalAmt = outstanding.fold(0.0, (s, i) => s + i.amountRemaining);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.card(context),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: AppTheme.cardShadow,
+          border: overdueNow.isNotEmpty
+              ? Border.all(
+                  color: AppTheme.warning.withValues(alpha: 0.4))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppTheme.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.hourglass_bottom_rounded,
+                  color: overdueNow.isNotEmpty
+                      ? AppTheme.warning
+                      : AppTheme.subtext(context),
+                  size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Outstanding Analysis',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppTheme.onCard(context))),
+                  const SizedBox(height: 3),
+                  Text(
+                    outstanding.isEmpty
+                        ? 'All invoices are cleared'
+                        : '${outstanding.length} unpaid · '
+                            '${overdueNow.length} overdue'
+                            '${over30 > 0 ? ' · $over30 past 30 days' : ''}'
+                            ' · ${Fmt.currencyAmount(totalAmt, currency)}',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: overdueNow.isNotEmpty
+                            ? AppTheme.warning
+                            : AppTheme.subtext(context),
+                        fontWeight: overdueNow.isNotEmpty
+                            ? FontWeight.w600
+                            : FontWeight.normal),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right,
+                size: 18, color: AppTheme.subtext(context)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

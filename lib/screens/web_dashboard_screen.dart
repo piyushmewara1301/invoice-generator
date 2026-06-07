@@ -434,10 +434,10 @@ class _DashHeader extends StatelessWidget {
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(
             name.isNotEmpty ? '$greet, $name 👋' : greet,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppTheme.onCard(context)),
           ),
           const SizedBox(height: 3),
-          const Text("Here's your business overview", style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+          Text("Here's your business overview", style: TextStyle(fontSize: 13, color: AppTheme.subtext(context))),
         ]),
         const Spacer(),
         OutlinedButton.icon(
@@ -501,9 +501,9 @@ class _CustomizeDialogState extends State<_CustomizeDialog> {
                 child: const Icon(Icons.tune_rounded, size: 17, color: AppTheme.primary),
               ),
               const SizedBox(width: 12),
-              const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Customize Dashboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-                Text('Toggle panels on or off', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Customize Dashboard', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.onCard(context))),
+                Text('Toggle panels on or off', style: TextStyle(fontSize: 12, color: AppTheme.subtext(context))),
               ]),
               const Spacer(),
               IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
@@ -530,7 +530,7 @@ class _CustomizeDialogState extends State<_CustomizeDialog> {
                   child: Icon(p.icon, size: 16, color: on ? AppTheme.primary : AppTheme.textSecondary),
                 ),
                 title: Text(p.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: on ? AppTheme.textPrimary : AppTheme.textSecondary)),
-                subtitle: Text(p.desc, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                subtitle: Text(p.desc, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
                 dense: true,
                 activeThumbColor: AppTheme.primary,
               );
@@ -584,7 +584,7 @@ class _InsightsBanner extends StatelessWidget {
             child: const Icon(Icons.auto_awesome_rounded, size: 15, color: Colors.white),
           ),
           const SizedBox(width: 10),
-          const Text('Smart Insights', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+          Text('Smart Insights', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.onCard(context))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -629,7 +629,7 @@ class _InsightChip extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(ins.title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: ins.col)),
             const SizedBox(height: 3),
-            Text(ins.body, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary, height: 1.5)),
+            Text(ins.body, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context), height: 1.5)),
           ]),
         ),
       ]),
@@ -693,7 +693,7 @@ class _KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: AppTheme.cardShadow),
+      decoration: BoxDecoration(color: AppTheme.card(context), borderRadius: BorderRadius.circular(14), boxShadow: AppTheme.cardShadow),
       child: Row(children: [
         Container(
           width: 38, height: 38,
@@ -702,9 +702,9 @@ class _KpiCard extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-          Text(d.t, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(d.t, style: TextStyle(fontSize: 10, color: AppTheme.subtext(context), fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 2),
-          Text(d.v, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+          Text(d.v, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppTheme.onCard(context))),
           const SizedBox(height: 1),
           Text(d.s, style: TextStyle(fontSize: 10, color: d.c, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
         ])),
@@ -739,7 +739,7 @@ class _RevenueChart extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(5, (i) => Text(_c(maxV * (4 - i) / 4),
-                    style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary))),
+                    style: TextStyle(fontSize: 9, color: AppTheme.subtext(context)))),
               ),
             ),
             const SizedBox(width: 8),
@@ -754,22 +754,22 @@ class _RevenueChart extends StatelessWidget {
           padding: const EdgeInsets.only(left: 60),
           child: Row(children: months.map((b) => Expanded(child: Text(b.lbl,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 8.5, color: AppTheme.textSecondary)))).toList()),
+              style: TextStyle(fontSize: 8.5, color: AppTheme.subtext(context))))).toList()),
         ),
         const SizedBox(height: 12),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _legend(const Color(0xFF2563EB), 'Paid'),
+          _legend(context, const Color(0xFF2563EB), 'Paid'),
           const SizedBox(width: 20),
-          _legend(const Color(0xFFF59E0B), 'Outstanding'),
+          _legend(context, const Color(0xFFF59E0B), 'Outstanding'),
         ]),
       ]),
     );
   }
 
-  Widget _legend(Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget _legend(BuildContext context, Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 10, height: 10, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
     const SizedBox(width: 5),
-    Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+    Text(t, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
   ]);
 }
 
@@ -845,7 +845,7 @@ class _CashFlowCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: List.generate(5, (i) => Text(_c(maxV * (4 - i) / 4),
-                        style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary))),
+                        style: TextStyle(fontSize: 9, color: AppTheme.subtext(context)))),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -860,13 +860,13 @@ class _CashFlowCard extends StatelessWidget {
               padding: const EdgeInsets.only(left: 60),
               child: Row(children: months.map((b) => Expanded(child: Text(b.lbl,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 8.5, color: AppTheme.textSecondary)))).toList()),
+                  style: TextStyle(fontSize: 8.5, color: AppTheme.subtext(context))))).toList()),
             ),
             const SizedBox(height: 10),
             Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              _cfLeg(const Color(0xFFCBD5E1), 'Invoiced'),
+              _cfLeg(context, const Color(0xFFCBD5E1), 'Invoiced'),
               const SizedBox(width: 20),
-              _cfLeg(const Color(0xFF059669), 'Collected'),
+              _cfLeg(context, const Color(0xFF059669), 'Collected'),
             ]),
           ]),
         ),
@@ -876,13 +876,13 @@ class _CashFlowCard extends StatelessWidget {
           flex: 3,
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const SizedBox(height: 10),
-            _cfStat('Total Invoiced', '$sym${_c(totBill)}', const Color(0xFF64748B), Icons.receipt_long_rounded),
+            _cfStat(context, 'Total Invoiced', '$sym${_c(totBill)}', const Color(0xFF64748B), Icons.receipt_long_rounded),
             const SizedBox(height: 12),
-            _cfStat('Total Collected', '$sym${_c(totRev)}', const Color(0xFF059669), Icons.check_circle_rounded),
+            _cfStat(context, 'Total Collected', '$sym${_c(totRev)}', const Color(0xFF059669), Icons.check_circle_rounded),
             const SizedBox(height: 12),
-            _cfStat('Cash Gap', '$sym${_c(gap)}', const Color(0xFFEF4444), Icons.remove_circle_outline_rounded),
+            _cfStat(context, 'Cash Gap', '$sym${_c(gap)}', const Color(0xFFEF4444), Icons.remove_circle_outline_rounded),
             const SizedBox(height: 12),
-            _cfStat('Expected Inflow', '$sym${_c(expIn)}', const Color(0xFF2563EB), Icons.input_rounded),
+            _cfStat(context, 'Expected Inflow', '$sym${_c(expIn)}', const Color(0xFF2563EB), Icons.input_rounded),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
@@ -892,7 +892,7 @@ class _CashFlowCard extends StatelessWidget {
                 border: Border.all(color: const Color(0xFFBBF7D0)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Collection Rate', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                Text('Collection Rate', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppTheme.subtext(context))),
                 const SizedBox(height: 6),
                 Row(children: [
                   Text('${cr.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
@@ -918,17 +918,17 @@ class _CashFlowCard extends StatelessWidget {
     );
   }
 
-  Widget _cfLeg(Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget _cfLeg(BuildContext context, Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 10, height: 10, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
     const SizedBox(width: 5),
-    Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+    Text(t, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
   ]);
 
-  Widget _cfStat(String t, String v, Color c, IconData ic) => Row(children: [
+  Widget _cfStat(BuildContext context, String t, String v, Color c, IconData ic) => Row(children: [
     Icon(ic, size: 14, color: c),
     const SizedBox(width: 7),
     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(t, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+      Text(t, style: TextStyle(fontSize: 10, color: AppTheme.subtext(context))),
       Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: c)),
     ])),
   ]);
@@ -1005,9 +1005,9 @@ class _StatDonut extends StatelessWidget {
         SizedBox(
           height: 160,
           child: total == 0
-              ? const Center(child: Text('No invoices yet', style: TextStyle(color: AppTheme.textSecondary)))
+              ? Center(child: Text('No invoices yet', style: TextStyle(color: AppTheme.subtext(context))))
               : CustomPaint(
-                  painter: _DonutPainter(segs: segs, total: total),
+                  painter: _DonutPainter(segs: segs, total: total, textColor: AppTheme.onCard(context), subtextColor: AppTheme.subtext(context)),
                   child: const SizedBox.expand()),
         ),
         const SizedBox(height: 12),
@@ -1015,22 +1015,22 @@ class _StatDonut extends StatelessWidget {
             children: segs.map((s) => Row(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 8, height: 8, decoration: BoxDecoration(color: s.c, shape: BoxShape.circle)),
               const SizedBox(width: 4),
-              Text('${s.lbl} (${s.n})', style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+              Text('${s.lbl} (${s.n})', style: TextStyle(fontSize: 10, color: AppTheme.subtext(context))),
             ])).toList()),
         const SizedBox(height: 12),
         const Divider(height: 1),
         const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: _statMini('Revenue', '$sym${_c(totRev)}', const Color(0xFF059669))),
+          Expanded(child: _statMini(context, 'Revenue', '$sym${_c(totRev)}', const Color(0xFF059669))),
           Container(width: 1, height: 36, color: const Color(0xFFE2E8F0)),
-          Expanded(child: _statMini('Collection', '${cr.toStringAsFixed(1)}%', AppTheme.primary)),
+          Expanded(child: _statMini(context, 'Collection', '${cr.toStringAsFixed(1)}%', AppTheme.primary)),
         ]),
       ]),
     );
   }
 
-  Widget _statMini(String t, String v, Color c) => Column(children: [
-    Text(t, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+  Widget _statMini(BuildContext context, String t, String v, Color c) => Column(children: [
+    Text(t, style: TextStyle(fontSize: 10, color: AppTheme.subtext(context))),
     const SizedBox(height: 3),
     Text(v, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: c)),
   ]);
@@ -1043,7 +1043,8 @@ class _DS {
 
 class _DonutPainter extends CustomPainter {
   final List<_DS> segs; final int total;
-  _DonutPainter({required this.segs, required this.total});
+  final Color textColor; final Color subtextColor;
+  _DonutPainter({required this.segs, required this.total, required this.textColor, required this.subtextColor});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1060,8 +1061,8 @@ class _DonutPainter extends CustomPainter {
     }
     final tp = TextPainter(
       text: TextSpan(children: [
-        TextSpan(text: '$total\n', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppTheme.textPrimary, height: 1.1)),
-        const TextSpan(text: 'Total', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+        TextSpan(text: '$total\n', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: textColor, height: 1.1)),
+        TextSpan(text: 'Total', style: TextStyle(fontSize: 10, color: subtextColor)),
       ]),
       textAlign: TextAlign.center,
       textDirection: TextDirection.ltr,
@@ -1070,7 +1071,7 @@ class _DonutPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_DonutPainter o) => o.segs != segs;
+  bool shouldRepaint(_DonutPainter o) => o.segs != segs || o.textColor != textColor;
 }
 
 // ─── Top Clients ──────────────────────────────────────────────────────────────
@@ -1091,23 +1092,23 @@ class _TopCliCard extends StatelessWidget {
       icon: Icons.people_rounded,
       iconColor: const Color(0xFF2563EB),
       child: clients.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(child: Text('No client data yet', style: TextStyle(color: AppTheme.textSecondary))),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: Text('No client data yet', style: TextStyle(color: AppTheme.subtext(context)))),
             )
           : Column(children: [
               const SizedBox(height: 6),
               // Header
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Row(children: const [
-                  SizedBox(width: 36),
-                  SizedBox(width: 10),
-                  Expanded(flex: 4, child: Text('Client', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary))),
-                  Expanded(flex: 3, child: Text('LTV', textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary))),
-                  Expanded(flex: 2, child: Text('Pay Rate', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary))),
-                  Expanded(flex: 2, child: Text('Invoices', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary))),
-                  Expanded(flex: 2, child: Text('Last Active', textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary))),
+                child: Row(children: [
+                  const SizedBox(width: 36),
+                  const SizedBox(width: 10),
+                  Expanded(flex: 4, child: Text('Client', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context)))),
+                  Expanded(flex: 3, child: Text('LTV', textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context)))),
+                  Expanded(flex: 2, child: Text('Pay Rate', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context)))),
+                  Expanded(flex: 2, child: Text('Invoices', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context)))),
+                  Expanded(flex: 2, child: Text('Last Active', textAlign: TextAlign.right, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context)))),
                 ]),
               ),
               const Divider(height: 1),
@@ -1133,7 +1134,7 @@ class _TopCliCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 10),
                       Expanded(flex: 4, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(c.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(c.name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.onCard(context)), maxLines: 1, overflow: TextOverflow.ellipsis),
                         const SizedBox(height: 3),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(3),
@@ -1150,7 +1151,7 @@ class _TopCliCard extends StatelessWidget {
                       ])),
                       Expanded(flex: 3, child: Text('$sym${_c(c.ltv)}',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.onCard(context)))),
                       Expanded(flex: 2, child: Center(
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1163,7 +1164,7 @@ class _TopCliCard extends StatelessWidget {
                         ),
                       )),
                       Expanded(flex: 2, child: Text('${c.cnt}', textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary))),
+                          style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)))),
                       Expanded(flex: 2, child: Text(idle == 0 ? '—' : idle < 30 ? '${idle}d ago' : idle < 365 ? '${(idle / 30).round()}mo' : '${(idle / 365).round()}y',
                           textAlign: TextAlign.right,
                           style: TextStyle(fontSize: 11, color: idle > 60 ? const Color(0xFFDB2777) : AppTheme.textSecondary))),
@@ -1203,18 +1204,18 @@ class _CustCard extends StatelessWidget {
 
         // New vs Returning
         Row(children: [
-          Expanded(child: _custStat('New This Month', '$newCnt', const Color(0xFF2563EB), Icons.person_add_rounded)),
+          Expanded(child: _custStat(context, 'New This Month', '$newCnt', const Color(0xFF2563EB), Icons.person_add_rounded)),
           const SizedBox(width: 10),
-          Expanded(child: _custStat('Returning', '$retCnt', const Color(0xFF059669), Icons.repeat_rounded)),
+          Expanded(child: _custStat(context, 'Returning', '$retCnt', const Color(0xFF059669), Icons.repeat_rounded)),
           const SizedBox(width: 10),
-          Expanded(child: _custStat('Total Clients', '$total', const Color(0xFF7C3AED), Icons.people_rounded)),
+          Expanded(child: _custStat(context, 'Total Clients', '$total', const Color(0xFF7C3AED), Icons.people_rounded)),
         ]),
 
         const SizedBox(height: 14),
 
         // Revenue split bar
         if (totMoRev > 0) ...[
-          const Text('This Month Revenue Split', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+          Text('This Month Revenue Split', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.subtext(context))),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
@@ -1261,10 +1262,10 @@ class _CustCard extends StatelessWidget {
 
         if (churn.isEmpty) ...[
           const SizedBox(height: 12),
-          const Row(children: [
-            Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
-            SizedBox(width: 6),
-            Text('All clients active in the last 60 days.', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+          Row(children: [
+            const Icon(Icons.check_circle_outline, size: 16, color: Color(0xFF059669)),
+            const SizedBox(width: 6),
+            Text('All clients active in the last 60 days.', style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
           ]),
         ] else ...[
           const SizedBox(height: 8),
@@ -1278,7 +1279,7 @@ class _CustCard extends StatelessWidget {
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFDB2777)))),
               ),
               const SizedBox(width: 9),
-              Expanded(child: Text(c.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(c.name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.onCard(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
               Text('${c.idleDays}d idle', style: const TextStyle(fontSize: 11, color: Color(0xFFDB2777), fontWeight: FontWeight.w600)),
             ]),
           )),
@@ -1290,8 +1291,8 @@ class _CustCard extends StatelessWidget {
 
         // Retention rate
         Row(children: [
-          const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Retention Rate', style: TextStyle(fontSize: 10, color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Retention Rate', style: TextStyle(fontSize: 10, color: AppTheme.subtext(context), fontWeight: FontWeight.w500)),
           ])),
           Text(total > 0 ? '${((retCnt / total) * 100).toStringAsFixed(0)}%' : '—',
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF059669))),
@@ -1308,19 +1309,19 @@ class _CustCard extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text('$retCnt of $total clients are returning customers',
-            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+            style: TextStyle(fontSize: 10, color: AppTheme.subtext(context))),
       ]),
     );
   }
 
-  Widget _custStat(String t, String v, Color c, IconData ic) => Container(
+  Widget _custStat(BuildContext context, String t, String v, Color c, IconData ic) => Container(
     padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(color: c.withValues(alpha: 0.07), borderRadius: BorderRadius.circular(10)),
     child: Column(children: [
       Icon(ic, size: 16, color: c),
       const SizedBox(height: 4),
       Text(v, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: c)),
-      Text(t, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary), maxLines: 2),
+      Text(t, textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: AppTheme.subtext(context)), maxLines: 2),
     ]),
   );
 }
@@ -1365,7 +1366,7 @@ class _ProductCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(flex: 4, child: Text(p.name,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.textPrimary),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: AppTheme.onCard(context)),
                   maxLines: 1, overflow: TextOverflow.ellipsis)),
               Expanded(flex: 5, child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1376,7 +1377,7 @@ class _ProductCard extends StatelessWidget {
               )),
               SizedBox(width: 70, child: Text('$sym${_c(p.revenue)}',
                   textAlign: TextAlign.right,
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.onCard(context)))),
               SizedBox(width: 42, child: Text('${pct.toStringAsFixed(1)}%',
                   textAlign: TextAlign.right,
                   style: TextStyle(fontSize: 10, color: c, fontWeight: FontWeight.w600))),
@@ -1414,17 +1415,17 @@ class _OverdueCard extends StatelessWidget {
               child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.check_circle_outline, size: 44, color: const Color(0xFF059669).withValues(alpha: 0.7)),
                 const SizedBox(height: 10),
-                const Text('No overdue invoices', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
+                Text('No overdue invoices', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.onCard(context))),
                 const SizedBox(height: 4),
-                const Text('All caught up!', style: TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                Text('All caught up!', style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
               ]),
             )
           : Column(children: [
               const SizedBox(height: 10),
-              _ageBucket('1–7 days',   b1, total, a1, sym, const Color(0xFFF59E0B)),
-              _ageBucket('8–30 days',  b2, total, a2, sym, const Color(0xFFEF4444).withValues(alpha: 0.7)),
-              _ageBucket('31–60 days', b3, total, a3, sym, const Color(0xFFEF4444)),
-              _ageBucket('60+ days',   b4, total, a4, sym, const Color(0xFF7F1D1D).withValues(alpha: 0.85)),
+              _ageBucket(context, '1–7 days',   b1, total, a1, sym, const Color(0xFFF59E0B)),
+              _ageBucket(context, '8–30 days',  b2, total, a2, sym, const Color(0xFFEF4444).withValues(alpha: 0.7)),
+              _ageBucket(context, '31–60 days', b3, total, a3, sym, const Color(0xFFEF4444)),
+              _ageBucket(context, '60+ days',   b4, total, a4, sym, const Color(0xFF7F1D1D).withValues(alpha: 0.85)),
               const SizedBox(height: 14),
               if (b3 + b4 > 0)
                 Container(
@@ -1446,13 +1447,13 @@ class _OverdueCard extends StatelessWidget {
     );
   }
 
-  Widget _ageBucket(String lbl, int cnt, int total, double amt, String sym, Color c) {
+  Widget _ageBucket(BuildContext context, String lbl, int cnt, int total, double amt, String sym, Color c) {
     if (cnt == 0) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          SizedBox(width: 72, child: Text(lbl, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
+          SizedBox(width: 72, child: Text(lbl, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context)))),
           Expanded(child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(value: total > 0 ? cnt / total : 0, minHeight: 8, backgroundColor: const Color(0xFFE2E8F0), valueColor: AlwaysStoppedAnimation(c)),
@@ -1521,7 +1522,7 @@ class _FcstCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(5, (i) => Text(_c(maxV * (4 - i) / 4),
-                    style: const TextStyle(fontSize: 9, color: AppTheme.textSecondary))),
+                    style: TextStyle(fontSize: 9, color: AppTheme.subtext(context)))),
               ),
             ),
             const SizedBox(width: 8),
@@ -1541,9 +1542,9 @@ class _FcstCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          _fcstLeg(const Color(0xFF2563EB), 'Actual'),
+          _fcstLeg(context, const Color(0xFF2563EB), 'Actual'),
           const SizedBox(width: 16),
-          _fcstLeg(const Color(0xFF7C3AED).withValues(alpha: 0.5), 'Projected'),
+          _fcstLeg(context, const Color(0xFF7C3AED).withValues(alpha: 0.5), 'Projected'),
         ]),
         const SizedBox(height: 10),
         Container(
@@ -1576,10 +1577,10 @@ class _FcstCard extends StatelessWidget {
     ]),
   );
 
-  Widget _fcstLeg(Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
+  Widget _fcstLeg(BuildContext context, Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 10, height: 10, decoration: BoxDecoration(color: c, borderRadius: BorderRadius.circular(3))),
     const SizedBox(width: 5),
-    Text(t, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+    Text(t, style: TextStyle(fontSize: 11, color: AppTheme.subtext(context))),
   ]);
 }
 
@@ -1638,9 +1639,9 @@ class _RecTable extends StatelessWidget {
       icon: Icons.receipt_long_rounded,
       iconColor: AppTheme.primary,
       child: invoices.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: Text('No invoices yet', style: TextStyle(color: AppTheme.textSecondary))),
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 32),
+              child: Center(child: Text('No invoices yet', style: TextStyle(color: AppTheme.subtext(context)))),
             )
           : Column(children: [
               const SizedBox(height: 4),
@@ -1669,7 +1670,7 @@ class _TH extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       textAlign: right ? TextAlign.right : center ? TextAlign.center : TextAlign.left,
-      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textSecondary, letterSpacing: 0.4));
+      style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.subtext(context), letterSpacing: 0.4));
 }
 
 class _InvRow extends StatefulWidget {
@@ -1696,10 +1697,10 @@ class _InvRowState extends State<_InvRow> {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           child: Row(children: [
             Expanded(flex: 3, child: Text(inv.invoiceNumber, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.primary))),
-            Expanded(flex: 4, child: Text(inv.client?.displayName ?? '—', style: const TextStyle(fontSize: 12, color: AppTheme.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Expanded(flex: 2, child: Text(Fmt.shortDate(inv.invoiceDate), style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary))),
+            Expanded(flex: 4, child: Text(inv.client?.displayName ?? '—', style: TextStyle(fontSize: 12, color: AppTheme.onCard(context)), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(flex: 2, child: Text(Fmt.shortDate(inv.invoiceDate), style: TextStyle(fontSize: 11, color: AppTheme.subtext(context)))),
             Expanded(flex: 2, child: Text(Fmt.shortDate(inv.dueDate), style: TextStyle(fontSize: 11, color: inv.isOverdue ? const Color(0xFFEF4444) : AppTheme.textSecondary))),
-            Expanded(flex: 3, child: Text(Fmt.currencyAmount(inv.grandTotal, inv.currency), textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
+            Expanded(flex: 3, child: Text(Fmt.currencyAmount(inv.grandTotal, inv.currency), textAlign: TextAlign.right, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.onCard(context)))),
             Expanded(flex: 2, child: Center(child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(color: widget.sc.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(20)),
@@ -1730,7 +1731,7 @@ class _Card extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.cardShadow),
+      decoration: BoxDecoration(color: AppTheme.card(context), borderRadius: BorderRadius.circular(16), boxShadow: AppTheme.cardShadow),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Container(
@@ -1740,8 +1741,8 @@ class _Card extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-            Text(subtitle, style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary)),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.onCard(context))),
+            Text(subtitle, style: TextStyle(fontSize: 10, color: AppTheme.subtext(context))),
           ]),
         ]),
         const SizedBox(height: 12),

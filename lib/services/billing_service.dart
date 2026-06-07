@@ -16,9 +16,10 @@ class BillingService with ChangeNotifier {
   BillingService._internal();
 
   static const Map<SubscriptionTier, String> googlePlayProductIds = {
-    SubscriptionTier.lite: 'com.billbook.subscription.lite.yearly',
-    SubscriptionTier.pro: 'com.billbook.subscription.pro.yearly',
-    SubscriptionTier.premium: 'com.billbook.subscription.premium.yearly',
+    SubscriptionTier.lite:       'com.billbook.subscription.lite.yearly',
+    SubscriptionTier.pro:        'com.billbook.subscription.pro.yearly',
+    SubscriptionTier.premium:    'com.billbook.subscription.premium.yearly',
+    SubscriptionTier.enterprise: 'com.billbook.subscription.enterprise.yearly',
   };
 
   final InAppPurchase _iap = InAppPurchase.instance;
@@ -180,10 +181,13 @@ class BillingService with ChangeNotifier {
 
   /// Get the highest tier user is subscribed to
   SubscriptionTier getHighestSubscribedTier() {
-    for (final tier in [SubscriptionTier.premium, SubscriptionTier.pro, SubscriptionTier.lite]) {
-      if (hasActiveSubscription(tier)) {
-        return tier;
-      }
+    for (final tier in [
+      SubscriptionTier.enterprise,
+      SubscriptionTier.premium,
+      SubscriptionTier.pro,
+      SubscriptionTier.lite,
+    ]) {
+      if (hasActiveSubscription(tier)) return tier;
     }
     return SubscriptionTier.free;
   }

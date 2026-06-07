@@ -4,6 +4,8 @@ import '../models/client.dart';
 import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import 'create_client_screen.dart';
+import '../l10n/app_localizations.dart';
+import '../models/employee.dart';
 
 class ClientPickerScreen extends StatefulWidget {
   const ClientPickerScreen({super.key});
@@ -17,33 +19,38 @@ class _ClientPickerScreenState extends State<ClientPickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final clients = context
-        .watch<AppProvider>()
+    final l10n = AppLocalizations.of(context)!;
+    final provider = context.watch<AppProvider>();
+    final canCreate = provider.canDo(AppPermission.createClient);
+    final q = _search.toLowerCase();
+    final clients = provider
         .clients
         .where((c) =>
-            _search.isEmpty ||
-            c.displayName.toLowerCase().contains(_search.toLowerCase()) ||
-            c.email.toLowerCase().contains(_search.toLowerCase()))
+            q.isEmpty ||
+            c.displayName.toLowerCase().contains(q) ||
+            c.email.toLowerCase().contains(q) ||
+            c.phone.toLowerCase().contains(q))
         .toList();
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Client'),
+        title: Text(l10n.selectClient),
         actions: [
-          TextButton.icon(
-            onPressed: () async {
-              final client = await Navigator.push<Client>(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => const CreateClientScreen()),
-              );
-              if (client != null && context.mounted) {
-                Navigator.pop(context, client);
-              }
-            },
-            icon: const Icon(Icons.add),
-            label: const Text('New'),
-          ),
+          if (canCreate)
+            TextButton.icon(
+              onPressed: () async {
+                final client = await Navigator.push<Client>(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const CreateClientScreen()),
+                );
+                if (client != null && context.mounted) {
+                  Navigator.pop(context, client);
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: Text(l10n.add),
+            ),
         ],
       ),
       body: Column(
@@ -51,9 +58,9 @@ class _ClientPickerScreenState extends State<ClientPickerScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search clients...',
-                prefixIcon: Icon(Icons.search, size: 20),
+              decoration: InputDecoration(
+                hintText: '${l10n.searchClients}...',
+                prefixIcon: const Icon(Icons.search, size: 20),
               ),
               onChanged: (v) => setState(() => _search = v),
             ),
@@ -64,21 +71,28 @@ class _ClientPickerScreenState extends State<ClientPickerScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.people_outline,
-                            size: 48, color: AppTheme.textSecondary),
-                        const SizedBox(height: 12),
-                        const Text('No clients found',
-                            style:
-                                TextStyle(color: AppTheme.textSecondary)),
+                        Icon(Icons.people_outline,
+                            size: 48, color: AppTheme.subtext(context)),
+                        SizedBox(height: 12),
+                        Text(l10n.noClientsYet,
+                            style: TextStyle(
+                                color: AppTheme.subtext(context))),
                         const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (_) => const CreateClientScreen()),
+                        if (canCreate)
+                          ElevatedButton(
+                            onPressed: () async {
+                              final client = await Navigator.push<Client>(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const CreateClientScreen()),
+                              );
+                              if (client != null && context.mounted) {
+                                Navigator.pop(context, client);
+                              }
+                            },
+                            child: Text(l10n.addClient),
                           ),
-                          child: const Text('Add Client'),
-                        ),
                       ],
                     ),
                   )

@@ -114,7 +114,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
               keyboardType: TextInputType.emailAddress,
               readOnly: _isEdit, // email is the identity key — don't change it
               style: _isEdit
-                  ? const TextStyle(color: AppTheme.textSecondary)
+                  ? TextStyle(color: AppTheme.subtext(context))
                   : null,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Email is required';
@@ -253,8 +253,8 @@ class _RoleTile extends StatelessWidget {
                           color: selected ? _color : null)),
                   const SizedBox(height: 2),
                   Text(role.description,
-                      style: const TextStyle(
-                          fontSize: 11, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 11, color: AppTheme.subtext(context))),
                 ],
               ),
             ),
@@ -262,7 +262,7 @@ class _RoleTile extends StatelessWidget {
               Icon(Icons.check_circle, color: _color, size: 20)
             else
               Icon(Icons.circle_outlined,
-                  color: AppTheme.divider, size: 20),
+                  color: AppTheme.outline(context), size: 20),
           ],
         ),
       ),
@@ -304,17 +304,17 @@ class _DefaultPermissionsPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final entry in groups.entries) ...[
             Text(entry.key,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     letterSpacing: 0.5)),
             const SizedBox(height: 6),
             Wrap(
@@ -402,9 +402,9 @@ class _PermissionGroup extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,10 +412,10 @@ class _PermissionGroup extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
             child: Text(groupName,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     letterSpacing: 0.5)),
           ),
           for (int i = 0; i < permissions.length; i++) ...[
@@ -480,10 +480,10 @@ class _SectionHeader extends StatelessWidget {
     return Row(
       children: [
         Text(title,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textSecondary,
+                color: AppTheme.subtext(context),
                 letterSpacing: 0.3)),
         if (trailing != null) ...[
           const Spacer(),

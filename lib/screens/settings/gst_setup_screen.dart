@@ -175,17 +175,17 @@ class _GstSetupScreenState extends State<GstSetupScreen> {
                     value: indianStatesForGst.contains(_defaultPlaceOfSupply)
                         ? _defaultPlaceOfSupply
                         : null,
-                    hint: const Text('Select state',
+                    hint: Text('Select state',
                         style: TextStyle(fontSize: 14)),
                     isDense: true,
                     isExpanded: true,
                     items: [
-                      const DropdownMenuItem<String>(
+                      DropdownMenuItem<String>(
                         value: null,
                         child: Text('— Not set —',
                             style: TextStyle(
                                 fontSize: 14,
-                                color: AppTheme.textSecondary)),
+                                color: AppTheme.subtext(context))),
                       ),
                       ...indianStatesForGst.map((s) => DropdownMenuItem(
                             value: s,
@@ -351,9 +351,9 @@ class _GstSetupScreenState extends State<GstSetupScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -371,20 +371,20 @@ class _GstSetupScreenState extends State<GstSetupScreen> {
                   ),
                   child: Icon(icon, size: 17, color: iconColor),
                 ),
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
+                            color: AppTheme.onCard(context))),
                     if (subtitle != null)
                       Text(subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textSecondary)),
+                              color: AppTheme.subtext(context))),
                   ],
                 ),
               ],
@@ -423,11 +423,11 @@ class _GstSetupScreenState extends State<GstSetupScreen> {
                     fontWeight: FontWeight.w600,
                     color: AppTheme.primary)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Text(description,
-                style: const TextStyle(
-                    fontSize: 12, color: AppTheme.textSecondary)),
+                style: TextStyle(
+                    fontSize: 12, color: AppTheme.subtext(context))),
           ),
         ],
       ),

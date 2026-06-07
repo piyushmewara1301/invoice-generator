@@ -66,6 +66,28 @@ class ExchangeRateService extends ChangeNotifier {
     return amount / rate;
   }
 
+  /// Returns the rate to convert 1 unit of [from] into [to].
+  /// Requires [fetchIfNeeded] to have been called first.
+  /// Uses cross-rate arithmetic when [from] and [to] are both non-base currencies.
+  /// Returns 1.0 when rates are unavailable or the currencies are the same.
+  double getRate(String from, String to) {
+    final f = from.toUpperCase();
+    final t = to.toUpperCase();
+    if (f == t) return 1.0;
+    if (_rates.isEmpty) return 1.0;
+    // f is the cached base: rates[to] = units of TO per 1 unit of BASE(=f)
+    if (f == _base) return _rates[t] ?? 1.0;
+    // t is the cached base: rates[f] = units of FROM per 1 unit of BASE(=t)
+    if (t == _base) {
+      final rF = _rates[f];
+      return (rF != null && rF != 0) ? 1.0 / rF : 1.0;
+    }
+    // Cross-rate through base: rate(f→t) = rates[t] / rates[f]
+    final rF = _rates[f];
+    final rT = _rates[t];
+    return (rF != null && rT != null && rF != 0) ? rT / rF : 1.0;
+  }
+
   /// True when at least one of [currencies] differs from [base],
   /// meaning the dashboard is showing converted totals.
   bool isConverting(Iterable<String> currencies) {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
 import '../models/business_profile.dart';
@@ -14,6 +15,10 @@ import 'settings/message_templates_screen.dart';
 import 'settings/gst_setup_screen.dart';
 import 'settings/reminder_settings_screen.dart';
 import 'gst_report_screen.dart';
+import 'pl_report_screen.dart';
+import 'agewise_report_screen.dart';
+import 'client_statement_screen.dart';
+import 'recurring_invoices_screen.dart';
 import 'settings/verification_screen.dart';
 import 'employees/employees_screen.dart';
 import 'employees/scan_pairing_screen.dart';
@@ -21,6 +26,11 @@ import '../models/employee.dart';
 import '../providers/locale_provider.dart';
 import '../widgets/paywall_sheet.dart';
 import '../l10n/app_localizations.dart';
+import 'inventory_screen.dart';
+import 'delivery_challan_screen.dart';
+import 'einvoice_screen.dart';
+import 'eway_bill_screen.dart';
+import '../services/review_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -64,6 +74,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final auth = context.watch<AuthService>();
     final appProvider = context.watch<AppProvider>();
     final profile = appProvider.profile;
+    final activePairing = appProvider.activePairing;
+    final ownerEmail = appProvider.employeeOwnerEmail;
 
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context)!.settings)),
@@ -71,13 +83,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (auth.user != null) ...[
-            _accountCard(context, auth),
+            _accountCard(context, auth, profile.verificationStatus),
             const SizedBox(height: 16),
           ],
 
           _subscriptionBanner(context, profile.subscriptionTier),
           const SizedBox(height: 16),
           _navGroup([
+            if (appProvider.canDo(AppPermission.editBusinessProfile))
             _NavItem(
               icon: Icons.business_outlined,
               color: const Color(0xFF1565C0),
@@ -91,6 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const BusinessProfileScreen()),
               ),
             ),
+            if (appProvider.canDo(AppPermission.editBusinessProfile))
             _NavItem(
               icon: Icons.receipt_long_outlined,
               color: const Color(0xFF00897B),
@@ -102,6 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const InvoiceSettingsScreen()),
               ),
             ),
+            if (appProvider.canDo(AppPermission.editBusinessProfile))
             _NavItem(
               icon: Icons.account_balance_outlined,
               color: const Color(0xFFE65100),
@@ -113,6 +128,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const GstSetupScreen()),
               ),
             ),
+            if (appProvider.canDo(AppPermission.viewReports) &&
+                profile.isGstRegistered)
             _NavItem(
               icon: Icons.bar_chart_rounded,
               color: const Color(0xFFBF360C),
@@ -120,6 +137,103 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: 'GSTR-1 style · CGST/SGST/IGST · HSN summary',
               onTap: () => openGstReport(context),
             ),
+            if (appProvider.canDo(AppPermission.viewReports))
+            _NavItem(
+              icon: Icons.show_chart_rounded,
+              color: const Color(0xFF7C3AED),
+              title: 'P & L Report',
+              subtitle: 'Revenue vs expenses · net profit by period',
+              onTap: () => _requireFeature(
+                LimitType.reports,
+                () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PLReportScreen())),
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.viewReports))
+            _NavItem(
+              icon: Icons.hourglass_bottom_rounded,
+              color: const Color(0xFFF59E0B),
+              title: 'Outstanding Analysis',
+              subtitle: 'Age-wise overdue invoice buckets',
+              onTap: () => _requireFeature(
+                LimitType.reports,
+                () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AgewiseReportScreen())),
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.viewReports))
+            _NavItem(
+              icon: Icons.receipt_outlined,
+              color: const Color(0xFF0891B2),
+              title: 'Client Statement',
+              subtitle: 'All transactions for a client in a period',
+              onTap: () => _requireFeature(
+                LimitType.reports,
+                () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const ClientStatementScreen())),
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.createInvoice))
+            _NavItem(
+              icon: Icons.repeat_rounded,
+              color: const Color(0xFF059669),
+              title: 'Recurring Invoices',
+              subtitle: 'Auto-generate invoices on a schedule',
+              onTap: () => _requireFeature(
+                LimitType.recurringInvoices,
+                () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const RecurringInvoicesScreen())),
+              ),
+            ),
+            _NavItem(
+              icon: Icons.local_shipping_outlined,
+              color: const Color(0xFF0D9488),
+              title: 'Delivery Challans',
+              subtitle: () {
+                final count = appProvider.invoices
+                    .where((i) => i.isDeliveryChallan)
+                    .length;
+                return count == 0
+                    ? 'Track goods dispatched before invoicing'
+                    : '$count challan${count == 1 ? '' : 's'}';
+              }(),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const DeliveryChallanScreen())),
+            ),
+            _NavItem(
+              icon: Icons.qr_code_2_outlined,
+              color: const Color(0xFF0369A1),
+              title: 'E-Invoice (IRP / IRN)',
+              subtitle: () {
+                final done = appProvider.invoices.where((i) => i.irn != null).length;
+                return done == 0
+                    ? 'Generate IRN & signed QR via IRP portal'
+                    : '$done invoice${done == 1 ? '' : 's'} registered on IRP';
+              }(),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const EInvoiceScreen())),
+            ),
+            _NavItem(
+              icon: Icons.add_road_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'E-Way Bills',
+              subtitle: () {
+                final done = appProvider.invoices
+                    .where((i) => i.ewayBillNo != null).length;
+                final expired = appProvider.invoices
+                    .where((i) =>
+                        i.ewayBillNo != null &&
+                        i.ewayBillValidTill != null &&
+                        i.ewayBillValidTill!.isBefore(DateTime.now()))
+                    .length;
+                if (done == 0) return 'Track goods movement for invoices ≥ ₹50,000';
+                if (expired > 0) return '$done bill${done == 1 ? '' : 's'} · $expired expired';
+                return '$done e-way bill${done == 1 ? '' : 's'} active';
+              }(),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const EWayBillScreen())),
+            ),
+            if (appProvider.canDo(AppPermission.manageItems))
             _NavItem(
               icon: Icons.inventory_2_outlined,
               color: const Color(0xFF6A1B9A),
@@ -129,10 +243,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : '${profile.serviceItems.length} ${profile.itemLabel.toLowerCase()}${profile.serviceItems.length == 1 ? '' : 's'} saved',
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
-                    builder: (_) => const ServicesScreen()),
+                MaterialPageRoute(builder: (_) => const ServicesScreen()),
               ),
             ),
+            if (appProvider.canDo(AppPermission.manageItems) &&
+                profile.serviceItems.any((s) => s.isTrackingStock))
+            _NavItem(
+              icon: Icons.warehouse_outlined,
+              color: const Color(0xFF0E7490),
+              title: 'Inventory',
+              subtitle: () {
+                final tracked =
+                    profile.serviceItems.where((s) => s.isTrackingStock).length;
+                final low =
+                    profile.serviceItems.where((s) => s.isLowStock).length;
+                return low > 0
+                    ? '$tracked tracked · $low low stock'
+                    : '$tracked item${tracked == 1 ? '' : 's'} tracked';
+              }(),
+              onTap: () => _requireFeature(
+                LimitType.inventory,
+                () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const InventoryScreen())),
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.managePaymentMethods))
             _NavItem(
               icon: Icons.account_balance_wallet_outlined,
               color: const Color(0xFFBF360C),
@@ -146,6 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const PaymentMethodsScreen()),
               ),
             ),
+            if (appProvider.canDo(AppPermission.manageEmployees))
             _NavItem(
               icon: Icons.group_outlined,
               color: const Color(0xFF0F766E),
@@ -161,15 +297,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             if (!kIsWeb)
               _NavItem(
-                icon: appProvider.isEmployeeMode
+                icon: activePairing != null
                     ? Icons.link
                     : Icons.qr_code_scanner,
                 color: const Color(0xFF0369A1),
                 title: 'Connect to Business',
-                subtitle: appProvider.isEmployeeMode
-                    ? 'Connected · ${appProvider.activePairing!.ownerEmail}'
+                subtitle: activePairing != null
+                    ? 'Connected · ${activePairing.ownerEmail}'
                     : 'Scan a QR code from your employer',
-                onTap: appProvider.isEmployeeMode
+                onTap: activePairing != null
                     ? _disconnectFromBusiness
                     : _connectToBusiness,
               ),
@@ -200,6 +336,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             _NavItem(
+              icon: Icons.receipt_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Purchase Bills',
+              subtitle: profile.purchaseBillEnabled
+                  ? 'Enabled · Track vendor bills & ITC'
+                  : 'Disabled · Enable to track vendor purchases',
+              onTap: () => _togglePurchaseBill(context, profile),
+              trailing: Switch(
+                value: profile.purchaseBillEnabled,
+                onChanged: (_) => _togglePurchaseBill(context, profile),
+                activeThumbColor: AppTheme.primary,
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.manageItems))
+            _NavItem(
               icon: Icons.point_of_sale_rounded,
               color: const Color(0xFF0F766E),
               title: 'Point of Sale',
@@ -213,6 +364,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 activeThumbColor: AppTheme.primary,
               ),
             ),
+            // Language and appearance — always visible (personal preferences).
             _NavItem(
               icon: Icons.language_outlined,
               color: const Color(0xFF6A1B9A),
@@ -222,6 +374,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'English',
               onTap: () => _showLanguagePicker(context),
             ),
+            _NavItem(
+              icon: context.watch<ThemeProvider>().isDark
+                  ? Icons.dark_mode
+                  : Icons.light_mode_outlined,
+              color: const Color(0xFF334155),
+              title: 'Appearance',
+              subtitle: context.watch<ThemeProvider>().isDark
+                  ? 'Dark mode · tap to switch to light'
+                  : 'Light mode · tap to switch to dark',
+              onTap: () => context.read<ThemeProvider>().toggle(),
+              trailing: Switch(
+                value: context.watch<ThemeProvider>().isDark,
+                onChanged: (_) => context.read<ThemeProvider>().toggle(),
+                activeThumbColor: const Color(0xFF334155),
+              ),
+            ),
+            if (appProvider.canDo(AppPermission.editBusinessProfile))
             _NavItem(
               icon: _verificationIcon(profile.verificationStatus),
               color: _verificationColor(profile.verificationStatus),
@@ -238,45 +407,92 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : IconButton(
-                      icon: const Icon(Icons.refresh,
-                          size: 18, color: AppTheme.textSecondary),
-                      tooltip: 'Refresh verification status',
-                      onPressed: _refreshVerification,
-                      visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.zero,
-                    ),
+                  : profile.verificationStatus == VerificationStatus.verified
+                      ? Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                    color: const Color(0xFF2E7D32)
+                                        .withValues(alpha: 0.4)),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_rounded,
+                                      size: 12, color: Color(0xFF2E7D32)),
+                                  SizedBox(width: 4),
+                                  Text('Verified',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF2E7D32),
+                                          fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(Icons.refresh,
+                                  size: 16, color: AppTheme.subtext(context)),
+                              tooltip: 'Refresh verification status',
+                              onPressed: _refreshVerification,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            ),
+                          ],
+                        )
+                      : IconButton(
+                          icon: Icon(Icons.refresh,
+                              size: 18, color: AppTheme.subtext(context)),
+                          tooltip: 'Refresh verification status',
+                          onPressed: _refreshVerification,
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                        ),
+            ),
+            _NavItem(
+              icon: Icons.star_outline_rounded,
+              color: const Color(0xFFF59E0B),
+              title: 'Rate Us on the Store',
+              subtitle: 'Enjoying the app? Leave us a review',
+              onTap: () => ReviewService.openStoreListing(),
             ),
           ]),
 
           // Employee mode: active connection banner
-          if (appProvider.isEmployeeMode) ...[
+          if (activePairing != null) ...[
             const SizedBox(height: 16),
             _EmployeeModeBanner(
-              pairing: appProvider.activePairing!,
+              pairing: activePairing,
               onDisconnect: _disconnectFromBusiness,
             ),
           ],
 
           // Team membership: user is also an employee of another business
-          if (appProvider.isAlsoEmployee) ...[
+          if (appProvider.isAlsoEmployee && ownerEmail != null) ...[
             const SizedBox(height: 16),
             _TeamMembershipCard(
-              ownerEmail: appProvider.employeeOwnerEmail!,
+              ownerEmail: ownerEmail,
               employee: appProvider.employeeRecord,
-              isConnected: appProvider.isEmployeeMode,
+              isConnected: activePairing != null,
               onConnect: _connectToBusiness,
               onDisconnect: _disconnectFromBusiness,
             ),
           ],
 
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
           Center(
-            child: Text(
-              'Invoice Generator v1.0.0',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary.withValues(alpha: 0.7)),
+            child: Builder(
+              builder: (ctx) => Text(
+                'Invoice Generator v1.0.0',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.subtext(ctx).withValues(alpha: 0.7)),
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -345,23 +561,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _subscriptionBanner(BuildContext context, SubscriptionTier tier) {
     const tierColors = {
-      SubscriptionTier.free:    Color(0xFF546E7A),
-      SubscriptionTier.lite:    Color(0xFF0288D1),
-      SubscriptionTier.pro:     Color(0xFF7B1FA2),
-      SubscriptionTier.premium: Color(0xFFE65100),
+      SubscriptionTier.free:       Color(0xFF546E7A),
+      SubscriptionTier.lite:       Color(0xFF0288D1),
+      SubscriptionTier.pro:        Color(0xFF7B1FA2),
+      SubscriptionTier.premium:    Color(0xFFE65100),
+      SubscriptionTier.enterprise: Color(0xFF4338CA),
     };
     const tierNames = {
-      SubscriptionTier.free:    'Free',
-      SubscriptionTier.lite:    'Lite',
-      SubscriptionTier.pro:     'Pro',
-      SubscriptionTier.premium: 'Premium',
+      SubscriptionTier.free:       'Free',
+      SubscriptionTier.lite:       'Lite',
+      SubscriptionTier.pro:        'Pro',
+      SubscriptionTier.premium:    'Premium',
+      SubscriptionTier.enterprise: 'Enterprise',
     };
-    final color = tierColors[tier]!;
-    final name = tierNames[tier]!;
-    final price = tierPrices[tier]!;
+    final color = tierColors[tier] ?? const Color(0xFF546E7A);
+    final name  = tierNames[tier]  ?? tier.name;
+    final price = tierPrices[tier] ?? tierPrices[SubscriptionTier.free]!;
 
+    final canBill = context.read<AppProvider>().canDo(AppPermission.manageBilling);
     return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/plans'),
+      onTap: canBill ? () => Navigator.pushNamed(context, '/plans') : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
@@ -432,7 +651,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(20),
               ),
               child: Text(
-                tier == SubscriptionTier.premium ? 'Manage' : 'Upgrade',
+                tier.isPremium ? 'Manage' : 'Upgrade',
                 style: const TextStyle(
                     color: Colors.white,
                     fontSize: 12,
@@ -448,9 +667,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _navGroup(List<_NavItem> items) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         children: [
@@ -481,40 +700,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Icon(item.icon, size: 18, color: item.color),
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(item.title,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
-                          color: AppTheme.textPrimary)),
-                  const SizedBox(height: 2),
+                          color: AppTheme.onCard(context))),
+                  SizedBox(height: 2),
                   Text(item.subtitle,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.textSecondary)),
+                          color: AppTheme.subtext(context))),
                 ],
               ),
             ),
             item.trailing ??
-                const Icon(Icons.chevron_right,
-                    size: 18, color: AppTheme.textSecondary),
+                Icon(Icons.chevron_right,
+                    size: 18, color: AppTheme.subtext(context)),
           ],
         ),
       ),
     );
   }
 
-  Widget _accountCard(BuildContext context, AuthService auth) {
+  Widget _accountCard(BuildContext context, AuthService auth,
+      VerificationStatus verificationStatus) {
     final user = auth.user!;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         children: [
@@ -541,42 +761,75 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         )
                       : null,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(user.displayName ?? 'Google User',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary)),
+                              color: AppTheme.onCard(context))),
                       Text(user.email,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.textSecondary)),
+                              color: AppTheme.subtext(context))),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.cloud_done_outlined,
-                          size: 12, color: AppTheme.success),
-                      SizedBox(width: 4),
-                      Text('Synced',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: AppTheme.success,
-                              fontWeight: FontWeight.w600)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppTheme.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.cloud_done_outlined,
+                              size: 12, color: AppTheme.success),
+                          SizedBox(width: 4),
+                          Text('Synced',
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.success,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    if (verificationStatus == VerificationStatus.verified) ...[
+                      const SizedBox(height: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2E7D32).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: const Color(0xFF2E7D32)
+                                  .withValues(alpha: 0.4)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified_rounded,
+                                size: 12, color: Color(0xFF2E7D32)),
+                            SizedBox(width: 4),
+                            Text('Verified',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ],
             ),
@@ -662,46 +915,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _togglePos(BuildContext context, BusinessProfile profile) {
-    final updated = BusinessProfile(
-      name: profile.name,
-      email: profile.email,
-      phone: profile.phone,
-      address: profile.address,
-      city: profile.city,
-      state: profile.state,
-      country: profile.country,
-      postalCode: profile.postalCode,
-      gstin: profile.gstin,
-      website: profile.website,
-      currency: profile.currency,
-      invoicePrefix: profile.invoicePrefix,
-      nextInvoiceNumber: profile.nextInvoiceNumber,
-      logoBase64: profile.logoBase64,
-      headerFields: profile.headerFields,
-      defaultTemplate: profile.defaultTemplate,
-      themeColorHex: profile.themeColorHex,
-      defaultTaxPercent: profile.defaultTaxPercent,
-      showQuantity: profile.showQuantity,
-      itemLabel: profile.itemLabel,
-      paymentMethods: profile.paymentMethods,
-      serviceItems: profile.serviceItems,
-      verificationStatus: profile.verificationStatus,
-      verificationNotes: profile.verificationNotes,
-      verificationSubmittedAt: profile.verificationSubmittedAt,
-      subscriptionTier: profile.subscriptionTier,
-      subscriptionExpiryDate: profile.subscriptionExpiryDate,
-      subscriptionLastCheckedDate: profile.subscriptionLastCheckedDate,
-      signatureBase64: profile.signatureBase64,
-      showPaymentDetailsOnInvoice: profile.showPaymentDetailsOnInvoice,
-      defaultPlaceOfSupply: profile.defaultPlaceOfSupply,
-      defaultReverseCharge: profile.defaultReverseCharge,
-      isCompositionDealer: profile.isCompositionDealer,
-      showThankYouMessage: profile.showThankYouMessage,
-      thankYouMessage: profile.thankYouMessage,
-      showClientAcknowledgment: profile.showClientAcknowledgment,
-      posEnabled: !profile.posEnabled,
-    );
-    context.read<AppProvider>().updateProfile(updated);
+    if (!profile.posEnabled) {
+      _requireFeature(LimitType.posScreen, () => _doTogglePos(context, profile));
+      return;
+    }
+    _doTogglePos(context, profile);
+  }
+
+  void _doTogglePos(BuildContext context, BusinessProfile profile) {
+    context.read<AppProvider>().updateProfile(
+          profile.copyWith(posEnabled: !profile.posEnabled));
+  }
+
+  void _togglePurchaseBill(BuildContext context, BusinessProfile profile) {
+    context.read<AppProvider>().updateProfile(
+          profile.copyWith(purchaseBillEnabled: !profile.purchaseBillEnabled));
   }
 
   void _showLanguagePicker(BuildContext context) {
@@ -771,7 +999,7 @@ class _EmployeeModeBanner extends StatelessWidget {
             ),
             child: const Icon(Icons.sync_alt, size: 18, color: accent),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -783,11 +1011,11 @@ class _EmployeeModeBanner extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: accent),
                 ),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(
                   pairing.ownerEmail as String,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppTheme.textSecondary),
+                  style: TextStyle(
+                      fontSize: 11, color: AppTheme.subtext(context)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -837,14 +1065,14 @@ class _LanguagePickerSheet extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
               child: Text(
                 AppLocalizations.of(context)!.selectLanguage,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.onCard(context),
                 ),
               ),
             ),
-            const Divider(height: 1),
+            Divider(height: 1),
             ...LocaleProvider.localeNames.entries.map((entry) {
               final isSelected = currentLocale.languageCode == entry.key;
               return ListTile(
@@ -852,8 +1080,8 @@ class _LanguagePickerSheet extends StatelessWidget {
                 leading: isSelected
                     ? const Icon(Icons.check_circle_rounded,
                         color: AppTheme.primary)
-                    : const Icon(Icons.radio_button_unchecked_rounded,
-                        color: AppTheme.textSecondary),
+                    : Icon(Icons.radio_button_unchecked_rounded,
+                        color: AppTheme.subtext(context)),
                 onTap: () => onSelect(Locale(entry.key)),            
               );
             }),
@@ -950,16 +1178,16 @@ class _TeamMembershipCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: 10),
           Text(
             'You are a $roleName at another business.',
-            style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+            style: TextStyle(fontSize: 13, color: AppTheme.onCard(context)),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             ownerEmail,
-            style: const TextStyle(
-                fontSize: 11, color: AppTheme.textSecondary),
+            style: TextStyle(
+                fontSize: 11, color: AppTheme.subtext(context)),
           ),
           if (permLabels.isNotEmpty) ...[
             const SizedBox(height: 10),

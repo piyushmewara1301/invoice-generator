@@ -163,8 +163,8 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
                         fontWeight: FontWeight.w600, fontSize: 15)),
                 subtitle: const Text('Daily notification time',
                     style: TextStyle(fontSize: 12)),
-                trailing: const Icon(Icons.chevron_right,
-                    size: 18, color: AppTheme.textSecondary),
+                trailing: Icon(Icons.chevron_right,
+                    size: 18, color: AppTheme.subtext(context)),
                 onTap: _pickTime,
               ),
             ]),
@@ -173,11 +173,11 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
 
             // Before due date
             _sectionHeader('Before due date'),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: Text(
                 'Remind you in advance so you can send an invoice reminder to the client.',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
               ),
             ),
             _dayChips(
@@ -207,11 +207,11 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
 
             // After due date (overdue)
             _sectionHeader('After due date (overdue)'),
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 8),
               child: Text(
                 'Follow-up reminders for invoices that have already passed their due date.',
-                style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
               ),
             ),
             _dayChips(
@@ -226,11 +226,11 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
             // Summary
             if (_settings.hasAnyTrigger) _summaryCard(),
 
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Reminders are local notifications on your device. '
               'Tapping one opens the invoice so you can quickly send a WhatsApp or email to your client.',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -272,11 +272,11 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
             child: Row(
               children: [
-                const Icon(Icons.circle, size: 5, color: AppTheme.textSecondary),
-                const SizedBox(width: 8),
+                Icon(Icons.circle, size: 5, color: AppTheme.subtext(context)),
+                SizedBox(width: 8),
                 Text(t,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.subtext(context))),
               ],
             ),
           )),
@@ -303,14 +303,14 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
           checkmarkColor: AppTheme.primary,
           labelStyle: TextStyle(
             fontSize: 13,
-            color: isSelected ? AppTheme.primary : AppTheme.textPrimary,
+            color: isSelected ? AppTheme.primary : AppTheme.onCard(context),
             fontWeight:
                 isSelected ? FontWeight.w600 : FontWeight.normal,
           ),
           side: BorderSide(
             color: isSelected ? AppTheme.primary : AppTheme.divider,
           ),
-          backgroundColor: Colors.white,
+          backgroundColor: AppTheme.card(context),
           padding: const EdgeInsets.symmetric(horizontal: 4),
         );
       }).toList(),
@@ -320,18 +320,18 @@ class _ReminderSettingsScreenState extends State<ReminderSettingsScreen> {
   Widget _sectionHeader(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(text,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: AppTheme.textSecondary,
+                color: AppTheme.subtext(context),
                 letterSpacing: 0.3)),
       );
 
   Widget _card({required List<Widget> children}) => Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.card(context),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.divider),
+          border: Border.all(color: AppTheme.outline(context)),
         ),
         child: Column(children: children),
       );

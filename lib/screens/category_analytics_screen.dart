@@ -5,6 +5,7 @@ import '../models/line_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import '../widgets/feature_guide_sheet.dart';
 
 class CategoryAnalyticsScreen extends StatefulWidget {
   const CategoryAnalyticsScreen({super.key});
@@ -22,6 +23,9 @@ class _CategoryAnalyticsScreenState extends State<CategoryAnalyticsScreen>
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showFeatureGuide(context, AppGuides.categoryAnalytics);
+    });
   }
 
   @override
@@ -294,16 +298,16 @@ class _SectionLabel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary)),
+                color: AppTheme.onCard(context))),
         if (subtitle != null)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Text(subtitle!,
-                style: const TextStyle(
-                    fontSize: 11, color: AppTheme.textSecondary)),
+                style: TextStyle(
+                    fontSize: 11, color: AppTheme.subtext(context))),
           ),
       ],
     );
@@ -333,9 +337,9 @@ class _CategoryBar extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,8 +396,8 @@ class _CategoryBar extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(subtitle,
-              style: const TextStyle(
-                  fontSize: 10, color: AppTheme.textSecondary)),
+              style: TextStyle(
+                  fontSize: 10, color: AppTheme.subtext(context))),
         ],
       ),
     );
@@ -429,16 +433,16 @@ class _PieChartLegend extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(cat,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textPrimary),
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.onCard(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis),
               ),
               Text('${share.toStringAsFixed(1)}%',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary)),
+                      color: AppTheme.onCard(context))),
             ],
           ),
         );
@@ -465,9 +469,9 @@ class _EmptyState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 14,
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.subtext(context),
                   height: 1.5),
             ),
           ],

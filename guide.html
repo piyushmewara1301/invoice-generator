@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BillBook — Invoice & Billing App for Indian Businesses</title>
+<meta name="description" content="Create GST invoices, scan receipts with OCR, track expenses, manage purchase bills, and get paid faster. BillBook is the complete billing solution for Indian businesses.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════
+   TOKENS
+═��═════════════════════════════════════ */
+:root{
+  --blue:#2563EB; --blue-d:#1D4ED8; --blue-l:#60A5FA;
+  --purple:#7C3AED; --purple-d:#5B21B6;
+  --green:#10B981; --green-d:#059669;
+  --orange:#F97316; --red:#EF4444;
+  --teal:#0891B2;
+  --ink:#0F172A; --ink2:#1E293B;
+  --gray:#64748B; --gray-l:#94A3B8; --gray-xl:#CBD5E1;
+  --border:#E2E8F0; --border-d:#334155;
+  --surf:#F8FAFC; --white:#FFFFFF;
+  --sh:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -2px rgba(0,0,0,.05);
+  --sh-lg:0 20px 40px rgba(0,0,0,.12),0 8px 16px rgba(0,0,0,.06);
+  --sh-xl:0 40px 80px rgba(0,0,0,.18);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:'Inter',sans-serif;color:var(--ink);background:#000;line-height:1.6;overflow-x:hidden}
+
+/* ═══════════════════���═══════════════════
+   SCROLL PROGRESS
+═════���═══════════════════════��═════════ */
+#sp{position:fixed;top:0;left:0;height:2px;width:0;background:linear-gradient(90deg,#2563EB,#7C3AED,#EC4899);z-index:10000;transition:width .1s linear}
+
+/* ═══════════════════════════════════════
+   ANNOUNCEMENT BAR
+═══════════════════════════════════════ */
+.ann{background:linear-gradient(90deg,#000,#0a0618,#000);border-bottom:1px solid rgba(124,58,237,.25);text-align:center;padding:9px 20px;font-size:12.5px;color:rgba(255,255,255,.65);position:relative;overflow:hidden;z-index:100}
+.ann::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(124,58,237,.08),transparent);animation:annSweep 4s linear infinite}
+@keyframes annSweep{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.ann span{position:relative;z-index:1}
+.ann-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#10B981;margin-right:8px;animation:dotPulse 1.6s ease-in-out infinite;vertical-align:middle}
+@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.5}}
+.ann-badge{display:inline-block;background:linear-gradient(135deg,#7C3AED,#4338CA);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;margin:0 6px;vertical-align:middle}
+
+/* ═══════════════════════════════════════
+   NAV
+══════════════���════════════════════════ */
+nav{position:fixed;top:0;left:0;right:0;z-index:999;transition:background .3s,border-color .3s,box-shadow .3s;border-bottom:1px solid transparent}
+nav.scrolled{background:rgba(0,0,0,.85);border-color:rgba(255,255,255,.08);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 4px 24px rgba(0,0,0,.4)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;height:64px;display:flex;align-items:center;gap:32px}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none;flex-shrink:0}
+.nav-logo-icon{width:36px;height:36px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff}
+.nav-logo-text{font-size:18px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.nav-links{display:flex;gap:4px;margin-left:8px}
+.nav-link{color:rgba(255,255,255,.65);font-size:13.5px;font-weight:500;text-decoration:none;padding:6px 12px;border-radius:8px;transition:color .2s,background .2s;white-space:nowrap}
+.nav-link:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.btn-nav-out{color:rgba(255,255,255,.8);font-size:13px;font-weight:600;padding:7px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.2);text-decoration:none;transition:all .2s;background:transparent;white-space:nowrap}
+.btn-nav-out:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.4);color:#fff}
+.btn-nav-prim{background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;text-decoration:none;transition:all .2s;white-space:nowrap;position:relative;overflow:hidden}
+.btn-nav-prim::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.12);opacity:0;transition:opacity .2s}
+.btn-nav-prim:hover::before{opacity:1}
+@media(max-width:768px){.nav-links{display:none}.btn-nav-out{display:none}}
+
+/* ═══════════════════════════════════════
+   HERO
+═════════════════════��═════════════════ */
+.hero{min-height:100vh;background:linear-gradient(180deg,#000 0%,#04080f 55%,#060d1a 100%);display:flex;align-items:center;position:relative;overflow:hidden;padding:120px 0 80px}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;animation:orbFloat 9s ease-in-out infinite alternate}
+.orb-1{width:600px;height:600px;background:rgba(37,99,235,.18);top:-180px;left:-140px;animation-duration:10s}
+.orb-2{width:500px;height:500px;background:rgba(124,58,237,.14);bottom:-100px;right:-100px;animation-duration:12s;animation-delay:-4s}
+.orb-3{width:350px;height:350px;background:rgba(6,182,212,.09);top:40%;left:55%;animation-duration:8s;animation-delay:-7s}
+@keyframes orbFloat{0%{transform:translate(0,0) scale(1)}100%{transform:translate(40px,-50px) scale(1.1)}}
+.hero-grid{max-width:1200px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;position:relative;z-index:2}
+.hero-eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(37,99,235,.15);border:1px solid rgba(37,99,235,.3);color:var(--blue-l);font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:24px}
+.hero-eyebrow span{display:inline-block;width:5px;height:5px;border-radius:50%;background:#10B981;animation:dotPulse 1.6s ease-in-out infinite}
+.hero h1{font-size:clamp(42px,5.5vw,72px);font-weight:900;letter-spacing:-2.5px;color:#fff;line-height:1.04;margin-bottom:24px}
+.hero h1 .gr{background:linear-gradient(135deg,#60A5FA 0%,#818CF8 45%,#C084FC 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;background-size:200% 200%;animation:gradFlow 5s ease-in-out infinite}
+@keyframes gradFlow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.hero-sub{font-size:clamp(16px,2vw,19px);color:rgba(255,255,255,.58);max-width:480px;line-height:1.65;margin-bottom:36px}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:44px}
+.btn-prim{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:15px;font-weight:700;padding:14px 28px;border-radius:12px;text-decoration:none;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 24px rgba(37,99,235,.4)}
+.btn-prim::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);animation:shimSlide 2.8s ease-in-out infinite}
+@keyframes shimSlide{0%{left:-60%}100%{left:160%}}
+.btn-prim:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(37,99,235,.55)}
+.btn-ghost{display:inline-flex;align-items:center;gap:8px;border:1.5px solid rgba(255,255,255,.25);color:rgba(255,255,255,.8);font-size:15px;font-weight:600;padding:13px 24px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(8px)}
+.btn-ghost:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.5);color:#fff}
+.hero-trust{display:flex;flex-direction:column;gap:6px}
+.hero-trust-row{display:flex;align-items:center;gap:8px}
+.hero-trust-row span{font-size:13px;color:rgba(255,255,255,.45)}
+.hero-stars{color:#F59E0B;font-size:13px;letter-spacing:1px}
+.hero-phones{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:-20px}
+/* iPhone 16 Pro style frame */
+.iph{width:230px;height:498px;background:#0a0a0a;border-radius:52px;border:2px solid rgba(255,255,255,.18);position:relative;box-shadow:0 0 0 1px rgba(0,0,0,.8),0 40px 80px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.06);flex-shrink:0;overflow:hidden;animation:phoneFloat 5.5s ease-in-out infinite}
+.iph::after{content:'';position:absolute;top:14px;left:50%;transform:translateX(-50%);width:100px;height:32px;background:#0a0a0a;border-radius:16px;z-index:20}
+.iph-screen{width:100%;height:100%;border-radius:50px;overflow:hidden;background:#0F172A;position:relative}
+.iph.sm{width:190px;height:412px;border-radius:44px;animation-delay:-2.5s;margin-bottom:-20px}
+.iph.sm::after{width:84px;height:26px}
+.iph-glow{position:absolute;inset:-40px;border-radius:50%;opacity:.5;filter:blur(40px);pointer-events:none;animation:glowPulse 4s ease-in-out infinite}
+@keyframes phoneFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-12px) rotate(.3deg)}}
+@keyframes glowPulse{0%,100%{opacity:.4}50%{opacity:.7}}
+@media(max-width:900px){.hero-grid{grid-template-columns:1fr;text-align:center}.hero-sub{margin-left:auto;margin-right:auto}.hero-ctas{justify-content:center}.hero-phones{margin-top:40px}}
+
+/* ═══════════════════════════════════════
+   CONTAINER / SHARED
+═══════════════════════════════════════ */
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+.sec{padding:100px 0}
+.sec-dark{background:linear-gradient(180deg,#000 0%,#04080f 100%)}
+.sec-white{background:#fff}
+.sec-surf{background:#F8FAFC}
+.sec-title{text-align:center;margin-bottom:64px}
+.sec-eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
+.sec-eyebrow.on-dark{color:var(--blue-l);background:rgba(37,99,235,.15);border:1px solid rgba(37,99,235,.3);padding:5px 12px;border-radius:20px}
+.sec-eyebrow.on-light{color:var(--blue);background:#EFF6FF;padding:5px 12px;border-radius:20px}
+.sec-h2{font-size:clamp(30px,4vw,48px);font-weight:900;letter-spacing:-1.5px;line-height:1.12;margin-bottom:16px}
+.sec-h2.on-dark{color:#fff}
+.sec-h2.on-light{color:var(--ink)}
+.sec-h2 .gr{background:linear-gradient(135deg,#60A5FA,#818CF8,#C084FC);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sec-p{font-size:17px;max-width:560px;margin:0 auto;line-height:1.7}
+.sec-p.on-dark{color:rgba(255,255,255,.5)}
+.sec-p.on-light{color:var(--gray)}
+
+/* ═══════════════════════════════════════
+   STATS BAR
+═══════��═══════════════════════════════ */
+.stats-bar{background:linear-gradient(90deg,#0a0f1e,#0d1528,#0a0f1e);border-top:1px solid rgba(255,255,255,.06);border-bottom:1px solid rgba(255,255,255,.06);padding:40px 0}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.stat-item{text-align:center;padding:20px;position:relative}
+.stat-item+.stat-item::before{content:'';position:absolute;left:0;top:20%;bottom:20%;width:1px;background:rgba(255,255,255,.08)}
+.stat-num{font-size:clamp(32px,4vw,48px);font-weight:900;letter-spacing:-2px;background:linear-gradient(135deg,#60A5FA,#818CF8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1}
+.stat-label{font-size:13px;color:rgba(255,255,255,.45);margin-top:6px;letter-spacing:.2px}
+@media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ═══════════════════════════════════════
+   FEATURE PILLARS  (3-col icon cards)
+════════════════════════��══════════════ */
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:20px}
+.pillar{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:32px 28px;transition:all .3s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden}
+.pillar::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(124,58,237,.04));opacity:0;transition:opacity .3s}
+.pillar:hover{transform:translateY(-6px);border-color:rgba(37,99,235,.35);box-shadow:0 20px 48px rgba(37,99,235,.12)}
+.pillar:hover::before{opacity:1}
+.pillar-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:18px}
+.pillar h3{font-size:17px;font-weight:800;color:#fff;margin-bottom:8px;letter-spacing:-.2px}
+.pillar p{font-size:13.5px;color:rgba(255,255,255,.45);line-height:1.65}
+@media(max-width:768px){.pillars{grid-template-columns:1fr}}
+
+/* ═══════════════════════════════════════
+   FEATURE SHOWCASE (split)
+═══════════════════════════════���═══════ */
+.showcase{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;margin-bottom:120px}
+.showcase:last-child{margin-bottom:0}
+.showcase.flip{direction:rtl}
+.showcase.flip>*{direction:ltr}
+.showcase-phones{position:relative;display:flex;justify-content:center;align-items:flex-end;gap:16px;padding:40px 0}
+.showcase-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:5px 12px;border-radius:20px;margin-bottom:16px}
+.showcase-tag.blue{background:rgba(37,99,235,.12);color:#60A5FA;border:1px solid rgba(37,99,235,.25)}
+.showcase-tag.purple{background:rgba(124,58,237,.12);color:#A78BFA;border:1px solid rgba(124,58,237,.25)}
+.showcase-tag.green{background:rgba(16,185,129,.12);color:#34D399;border:1px solid rgba(16,185,129,.25)}
+.showcase-tag.orange{background:rgba(249,115,22,.12);color:#FB923C;border:1px solid rgba(249,115,22,.25)}
+.showcase-tag.teal{background:rgba(8,145,178,.12);color:#22D3EE;border:1px solid rgba(8,145,178,.25)}
+.showcase h2{font-size:clamp(26px,3.5vw,38px);font-weight:900;letter-spacing:-1px;color:#fff;line-height:1.18;margin-bottom:16px}
+.showcase p{font-size:15px;color:rgba(255,255,255,.5);line-height:1.75;margin-bottom:24px}
+.feat-list{display:flex;flex-direction:column;gap:10px}
+.feat-item{display:flex;align-items:flex-start;gap:12px;font-size:14px;color:rgba(255,255,255,.7)}
+.feat-item::before{content:'';width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,rgba(37,99,235,.3),rgba(124,58,237,.3));border:1px solid rgba(37,99,235,.4);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%2360A5FA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:center}
+.showcase-detail{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;margin-top:24px;display:inline-flex;align-items:center;gap:10px}
+.showcase-detail-icon{font-size:18px}
+.showcase-detail-text{font-size:13px;color:rgba(255,255,255,.55);line-height:1.5}
+.showcase-detail-text b{color:rgba(255,255,255,.8)}
+@media(max-width:900px){.showcase{grid-template-columns:1fr;gap:40px}.showcase.flip{direction:ltr}}
+
+/* ═══════════════════════════════════════
+   FEATURE GRID (icon cards)
+═══════════════════════════════════════ */
+.feat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.feat-card{background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:24px 22px;transition:all .28s cubic-bezier(.22,1,.36,1)}
+.feat-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(37,99,235,.1);border-color:#BFDBFE}
+.feat-card-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.feat-card h4{font-size:14.5px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.feat-card p{font-size:12.5px;color:var(--gray);line-height:1.6}
+@media(max-width:900px){.feat-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.feat-grid{grid-template-columns:1fr}}
+
+/* ═══════════════════════════════════════
+   HIGHLIGHT RIBBON
+════════��═════════════════════���════════ */
+.ribbon{background:linear-gradient(135deg,#0a0f28 0%,#0d1535 50%,#0a0f28 100%);border:1px solid rgba(37,99,235,.2);border-radius:28px;padding:64px 56px;display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;position:relative;overflow:hidden}
+.ribbon::before{content:'';position:absolute;top:-200px;right:-100px;width:500px;height:500px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.12),transparent 65%)}
+.ribbon h2{font-size:clamp(28px,3.5vw,42px);font-weight:900;color:#fff;letter-spacing:-1.2px;line-height:1.18;margin-bottom:16px}
+.ribbon p{font-size:15px;color:rgba(255,255,255,.5);line-height:1.75;margin-bottom:28px}
+.ribbon-phone{display:flex;justify-content:center;align-items:center;position:relative;z-index:1}
+@media(max-width:768px){.ribbon{grid-template-columns:1fr;padding:40px 28px}.ribbon::before{display:none}}
+
+/* ═══════════════════════════════════════
+   COMPLIANCE SECTION
+═══════════════════════════════════════ */
+.compliance-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.comp-card{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:28px 24px;transition:all .28s}
+.comp-card:hover{transform:translateY(-4px);box-shadow:var(--sh-lg)}
+.comp-card-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px}
+.comp-card h3{font-size:16px;font-weight:800;color:var(--ink);margin-bottom:8px}
+.comp-card p{font-size:13px;color:var(--gray);line-height:1.7}
+.comp-card .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;margin-top:10px}
+.comp-card .badge.req{background:#FEF2F2;color:#DC2626}
+.comp-card .badge.pro{background:#EDE9FE;color:#5B21B6}
+@media(max-width:768px){.compliance-grid{grid-template-columns:1fr}}
+
+/* ═══════════════════════════════════════
+   SECURITY SECTION
+═══════════════════════════════════════ */
+.security{background:linear-gradient(160deg,#000 0%,#070c18 40%,#0a1020 100%);position:relative;overflow:hidden}
+.sec-hex{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.03) 1px,transparent 0);background-size:32px 32px;pointer-events:none}
+.security-inner{display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;position:relative;z-index:1}
+.security-badges{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sec-badge{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:20px;transition:all .25s}
+.sec-badge:hover{background:rgba(255,255,255,.07);border-color:rgba(37,99,235,.3);transform:translateY(-3px)}
+.sec-badge-icon{font-size:24px;margin-bottom:10px}
+.sec-badge h4{font-size:14px;font-weight:700;color:#fff;margin-bottom:5px}
+.sec-badge p{font-size:12px;color:rgba(255,255,255,.45);line-height:1.55}
+@media(max-width:900px){.security-inner{grid-template-columns:1fr}.security-badges{grid-template-columns:repeat(2,1fr)}}
+
+/* ═══════════════════════════════════════
+   PLANS
+═══════════════════════════════════════ */
+.plans-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;align-items:start}
+.plan{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:24px 20px 28px;display:flex;flex-direction:column;transition:transform .3s cubic-bezier(.22,1,.36,1),box-shadow .3s,border-color .3s;position:relative}
+.plan:hover{transform:translateY(-6px);box-shadow:var(--sh-lg)}
+.plan.pop{border-color:var(--blue);background:linear-gradient(180deg,#EFF6FF 0%,#fff 60%);box-shadow:0 0 0 4px rgba(37,99,235,.08),var(--sh)}
+.plan.pop:hover{box-shadow:0 0 0 4px rgba(37,99,235,.15),0 24px 56px rgba(37,99,235,.18)}
+.plan.ent{background:linear-gradient(160deg,#000 0%,#0d0821 60%,#140c2e 100%);border-color:#7C3AED;color:#e2d9ff}
+.plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:10.5px;font-weight:700;padding:4px 14px;border-radius:20px;white-space:nowrap;box-shadow:0 4px 16px rgba(37,99,235,.4)}
+.plan-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gray);margin-bottom:8px}
+.ent .plan-name{color:#94A3B8}
+.plan-price{font-size:38px;font-weight:900;color:var(--ink);letter-spacing:-2px;line-height:1}
+.ent .plan-price{color:#e2d9ff}
+.plan-period{font-size:12px;color:var(--gray);margin:4px 0 2px}
+.ent .plan-period{color:#94A3B8}
+.plan-save{font-size:12px;color:var(--green);font-weight:600;margin-bottom:16px}
+.plan-div{height:1px;background:var(--border);margin:14px 0}
+.ent .plan-div{background:#334155}
+.pf{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--ink);padding:3px 0}
+.ent .pf{color:#CBD5E1}
+.pf .ck{color:var(--green);font-weight:700;flex-shrink:0}
+.pf .cx{color:#CBD5E1;flex-shrink:0}
+.pf.mt{color:var(--gray-l)}
+.plan-feats{flex:1 1 auto}
+.plan-btn{display:block;text-align:center;padding:11px 0;border-radius:10px;font-size:13.5px;font-weight:700;cursor:pointer;margin-top:20px;text-decoration:none;transition:all .2s;position:relative;overflow:hidden}
+.plan-btn.prim{background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;box-shadow:0 4px 16px rgba(37,99,235,.3)}
+.plan-btn.prim:hover{box-shadow:0 8px 24px rgba(37,99,235,.5);transform:translateY(-1px)}
+.plan-btn.out{border:1.5px solid var(--blue);color:var(--blue)}
+.plan-btn.out:hover{background:#EFF6FF}
+.plan-btn.ent-b{background:linear-gradient(135deg,#7C3AED,#4338CA);color:#fff}
+@media(max-width:1100px){.plans-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.plans-grid{grid-template-columns:1fr}}
+
+/* ═══════════════════════════════════════
+   TESTIMONIALS
+═════════════════════════════��═════════ */
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.testi{background:#fff;border:1.5px solid var(--border);border-radius:20px;padding:28px 24px;transition:all .25s}
+.testi:hover{transform:translateY(-4px);box-shadow:var(--sh-lg)}
+.testi-stars{color:#F59E0B;font-size:14px;margin-bottom:14px;letter-spacing:2px}
+.testi-text{font-size:14px;color:var(--ink2);line-height:1.75;margin-bottom:18px;font-style:italic}
+.testi-author{display:flex;align-items:center;gap:12px}
+.testi-avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0}
+.testi-name{font-size:14px;font-weight:700;color:var(--ink)}
+.testi-role{font-size:12px;color:var(--gray)}
+@media(max-width:768px){.testi-grid{grid-template-columns:1fr}}
+
+/* ═══════════════════════════════════════
+   CTA BANNER
+═══════��══════════════════��════════════ */
+.cta-banner{background:linear-gradient(135deg,#0a0f28,#0d1535);border:1px solid rgba(37,99,235,.25);border-radius:28px;padding:80px 56px;text-align:center;position:relative;overflow:hidden}
+.cta-banner::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(37,99,235,.12),transparent 60%);pointer-events:none}
+.cta-banner h2{font-size:clamp(28px,4vw,48px);font-weight:900;color:#fff;letter-spacing:-1.5px;margin-bottom:16px}
+.cta-banner p{font-size:17px;color:rgba(255,255,255,.5);margin-bottom:36px;max-width:480px;margin-left:auto;margin-right:auto}
+.cta-btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.store-btn{display:inline-flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#fff;padding:12px 22px;border-radius:12px;text-decoration:none;transition:all .2s;backdrop-filter:blur(8px)}
+.store-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.4)}
+.store-btn-icon{font-size:22px}
+.store-btn-label{text-align:left}
+.store-btn-sub{font-size:10px;color:rgba(255,255,255,.5);display:block}
+.store-btn-name{font-size:14px;font-weight:700;display:block}
+
+/* ═══════════════════════════════════════
+   FOOTER
+═══════════════════════════════��═══════ */
+footer{background:#000;border-top:1px solid rgba(255,255,255,.06);padding:64px 0 40px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:48px;margin-bottom:56px}
+.footer-brand-icon{width:44px;height:44px;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;margin-bottom:14px}
+.footer-brand-name{font-size:20px;font-weight:800;color:#fff;margin-bottom:8px}
+.footer-brand-desc{font-size:13px;color:rgba(255,255,255,.4);line-height:1.7;max-width:260px;margin-bottom:20px}
+.footer-badges{display:flex;gap:8px;flex-wrap:wrap}
+.footer-badge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);font-size:11px;font-weight:600;padding:4px 10px;border-radius:8px}
+.footer-col h4{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.35);margin-bottom:16px}
+.footer-col a{display:block;color:rgba(255,255,255,.55);font-size:13.5px;text-decoration:none;margin-bottom:9px;transition:color .15s}
+.footer-col a:hover{color:#fff}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.06);padding-top:28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+.footer-copy{font-size:12.5px;color:rgba(255,255,255,.3)}
+.footer-legal{display:flex;gap:20px}
+.footer-legal a{font-size:12.5px;color:rgba(255,255,255,.3);text-decoration:none;transition:color .15s}
+.footer-legal a:hover{color:rgba(255,255,255,.7)}
+@media(max-width:768px){.footer-grid{grid-template-columns:1fr 1fr}.footer-grid>:first-child{grid-column:1/-1}}
+
+/* ═══════════════════════════════════════
+   SCROLL REVEAL
+═══════��═══════════════════════════════ */
+.reveal{opacity:0;transform:translateY(40px) scale(.97);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1),filter .72s;filter:blur(8px)}
+.reveal.visible{opacity:1;transform:none;filter:blur(0)}
+.reveal-l{opacity:0;transform:translateX(-40px);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1);filter:blur(6px)}
+.reveal-l.visible{opacity:1;transform:none;filter:blur(0)}
+.reveal-r{opacity:0;transform:translateX(40px);transition:opacity .72s cubic-bezier(.22,1,.36,1),transform .72s cubic-bezier(.22,1,.36,1);filter:blur(6px)}
+.reveal-r.visible{opacity:1;transform:none;filter:blur(0)}
+.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}.d4{transition-delay:.32s}
+.d5{transition-delay:.40s}.d6{transition-delay:.48s}
+
+/* ═══════════════════════════════════════
+   BACK TO TOP
+═══════════════════════════════════════ */
+#btt{position:fixed;bottom:28px;right:28px;width:44px;height:44px;background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:18px;text-decoration:none;box-shadow:0 4px 16px rgba(37,99,235,.4);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:500}
+#btt.show{opacity:1;pointer-events:auto}
+#btt:hover{transform:translateY(-3px) scale(1.08)}
+
+/* ═══════════════════════════════════════
+   MOCK SCREEN UTILITIES
+═════���═════════════════════════════════ */
+.ms{font-family:'Inter',sans-serif}
+.mh{background:#1E293B;padding:10px 12px 8px;border-bottom:1px solid #334155}
+.mht{font-size:10.5px;font-weight:700;color:#F1F5F9}
+.mhs{font-size:7.5px;color:#64748B;margin-top:1px}
+.mb{padding:10px 12px;overflow:hidden}
+.mc{background:#1E293B;border-radius:9px;padding:9px 11px;margin-bottom:7px;border:1px solid #334155}
+.mct{font-size:9px;font-weight:700;color:#F1F5F9;margin-bottom:2px}
+.mcs{font-size:7.5px;color:#64748B}
+.bpd{background:#DCFCE7;color:#16A34A}.bsn{background:#DBEAFE;color:#2563EB}.bov{background:#FEE2E2;color:#DC2626}.bdr{background:#1E293B;color:#94A3B8;border:1px solid #334155}.bqt{background:#F5F3FF;color:#7C3AED}.bpp{background:#FFF7ED;color:#C2410C}
+.bdg{display:inline-block;font-size:6.5px;font-weight:700;padding:2px 5px;border-radius:8px}
+.msb{display:flex;background:#1E293B;border-bottom:1px solid #334155}
+.mst{flex:1;text-align:center;padding:6px 2px;font-size:7px;font-weight:600;color:#64748B}
+.mst.on{color:#60A5FA;border-bottom:2px solid #2563EB}
+.mfb{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;margin-left:auto;margin-top:4px;box-shadow:0 4px 12px rgba(37,99,235,.5)}
+.msr{display:flex;gap:5px;margin-bottom:7px}
+.mss{flex:1;background:#1E293B;border-radius:7px;padding:6px;text-align:center;border:1px solid #334155}
+.msv{font-size:8px;font-weight:800;color:#F1F5F9}
+.msl{font-size:6.5px;color:#64748B;margin-top:1px}
+.mgb{border-radius:9px;padding:10px 11px;margin-bottom:7px;color:#fff}
+.mgb .v{font-size:14px;font-weight:800}.mgb .l{font-size:7px;opacity:.75}
+.mf{background:#1E293B;border:1px solid #334155;border-radius:6px;padding:6px 9px;margin-bottom:5px}
+.mfl{font-size:6.5px;color:#64748B;margin-bottom:2px}
+.mfv{font-size:8.5px;color:#F1F5F9;font-weight:500}
+.msw{width:22px;height:13px;border-radius:7px;background:#2563EB;position:relative;flex-shrink:0}
+.msw::after{content:'';width:9px;height:9px;border-radius:50%;background:#fff;position:absolute;top:2px;right:2px}
+.mbt{background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:8px;font-weight:700;padding:6px 12px;border-radius:7px;text-align:center;margin-top:7px}
+.mbt.gr{background:linear-gradient(135deg,#10B981,#059669)}
+.mpl{height:5px;border-radius:3px;margin:2px 0}
+.status-bar{height:28px;background:#0F172A;display:flex;align-items:center;justify-content:space-between;padding:0 14px;flex-shrink:0}
+.sb-time{font-size:10px;font-weight:700;color:#F1F5F9}
+.sb-right{display:flex;gap:3px;align-items:center}
+.sb-dot{width:3px;height:3px;border-radius:50%;background:#F1F5F9}
+.di{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:88px;height:28px;background:#0a0a0a;border-radius:14px;z-index:20}
+
+@media(max-width:640px){
+  .reveal,.reveal-l,.reveal-r{opacity:1;transform:none;filter:none;transition:none}
+  .hero h1 .gr{background:none;-webkit-background-clip:unset;background-clip:unset;-webkit-text-fill-color:#93C5FD;color:#93C5FD;animation:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Scroll progress -->
+<div id="sp"></div>
+
+<!-- ════════════════════════════
+     ANNOUNCEMENT BAR
+════════════════════════════ -->
+<div class="ann" id="annBar">
+  <span>
+    <span class="ann-dot"></span>
+    New <span class="ann-badge">v2.1</span> — OCR Receipt Scanner, Auto Paid Status &amp; Smart Preferences are live &nbsp;·&nbsp;
+    <b style="color:rgba(255,255,255,.85)">Scan any bill to auto-fill your forms</b>
+  </span>
+</div>
+
+<!-- ════════════════════════════
+     NAV
+���═══════════════════════════ -->
+<nav id="mainNav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">B</div>
+      <span class="nav-logo-text">BillBook</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features" class="nav-link">Features</a>
+      <a href="#gst" class="nav-link">GST &amp; Compliance</a>
+      <a href="#plans" class="nav-link">Pricing</a>
+      <a href="bill_book_user_manual.html" class="nav-link">Docs</a>
+    </div>
+    <div class="nav-right">
+      <a href="bill_book_user_manual.html" class="btn-nav-out">User Guide</a>
+      <a href="#download" class="btn-nav-prim">Download Free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ���═══════════════════════════
+     HERO
+════════════════════════════ -->
+<section class="hero" id="top">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="hero-grid">
+    <!-- Left -->
+    <div>
+      <div class="hero-eyebrow reveal">
+        <span></span>&nbsp;India's Most Complete Billing App
+      </div>
+      <h1 class="reveal d1">Invoice Smarter.<br><span class="gr">Get Paid Faster.</span></h1>
+      <p class="hero-sub reveal d2">GST invoices, OCR receipt scanning, purchase bills, expenses, P&amp;L reports — all in one app. Built for Indian businesses, works offline.</p>
+      <div class="hero-ctas reveal d3">
+        <a href="#download" class="btn-prim">&#8594; Download Free</a>
+        <a href="bill_book_user_manual.html" class="btn-ghost">📖 View User Guide</a>
+      </div>
+      <div class="hero-trust reveal d4">
+        <div class="hero-trust-row">
+          <span class="hero-stars">★★★★★</span>
+          <span>4.9 on Play Store · 10,000+ businesses</span>
+        </div>
+        <div class="hero-trust-row" style="margin-top:4px">
+          <span style="font-size:13px;color:rgba(255,255,255,.35)">🔐 AES-256 Encrypted &nbsp;·&nbsp; ☁️ Google Drive Backup &nbsp;·&nbsp; 📱 iOS &amp; Android</span>
+        </div>
+      </div>
+    </div>
+    <!-- Right: Phone mockups -->
+    <div class="hero-phones reveal-r d1">
+      <div style="position:relative">
+        <div class="iph-glow" style="background:rgba(37,99,235,.45)"></div>
+        <div class="iph">
+          <div class="di"></div>
+          <div class="iph-screen ms">
+            <div class="status-bar"><span class="sb-time">9:41</span><div class="sb-right"><div class="sb-dot"></div><div class="sb-dot"></div><div class="sb-dot"></div></div></div>
+            <div class="mh"><div class="mht">Dashboard</div><div class="mhs">Mon, 2 Jun 2026</div></div>
+            <div class="mb">
+              <div class="mgb" style="background:linear-gradient(135deg,#1E40AF,#2563EB)"><div class="l">Total Invoiced</div><div class="v">₹3,24,500</div><div class="l">42 invoices this month</div></div>
+              <div class="msr">
+                <div class="mss"><div class="msv" style="color:#10B981">₹2.4L</div><div class="msl">Revenue</div></div>
+                <div class="mss"><div class="msv" style="color:#F59E0B">₹85K</div><div class="msl">Outstanding</div></div>
+                <div class="mss"><div class="msv" style="color:#60A5FA">18</div><div class="msl">This Month</div></div>
+              </div>
+              <div style="font-size:7.5px;font-weight:700;color:#94A3B8;margin:6px 0 4px;text-transform:uppercase;letter-spacing:.5px">Recent</div>
+              <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Rajesh Kumar</div><div class="mcs">INV-0042 · Due 30 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:#F1F5F9">₹50,660</div><div class="bdg bsn">Sent</div></div></div></div>
+              <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Priya Enterprises</div><div class="mcs">INV-0041 · Paid</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:#F1F5F9">₹18,000</div><div class="bdg bpd">Paid</div></div></div></div>
+              <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Amit Shah &amp; Co</div><div class="mcs">INV-0040 · Overdue</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:#F1F5F9">₹75,000</div><div class="bdg bov">Overdue</div></div></div></div>
+              <div class="mfb">+</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="position:relative">
+        <div class="iph-glow" style="background:rgba(124,58,237,.4)"></div>
+        <div class="iph sm">
+          <div class="di"></div>
+          <div class="iph-screen ms">
+            <div class="status-bar"><span class="sb-time">9:41</span></div>
+            <div class="mh"><div class="mht">P &amp; L Report</div><div class="mhs">This Month</div></div>
+            <div class="mb">
+              <div class="msr">
+                <div class="mss"><div class="msv" style="color:#10B981">₹2.4L</div><div class="msl">Revenue</div></div>
+                <div class="mss"><div class="msv" style="color:#EF4444">₹42K</div><div class="msl">Expenses</div></div>
+              </div>
+              <div class="mss" style="background:#1E293B;border:1px solid #334155;border-radius:7px;padding:7px;text-align:center;margin-bottom:7px"><div class="msv" style="color:#60A5FA;font-size:12px">₹1.98L</div><div class="msl">Net Profit</div></div>
+              <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:7px;margin-bottom:2px;color:#94A3B8"><span>Rajesh Kumar</span><span style="font-weight:700">₹90K</span></div><div class="mpl" style="background:#2563EB;width:90%"></div></div>
+              <div style="margin-bottom:4px"><div style="display:flex;justify-content:space-between;font-size:7px;margin-bottom:2px;color:#94A3B8"><span>Priya Enterprises</span><span style="font-weight:700">₹75K</span></div><div class="mpl" style="background:#7C3AED;width:75%"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     STATS
+════════════════════════════ -->
+<div class="stats-bar">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-item reveal"><div class="stat-num">10K+</div><div class="stat-label">Businesses using BillBook</div></div>
+      <div class="stat-item reveal d1"><div class="stat-num">₹50Cr+</div><div class="stat-label">Invoices generated</div></div>
+      <div class="stat-item reveal d2"><div class="stat-num">4.9★</div><div class="stat-label">Rating on Play Store</div></div>
+      <div class="stat-item reveal d3"><div class="stat-num">6</div><div class="stat-label">Indian languages supported</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════
+     WHY BILLBOOK (3 pillars)
+════════════════════════════ -->
+<section class="sec sec-dark" id="features">
+  <div class="container">
+    <div class="sec-title">
+      <div class="sec-eyebrow on-dark reveal">Why BillBook</div>
+      <h2 class="sec-h2 on-dark reveal d1">Built for <span class="gr">Indian businesses</span></h2>
+      <p class="sec-p on-dark reveal d2">Not a generic tool. Every feature is designed around how Indian businesses work — GST, UPI, TDS, GSTR-1, ITC, and more.</p>
+    </div>
+    <div class="pillars">
+      <div class="pillar reveal">
+        <div class="pillar-icon" style="background:rgba(37,99,235,.15)">📄</div>
+        <h3>Invoice in 60 Seconds</h3>
+        <p>GST-compliant invoices with auto CGST/SGST/IGST split. UPI QR on every PDF. 11 professional templates. Share via WhatsApp instantly.</p>
+      </div>
+      <div class="pillar reveal d1">
+        <div class="pillar-icon" style="background:rgba(124,58,237,.15)">📷</div>
+        <h3>OCR Receipt Scanner</h3>
+        <p>Photograph any bill — on-device OCR reads vendor, amount, date, bill number, and GSTIN. One tap fills the entire form. No internet needed.</p>
+      </div>
+      <div class="pillar reveal d2">
+        <div class="pillar-icon" style="background:rgba(16,185,129,.15)">📊</div>
+        <h3>Complete Financial Picture</h3>
+        <p>P&amp;L reports, cash flow forecast, outstanding analysis, GST reports, category analytics, and a web dashboard with AI insights.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     SHOWCASE: INVOICING
+════════════════════════════ -->
+<section class="sec sec-dark">
+  <div class="container">
+    <div class="showcase">
+      <div class="showcase-phones reveal-l">
+        <div style="position:relative">
+          <div class="iph-glow" style="background:rgba(37,99,235,.45)"></div>
+          <div class="iph">
+            <div class="di"></div>
+            <div class="iph-screen ms">
+              <div class="status-bar"><span class="sb-time">9:41</span></div>
+              <div class="mh"><div class="mht">INV-0043</div><div class="mhs">Draft · tap to edit</div></div>
+              <div class="mb">
+                <div class="mc">
+                  <div class="mct">Invoice Details</div>
+                  <div style="display:flex;gap:5px;margin-top:6px">
+                    <div class="mf" style="flex:1"><div class="mfl">Date</div><div class="mfv">02 Jun 2026</div></div>
+                    <div class="mf" style="flex:1"><div class="mfl">Due Date</div><div class="mfv">02 Jul 2026</div></div>
+                  </div>
+                </div>
+                <div class="mc">
+                  <div class="mct" style="display:flex;justify-content:space-between">Client <span style="color:#60A5FA;font-size:7.5px">Change →</span></div>
+                  <div style="font-size:9px;margin-top:4px;color:#F1F5F9;font-weight:600">Rajesh Kumar</div>
+                  <div style="font-size:7.5px;color:#64748B">GSTIN: 27ABCDE1234F1Z5</div>
+                </div>
+                <div class="mc">
+                  <div class="mct" style="display:flex;justify-content:space-between">Line Items <span style="color:#60A5FA;font-size:7.5px">+ Add</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:8px;padding:3px 0;border-bottom:1px solid #334155;color:#CBD5E1"><span>Website Design</span><span style="font-weight:700">₹35,000</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:8px;padding:3px 0;color:#CBD5E1"><span>SEO Setup (18% GST)</span><span style="font-weight:700">₹9,440</span></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding:6px 2px;font-size:9.5px;font-weight:800;color:#F1F5F9"><span>Total (incl. GST)</span><span style="color:#60A5FA">₹52,040</span></div>
+                <div class="mbt">Save &amp; Share Invoice</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal-r">
+        <div class="showcase-tag blue">📄 Invoicing</div>
+        <h2>Professional GST Invoices in Under a Minute</h2>
+        <p>Select a client, add items from your saved catalog, and BillBook handles every calculation — CGST, SGST, IGST, discounts, and totals. UPI scan-to-pay QR on every PDF automatically.</p>
+        <ul class="feat-list">
+          <li>Auto-calculated CGST/SGST or IGST based on buyer state</li>
+          <li>11 PDF templates: Classic, Minimal, Corporate, Modern, GST Bill, Thermal, Restaurant &amp; more</li>
+          <li>Custom invoice prefix (INV-, BILL-, your brand)</li>
+          <li>UPI QR code on every PDF — clients pay in seconds</li>
+          <li>Digital signature auto-embedded on every invoice</li>
+          <li>Share via WhatsApp, Email, or Print in one tap</li>
+          <li>Duplicate any invoice for repeat jobs</li>
+        </ul>
+        <div class="showcase-detail">
+          <div class="showcase-detail-icon">🔁</div>
+          <div class="showcase-detail-text"><b>Recurring Invoices</b> — set any invoice to auto-generate weekly, monthly, or quarterly. Perfect for retainers and subscriptions.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OCR SCANNER -->
+    <div class="showcase flip" id="ocr">
+      <div class="showcase-phones reveal-r">
+        <div style="position:relative">
+          <div class="iph-glow" style="background:rgba(16,185,129,.45)"></div>
+          <div class="iph">
+            <div class="di"></div>
+            <div class="iph-screen ms">
+              <div class="status-bar"><span class="sb-time">9:41</span></div>
+              <div class="mh"><div class="mht">Add Expense</div><div class="mhs">Receipt attached</div></div>
+              <div class="mb">
+                <div class="mc" style="background:rgba(16,185,129,.1);border-color:rgba(16,185,129,.3)">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div style="width:44px;height:44px;background:rgba(16,185,129,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🧾</div>
+                    <div style="flex:1">
+                      <div style="font-size:8.5px;font-weight:700;color:#34D399">Receipt attached</div>
+                      <div style="display:flex;gap:5px;margin-top:5px">
+                        <div style="background:#065F46;border-radius:10px;padding:2px 8px;font-size:7px;font-weight:700;color:#34D399">📷 Scan &amp; Fill</div>
+                        <div style="background:#1E293B;border-radius:10px;padding:2px 8px;font-size:7px;font-weight:700;color:#94A3B8">✏️ Change</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="mc" style="background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25);margin-top:6px">
+                  <div style="font-size:8px;font-weight:700;color:#60A5FA;margin-bottom:6px">📄 Receipt Scan Results</div>
+                  <div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid rgba(37,99,235,.2)">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                    <div style="font-size:7.5px;color:#94A3B8;flex:1">Amount</div>
+                    <div style="font-size:8px;font-weight:700;color:#60A5FA">₹4,500</div>
+                  </div>
+                  <div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid rgba(37,99,235,.2)">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                    <div style="font-size:7.5px;color:#94A3B8;flex:1">Date</div>
+                    <div style="font-size:8px;font-weight:700;color:#60A5FA">02 Jun 2026</div>
+                  </div>
+                  <div style="display:flex;align-items:center;padding:4px 0">
+                    <div style="width:10px;height:10px;border-radius:2px;background:#2563EB;margin-right:8px;flex-shrink:0"></div>
+                    <div style="font-size:7.5px;color:#94A3B8;flex:1">Vendor</div>
+                    <div style="font-size:8px;font-weight:700;color:#60A5FA">ABC Suppliers</div>
+                  </div>
+                  <div class="mbt gr" style="margin-top:8px;font-size:7.5px">✨ Apply Selected Fields</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal-l">
+        <div class="showcase-tag green">📷 New in v2.1</div>
+        <h2>Scan Any Receipt — Auto-Fill the Entire Form</h2>
+        <p>Photograph a bill, receipt, or vendor invoice. On-device OCR (Google ML Kit) reads the text and offers to fill Amount, Date, Vendor, Bill Number, and GSTIN. No internet needed — runs entirely on your device.</p>
+        <ul class="feat-list">
+          <li>Expenses: detects Amount, Date, and Vendor Name</li>
+          <li>Purchase Bills: also detects Bill Number and GSTIN</li>
+          <li>Per-field checkboxes — apply only what you want</li>
+          <li>Supports Indian receipt formats: DD/MM/YYYY, ₹/Rs., 15-char GSTIN</li>
+          <li>Receipt photo stored in Google Drive alongside the record</li>
+          <li>Offline — no data sent to any server</li>
+          <li>Works in under 3 seconds on any modern Android or iPhone</li>
+        </ul>
+        <div class="showcase-detail">
+          <div class="showcase-detail-icon">⚡</div>
+          <div class="showcase-detail-text"><b>5× faster data entry</b> — no more typing amounts and dates manually. Photograph and move on.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PURCHASE BILLS -->
+    <div class="showcase">
+      <div class="showcase-phones reveal-l">
+        <div style="position:relative">
+          <div class="iph-glow" style="background:rgba(249,115,22,.35)"></div>
+          <div class="iph">
+            <div class="di"></div>
+            <div class="iph-screen ms">
+              <div class="status-bar"><span class="sb-time">9:41</span></div>
+              <div class="mh"><div class="mht">Purchase Bills</div><div class="mhs">June 2026</div></div>
+              <div class="msb">
+                <div class="mst on">All</div><div class="mst">Unpaid</div><div class="mst">Partial</div><div class="mst">Paid</div>
+              </div>
+              <div class="mb">
+                <div class="msr">
+                  <div class="mss"><div class="msv" style="color:#EF4444">₹85K</div><div class="msl">Unpaid</div></div>
+                  <div class="mss"><div class="msv" style="color:#F59E0B">₹32K</div><div class="msl">Partial</div></div>
+                  <div class="mss"><div class="msv" style="color:#10B981">₹1.2L</div><div class="msl">Paid</div></div>
+                </div>
+                <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">ABC Suppliers</div><div class="mcs">BILL-0031 · Due 15 Jun</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:#F1F5F9">₹45,000</div><div class="bdg bov">Unpaid</div></div></div></div>
+                <div class="mc"><div style="display:flex;justify-content:space-between;align-items:center"><div><div class="mct">Office Depot</div><div class="mcs">BILL-0030 · Paid</div></div><div style="text-align:right"><div style="font-size:9.5px;font-weight:800;color:#F1F5F9">₹12,500</div><div class="bdg bpd">Paid</div></div></div></div>
+                <div class="mfb">+</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal-r">
+        <div class="showcase-tag orange">🧾 Purchase Bills</div>
+        <h2>Track Every Bill You Owe — Payables Made Simple</h2>
+        <p>Record every vendor bill with line items, due dates, and payment reminders. OCR scans the bill photo to fill details automatically. Input Tax Credit calculated instantly.</p>
+        <ul class="feat-list">
+          <li>Attach and OCR-scan vendor bills from photo</li>
+          <li>Record partial or full payments — status auto-updates</li>
+          <li>Payment reminder push notifications before due date</li>
+          <li>GST/ITC tracking per vendor for reconciliation</li>
+          <li>Feeds directly into Cash Flow forecast</li>
+          <li>Filter by Unpaid / Partial / Paid</li>
+        </ul>
+        <div class="showcase-detail">
+          <div class="showcase-detail-icon">💰</div>
+          <div class="showcase-detail-text"><b>Cash Flow Forecast</b> — see all inflows (invoices due) vs outflows (bills due) in one screen.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="showcase flip" id="reports">
+      <div class="showcase-phones reveal-r">
+        <div style="position:relative">
+          <div class="iph-glow" style="background:rgba(124,58,237,.45)"></div>
+          <div class="iph">
+            <div class="di"></div>
+            <div class="iph-screen ms">
+              <div class="status-bar"><span class="sb-time">9:41</span></div>
+              <div class="mh"><div class="mht">Web Dashboard</div><div class="mhs">Premium · Smart Insights</div></div>
+              <div class="mb">
+                <div class="msr">
+                  <div class="mss"><div class="msv" style="color:#10B981">₹5.2L</div><div class="msl">Revenue</div></div>
+                  <div class="mss"><div class="msv" style="color:#60A5FA">87%</div><div class="msl">Collection</div></div>
+                  <div class="mss"><div class="msv" style="color:#A78BFA">3.2×</div><div class="msl">Growth</div></div>
+                </div>
+                <div class="mc" style="background:rgba(37,99,235,.1);border-color:rgba(37,99,235,.25)">
+                  <div style="font-size:7.5px;font-weight:700;color:#60A5FA;margin-bottom:3px">✨ Smart Insight</div>
+                  <div style="font-size:7px;color:#94A3B8">Rajesh Kumar hasn't been invoiced in 45 days — follow up.</div>
+                </div>
+                <div style="font-size:7.5px;font-weight:700;color:#94A3B8;margin:5px 0 4px;text-transform:uppercase;letter-spacing:.5px">KPIs</div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;padding:2px 0;color:#CBD5E1"><span>Avg Invoice Value</span><span style="font-weight:700">₹38,500</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;padding:2px 0;color:#CBD5E1"><span>Collection Rate</span><span style="font-weight:700">87%</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;padding:2px 0;color:#CBD5E1"><span>3-Month Forecast</span><span style="font-weight:700">₹6.8L</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="reveal-l">
+        <div class="showcase-tag purple">📊 Reports &amp; Analytics</div>
+        <h2>Know Your Numbers Without a Spreadsheet</h2>
+        <p>Real-time P&amp;L, outstanding analysis, cash flow, GST reports, category analytics, and a web dashboard with AI-generated business insights. Know exactly where you stand, every day.</p>
+        <ul class="feat-list">
+          <li>Profit &amp; Loss: revenue vs expenses vs net profit</li>
+          <li>Age-wise outstanding: 5 colour-coded buckets (Not Due → 90+ days)</li>
+          <li>Cash Flow Forecast: inflows vs outflows by due date</li>
+          <li>GST Reports: GSTR-1 style with B2B, B2C, HSN summary</li>
+          <li>Category Analytics: top services and products by revenue</li>
+          <li>Web Dashboard: 11 KPI panels, AI insights, revenue forecast</li>
+          <li>Client statement PDF: full transaction history in one share</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     COMPLETE FEATURE GRID
+════════════════════════════ -->
+<section class="sec sec-white">
+  <div class="container">
+    <div class="sec-title">
+      <div class="sec-eyebrow on-light reveal">All Features</div>
+      <h2 class="sec-h2 on-light reveal d1">Every tool your business needs</h2>
+      <p class="sec-p on-light reveal d2">30+ features built for Indian businesses, all in a single app.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card reveal"><div class="feat-card-icon" style="background:#EFF6FF">📄</div><h4>GST Invoicing</h4><p>Auto CGST/SGST/IGST, custom prefix, 11 templates, UPI QR on every PDF.</p></div>
+      <div class="feat-card reveal d1"><div class="feat-card-icon" style="background:#F0FDF4">📷</div><h4>OCR Receipt Scanner</h4><p>Scan any receipt or bill. On-device OCR auto-fills amount, date, vendor &amp; GSTIN. Offline.</p></div>
+      <div class="feat-card reveal d2"><div class="feat-card-icon" style="background:#FFF7ED">💸</div><h4>Expense Tracking</h4><p>Log expenses by category, attach receipt photos, mark as recurring. Feeds into P&amp;L.</p></div>
+      <div class="feat-card reveal d3"><div class="feat-card-icon" style="background:#FEF2F2">🧾</div><h4>Purchase Bills</h4><p>Track vendor bills, record payments, OCR-scan invoices, ITC calculation.</p></div>
+      <div class="feat-card reveal"><div class="feat-card-icon" style="background:#F5F3FF">📈</div><h4>P&amp;L Report</h4><p>Revenue vs expenses vs net profit. Top clients, category breakdown, custom periods.</p></div>
+      <div class="feat-card reveal d1"><div class="feat-card-icon" style="background:#FFFBEB">⏰</div><h4>Outstanding Analysis</h4><p>Age-wise buckets: Not Due → 1–30 → 31–60 → 61–90 → 90+ days.</p></div>
+      <div class="feat-card reveal d2"><div class="feat-card-icon" style="background:#ECFEFF">💰</div><h4>Cash Flow Forecast</h4><p>All inflows (invoices) vs outflows (bills) sorted by due date.</p></div>
+      <div class="feat-card reveal d3"><div class="feat-card-icon" style="background:#F5F3FF">📊</div><h4>Category Analytics</h4><p>Revenue by service, top products, top clients — with progress bars.</p></div>
+      <div class="feat-card reveal"><div class="feat-card-icon" style="background:#ECFDF5">🔁</div><h4>Recurring Invoices</h4><p>Auto-generate weekly, monthly, quarterly invoices. Manage all schedules in one place.</p></div>
+      <div class="feat-card reveal d1"><div class="feat-card-icon" style="background:#EFF6FF">🛒</div><h4>Point of Sale</h4><p>Quick billing from product catalog. Tap items, checkout, generate receipt. Perfect for retail.</p></div>
+      <div class="feat-card reveal d2"><div class="feat-card-icon" style="background:#FFF7ED">📝</div><h4>Quotations</h4><p>Send quotes before invoices. Track Approved/Declined. One-tap convert to invoice.</p></div>
+      <div class="feat-card reveal d3"><div class="feat-card-icon" style="background:#FFFBEB">💳</div><h4>Partial Payments &amp; TDS</h4><p>Record milestones &amp; TDS deductions. Invoice auto-moves to Paid when fully settled.</p></div>
+      <div class="feat-card reveal"><div class="feat-card-icon" style="background:#ECFDF5">📦</div><h4>Inventory</h4><p>Stock tracking per item. Auto-deducts on invoice save. Low-stock alerts.</p></div>
+      <div class="feat-card reveal d1"><div class="feat-card-icon" style="background:#FEF2F2">🔴</div><h4>Credit Notes</h4><p>Issue credit notes for returns or corrections. Keeps audit trail clean. GST compliant.</p></div>
+      <div class="feat-card reveal d2"><div class="feat-card-icon" style="background:#F0FDF4">🚚</div><h4>Delivery Challan</h4><p>Issue dispatch docs before billing. Convert to invoice in one tap on delivery.</p></div>
+      <div class="feat-card reveal d3"><div class="feat-card-icon" style="background:#ECFEFF">👤</div><h4>Client Profiles</h4><p>Payment score, billing history, statement PDF. Know your best (and worst) payers.</p></div>
+      <div class="feat-card reveal"><div class="feat-card-icon" style="background:#F5F3FF">👥</div><h4>Team Management</h4><p>4 roles: Owner, Manager, Staff, Viewer. QR-code pairing. Permissions enforced in UI.</p></div>
+      <div class="feat-card reveal d1"><div class="feat-card-icon" style="background:#EFF6FF">🖥️</div><h4>Web Dashboard</h4><p>11 KPI panels, AI insights, revenue forecast. Pinnable and reorderable.</p></div>
+      <div class="feat-card reveal d2"><div class="feat-card-icon" style="background:#FFF7ED">🔔</div><h4>Payment Reminders</h4><p>Scheduled push notifications + bulk WhatsApp reminders to overdue clients.</p></div>
+      <div class="feat-card reveal d3"><div class="feat-card-icon" style="background:#ECFDF5">💱</div><h4>Multi-Currency</h4><p>Invoice in USD, EUR, AED &amp; 30+ currencies. P&amp;L auto-converts at daily rate.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     GST COMPLIANCE
+════════════════════════════ -->
+<section class="sec sec-surf" id="gst">
+  <div class="container">
+    <div class="sec-title">
+      <div class="sec-eyebrow on-light reveal">GST &amp; Compliance</div>
+      <h2 class="sec-h2 on-light reveal d1">Stay compliant — <span style="color:var(--blue)">automatically</span></h2>
+      <p class="sec-p on-light reveal d2">BillBook handles the GST rules so you don't have to think about them.</p>
+    </div>
+    <div class="compliance-grid">
+      <div class="comp-card reveal">
+        <div class="comp-card-icon" style="background:#FEF2F2">🏛️</div>
+        <h3>E-Invoice (IRN Generation)</h3>
+        <p>Generate Invoice Reference Numbers from the IRP portal directly in the app. IRN and QR code auto-embed in the invoice PDF. Required for businesses with ₹5Cr+ turnover.</p>
+        <span class="badge pro">Pro+</span>
+      </div>
+      <div class="comp-card reveal d1">
+        <div class="comp-card-icon" style="background:#FFF7ED">🚛</div>
+        <h3>E-Way Bill Management</h3>
+        <p>Generate and track E-Way Bills for goods movement over ₹50,000. Two tabs keep pending and generated bills separated. EWB number stored against the invoice automatically.</p>
+        <span class="badge pro">Pro+</span>
+      </div>
+      <div class="comp-card reveal d2">
+        <div class="comp-card-icon" style="background:#F5F3FF">📋</div>
+        <h3>GSTR-1 Style Reports</h3>
+        <p>Auto-split CGST/SGST or IGST based on buyer state. Generates B2B, B2C, and HSN/SAC summary. Export PDF for your CA — filing-ready without any manual work.</p>
+        <span class="badge pro">Pro+</span>
+      </div>
+      <div class="comp-card reveal d3">
+        <div class="comp-card-icon" style="background:#ECFDF5">🔄</div>
+        <h3>Input Tax Credit (ITC)</h3>
+        <p>Every purchase bill records the GST paid. ITC amount calculated automatically per vendor. Feed it to your CA for GSTR-3B reconciliation. Linked to your payables tracker.</p>
+        <span class="badge pro">Pro+</span>
+      </div>
+      <div class="comp-card reveal">
+        <div class="comp-card-icon" style="background:#EFF6FF">💳</div>
+        <h3>TDS Tracking</h3>
+        <p>Record TDS deductions under Section 194J, 194C, 194H. BillBook treats TDS as a tax credit — the invoice auto-settles when cash + TDS covers the full amount.</p>
+        <span class="badge" style="background:#DBEAFE;color:#1E40AF">Lite+</span>
+      </div>
+      <div class="comp-card reveal d1">
+        <div class="comp-card-icon" style="background:#F0FDF4">🔴</div>
+        <h3>Credit Notes</h3>
+        <p>Issue credit notes for returns or billing corrections. GST-compliant way to reduce an invoice — never delete the original. Linked to the original invoice for full audit trail.</p>
+        <span class="badge pro">Pro+</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     SECURITY RIBBON
+════════════════════════════ -->
+<section class="sec security">
+  <div class="sec-hex"></div>
+  <div class="container">
+    <div class="security-inner">
+      <div class="reveal-l">
+        <div class="sec-eyebrow on-dark" style="margin-bottom:16px">Security &amp; Privacy</div>
+        <h2 class="sec-h2 on-dark">Your data is yours — <span class="gr">always.</span></h2>
+        <p class="sec-p on-dark" style="max-width:400px;text-align:left;margin:16px 0 28px">BillBook stores everything in your own Google Drive. We can't see it. Your accountant can't see it. Only you — and the team members you explicitly invite.</p>
+        <a href="#download" class="btn-prim" style="display:inline-flex">Get Started Free →</a>
+      </div>
+      <div class="security-badges reveal-r">
+        <div class="sec-badge">
+          <div class="sec-badge-icon">🔐</div>
+          <h4>AES-256 Encryption</h4>
+          <p>All data encrypted before it ever leaves your device. Industry-standard military-grade encryption.</p>
+        </div>
+        <div class="sec-badge">
+          <div class="sec-badge-icon">☁️</div>
+          <h4>Your Google Drive</h4>
+          <p>Data stored in your own Drive account. BillBook never has access to your invoices or financials.</p>
+        </div>
+        <div class="sec-badge">
+          <div class="sec-badge-icon">📴</div>
+          <h4>Offline-First</h4>
+          <p>Create invoices, record payments, view reports — everything works without internet.</p>
+        </div>
+        <div class="sec-badge">
+          <div class="sec-badge-icon">📷</div>
+          <h4>On-Device OCR</h4>
+          <p>Receipt scanning runs entirely on your device. Receipt photos are never uploaded to any cloud service.</p>
+        </div>
+        <div class="sec-badge">
+          <div class="sec-badge-icon">🔄</div>
+          <h4>Auto Restore</h4>
+          <p>Lost your phone? Sign in with the same Google account — everything restores automatically.</p>
+        </div>
+        <div class="sec-badge">
+          <div class="sec-badge-icon">👥</div>
+          <h4>QR Team Pairing</h4>
+          <p>Employees join via QR code scan — no passwords shared. Access revoked instantly if needed.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════���══════════════════
+     TESTIMONIALS
+════════════════════════════ -->
+<section class="sec sec-white">
+  <div class="container">
+    <div class="sec-title">
+      <div class="sec-eyebrow on-light reveal">What businesses say</div>
+      <h2 class="sec-h2 on-light reveal d1">Trusted by 10,000+ businesses</h2>
+    </div>
+    <div class="testi-grid">
+      <div class="testi reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"Switched from Tally to BillBook — imported all my old invoices in minutes. The OCR scanner is a game changer. I photograph every supplier bill and it fills everything in."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:#2563EB">R</div>
+          <div><div class="testi-name">Rajesh Agarwal</div><div class="testi-role">Hardware Trader, Pune</div></div>
+        </div>
+      </div>
+      <div class="testi reveal d1">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"The GST reports save me 3 hours every month. I just export the PDF and forward it to my CA. E-invoicing from the app itself is something I didn't expect in a mobile app."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:#7C3AED">P</div>
+          <div><div class="testi-name">Priya Nambiar</div><div class="testi-role">IT Consultant, Bengaluru</div></div>
+        </div>
+      </div>
+      <div class="testi reveal d2">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"POS screen is perfect for my restaurant. Staff tap items, the bill generates instantly. Recurring invoices for my catering retainer clients mean I never forget to bill them."</p>
+        <div class="testi-author">
+          <div class="testi-avatar" style="background:#10B981">A</div>
+          <div><div class="testi-name">Arvind Menon</div><div class="testi-role">Restaurant Owner, Chennai</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     PLANS
+════════════════════════════ -->
+<section class="sec sec-surf" id="plans">
+  <div class="container">
+    <div class="sec-title">
+      <div class="sec-eyebrow on-light reveal">Pricing</div>
+      <h2 class="sec-h2 on-light reveal d1">Start free. Upgrade as you grow.</h2>
+      <p class="sec-p on-light reveal d2">Cancel anytime. Your data always stays in your own Google Drive — never held hostage.</p>
+    </div>
+    <div class="plans-grid">
+      <div class="plan reveal">
+        <div><div class="plan-name">Free</div><div class="plan-price"><sup style="font-size:16px">₹</sup>0</div><div class="plan-period">forever free</div><div class="plan-save">&nbsp;</div><div class="plan-div"></div></div>
+        <div class="plan-feats">
+          <div class="pf"><span class="ck">✓</span>5 invoices / month</div>
+          <div class="pf"><span class="ck">✓</span>10 clients · 10 items</div>
+          <div class="pf"><span class="ck">✓</span>Classic template</div>
+          <div class="pf"><span class="ck">✓</span>1 payment method</div>
+          <div class="pf mt"><span class="cx">✗</span>No cloud backup</div>
+          <div class="pf mt"><span class="cx">✗</span>No reports</div>
+        </div>
+        <a href="#download" class="plan-btn out">Get Started</a>
+      </div>
+      <div class="plan reveal d1">
+        <div><div class="plan-name">Lite</div><div class="plan-price"><sup style="font-size:16px">₹</sup>499</div><div class="plan-period">per year</div><div class="plan-save">₹42/mo · Best for solo</div><div class="plan-div"></div></div>
+        <div class="plan-feats">
+          <div class="pf"><span class="ck">✓</span>50 invoices / month</div>
+          <div class="pf"><span class="ck">✓</span>Quotations &amp; partial pay</div>
+          <div class="pf"><span class="ck">✓</span>Expenses + OCR scanner</div>
+          <div class="pf"><span class="ck">✓</span>P&amp;L · Outstanding</div>
+          <div class="pf"><span class="ck">✓</span>Google Drive sync</div>
+        </div>
+        <a href="#download" class="plan-btn out">Upgrade to Lite</a>
+      </div>
+      <div class="plan pop reveal d2">
+        <div class="plan-badge">⭐ Most Popular</div>
+        <div><div class="plan-name">Pro</div><div class="plan-price"><sup style="font-size:16px">₹</sup>1,499</div><div class="plan-period">per year</div><div class="plan-save">₹125/mo · Save 17%</div><div class="plan-div"></div></div>
+        <div class="plan-feats">
+          <div class="pf"><span class="ck">✓</span>Unlimited invoices &amp; clients</div>
+          <div class="pf"><span class="ck">✓</span>All 11 PDF templates</div>
+          <div class="pf"><span class="ck">✓</span>Recurring · Credit Notes</div>
+          <div class="pf"><span class="ck">✓</span>Inventory · POS screen</div>
+          <div class="pf"><span class="ck">✓</span>GST Reports · E-Invoice</div>
+          <div class="pf"><span class="ck">✓</span>Purchase Bills · OCR</div>
+          <div class="pf"><span class="ck">✓</span>Multi-currency</div>
+        </div>
+        <a href="#download" class="plan-btn prim">Upgrade to Pro</a>
+      </div>
+      <div class="plan reveal d3">
+        <div><div class="plan-name">Premium</div><div class="plan-price"><sup style="font-size:16px">��</sup>2,999</div><div class="plan-period">per year</div><div class="plan-save">₹250/mo · Save 17%</div><div class="plan-div"></div></div>
+        <div class="plan-feats">
+          <div class="pf"><span class="ck">✓</span>Everything in Pro</div>
+          <div class="pf"><span class="ck">✓</span>Team (up to 5 members)</div>
+          <div class="pf"><span class="ck">✓</span>Scheduled reminders</div>
+          <div class="pf"><span class="ck">✓</span>Web Dashboard + AI insights</div>
+          <div class="pf"><span class="ck">✓</span>Priority support</div>
+        </div>
+        <a href="#download" class="plan-btn out">Upgrade to Premium</a>
+      </div>
+      <div class="plan ent reveal d4">
+        <div><div class="plan-name">Enterprise</div><div class="plan-price"><sup style="font-size:14px">₹</sup>9,999</div><div class="plan-period">per year · or custom</div><div class="plan-save">Volume discounts available</div><div class="plan-div"></div></div>
+        <div class="plan-feats">
+          <div class="pf"><span class="ck">✓</span>Everything in Premium</div>
+          <div class="pf"><span class="ck">✓</span>Unlimited team members</div>
+          <div class="pf"><span class="ck">✓</span>Dedicated account manager</div>
+          <div class="pf"><span class="ck">✓</span>Phone &amp; WhatsApp support</div>
+          <div class="pf"><span class="ck">✓</span>SLA · API access</div>
+        </div>
+        <a href="mailto:sales@billbook.app" class="plan-btn ent-b">Contact Sales</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     DOWNLOAD CTA
+════════════════════════════ -->
+<section class="sec sec-dark" id="download">
+  <div class="container">
+    <div class="cta-banner reveal">
+      <h2>Start invoicing for free today</h2>
+      <p>Download BillBook and create your first professional invoice in under 2 minutes. No credit card. No setup fee.</p>
+      <div class="cta-btns">
+        <a href="#" class="store-btn">
+          <div class="store-btn-icon">🤖</div>
+          <div class="store-btn-label"><span class="store-btn-sub">Download on</span><span class="store-btn-name">Google Play</span></div>
+        </a>
+        <a href="#" class="store-btn">
+          <div class="store-btn-icon">🍎</div>
+          <div class="store-btn-label"><span class="store-btn-sub">Download on the</span><span class="store-btn-name">App Store</span></div>
+        </a>
+        <a href="bill_book_user_manual.html" class="store-btn">
+          <div class="store-btn-icon">📖</div>
+          <div class="store-btn-label"><span class="store-btn-sub">Read the</span><span class="store-btn-name">User Guide</span></div>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════
+     FOOTER
+════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand-icon">B</div>
+        <div class="footer-brand-name">BillBook</div>
+        <p class="footer-brand-desc">The complete billing and invoicing app for Indian businesses. Invoice faster, track smarter, get paid on time.</p>
+        <div class="footer-badges">
+          <span class="footer-badge">📱 iOS &amp; Android</span>
+          <span class="footer-badge">🔐 AES-256</span>
+          <span class="footer-badge">☁️ Drive Sync</span>
+          <span class="footer-badge">🌐 6 Languages</span>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a href="#features">Features</a>
+        <a href="#plans">Pricing</a>
+        <a href="#gst">GST Compliance</a>
+        <a href="#ocr">OCR Scanner</a>
+        <a href="bill_book_user_manual.html">User Manual</a>
+      </div>
+      <div class="footer-col">
+        <h4>Features</h4>
+        <a href="#features">Invoicing</a>
+        <a href="#reports">Reports</a>
+        <a href="#features">POS Screen</a>
+        <a href="#features">Inventory</a>
+        <a href="#features">Team Access</a>
+      </div>
+      <div class="footer-col">
+        <h4>Support</h4>
+        <a href="bill_book_user_manual.html">Documentation</a>
+        <a href="#">FAQ</a>
+        <a href="mailto:support@billbook.app">Contact Support</a>
+        <a href="mailto:sales@billbook.app">Enterprise Sales</a>
+        <a href="#">Privacy Policy</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span class="footer-copy">© 2026 BillBook · AES-256 Encrypted · Data stored in your Google Drive · v2.1</span>
+      <div class="footer-legal">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Refund Policy</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<a href="#top" id="btt" title="Back to top">↑</a>
+
+<script>
+/* ── Scroll progress + nav scroll state ── */
+const sp = document.getElementById('sp');
+const nav = document.getElementById('mainNav');
+const btt = document.getElementById('btt');
+const ann = document.getElementById('annBar');
+
+window.addEventListener('scroll', () => {
+  const scrolled = window.scrollY;
+  const docH = document.documentElement.scrollHeight - window.innerHeight;
+  sp.style.width = (scrolled / docH * 100) + '%';
+  nav.classList.toggle('scrolled', scrolled > 40);
+  btt.classList.toggle('show', scrolled > 400);
+
+  /* Subtle parallax on orbs */
+  document.querySelectorAll('.orb').forEach((o, i) => {
+    const speed = i % 2 === 0 ? 0.18 : -0.12;
+    o.style.transform = `translateY(${scrolled * speed}px)`;
+  });
+}, { passive: true });
+
+/* ── Offset nav top position by announcement bar height ── */
+function setNavTop() {
+  const h = ann ? ann.offsetHeight : 0;
+  nav.style.top = h + 'px';
+}
+setNavTop();
+window.addEventListener('resize', setNavTop);
+
+/* ── IntersectionObserver reveal ── */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.07, rootMargin: '0px 0px -48px 0px' });
+
+document.querySelectorAll('.reveal, .reveal-l, .reveal-r').forEach((el, i) => {
+  io.observe(el);
+});
+
+/* Immediately reveal anything already in viewport */
+function revealInView() {
+  document.querySelectorAll('.reveal, .reveal-l, .reveal-r').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) el.classList.add('visible');
+  });
+}
+requestAnimationFrame(() => requestAnimationFrame(revealInView));
+window.addEventListener('load', revealInView);
+
+/* ── Smooth anchor scrolling accounting for nav height ── */
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id === '#') { window.scrollTo({ top: 0, behavior: 'smooth' }); e.preventDefault(); return; }
+    const target = document.querySelector(id);
+    if (target) {
+      e.preventDefault();
+      const offset = nav.offsetHeight + (ann ? ann.offsetHeight : 0) + 16;
+      const top = target.getBoundingClientRect().top + window.scrollY - offset;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }
+  });
+});
+
+/* ── Animated number counters ── */
+function animateCounter(el) {
+  const text = el.textContent;
+  const match = text.match(/^(₹?)(\d[\d,.]*)(.*)$/);
+  if (!match) return;
+  const prefix = match[1];
+  const numStr = match[2].replace(/[,\.]/g, '');
+  const suffix = match[3];
+  const end = parseInt(numStr);
+  if (!end) return;
+  let start = 0;
+  const dur = 1600;
+  const step = dur / 60;
+  const inc = end / (dur / step);
+  const timer = setInterval(() => {
+    start = Math.min(start + inc, end);
+    el.textContent = prefix + Math.floor(start).toLocaleString('en-IN') + suffix;
+    if (start >= end) clearInterval(timer);
+  }, step);
+}
+
+const counterIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      animateCounter(e.target.querySelector('.stat-num'));
+      counterIO.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stat-item').forEach(el => counterIO.observe(el));
+</script>
+</body>
+</html>

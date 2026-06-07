@@ -61,10 +61,10 @@ class _PaywallSheet extends StatelessWidget {
           // Title
           Text(
             info.title,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary),
+                color: AppTheme.onCard(context)),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
@@ -72,9 +72,9 @@ class _PaywallSheet extends StatelessWidget {
           // Description
           Text(
             info.description,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 14,
-                color: AppTheme.textSecondary,
+                color: AppTheme.subtext(context),
                 height: 1.5),
             textAlign: TextAlign.center,
           ),
@@ -91,7 +91,7 @@ class _PaywallSheet extends StatelessWidget {
             child: Row(
               children: [
                 Icon(Icons.workspace_premium, color: tierColor, size: 22),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,8 +106,8 @@ class _PaywallSheet extends StatelessWidget {
                       if (price.yearlyRupees > 0)
                         Text(
                           '₹${price.yearlyRupees}/year  ·  ₹${price.monthlyRupees}/month',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppTheme.subtext(context)),
                         ),
                     ],
                   ),
@@ -124,11 +124,11 @@ class _PaywallSheet extends StatelessWidget {
                   children: [
                     Icon(Icons.check_circle_outline,
                         size: 16, color: tierColor),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: Text(f,
-                          style: const TextStyle(
-                              fontSize: 13, color: AppTheme.textPrimary)),
+                          style: TextStyle(
+                              fontSize: 13, color: AppTheme.onCard(context))),
                     ),
                   ],
                 ),
@@ -158,8 +158,8 @@ class _PaywallSheet extends StatelessWidget {
 
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Maybe later',
-                style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text('Maybe later',
+                style: TextStyle(color: AppTheme.subtext(context))),
           ),
         ],
       ),
@@ -168,36 +168,47 @@ class _PaywallSheet extends StatelessWidget {
 
   static String _tierName(SubscriptionTier t) {
     switch (t) {
-      case SubscriptionTier.free:    return 'Free';
-      case SubscriptionTier.lite:    return 'Lite';
-      case SubscriptionTier.pro:     return 'Pro';
-      case SubscriptionTier.premium: return 'Premium';
+      case SubscriptionTier.free:       return 'Free';
+      case SubscriptionTier.lite:       return 'Lite';
+      case SubscriptionTier.pro:        return 'Pro';
+      case SubscriptionTier.premium:    return 'Premium';
+      case SubscriptionTier.enterprise: return 'Enterprise';
     }
   }
 
   static Color _tierColor(SubscriptionTier t) {
     switch (t) {
-      case SubscriptionTier.free:    return Colors.grey;
-      case SubscriptionTier.lite:    return const Color(0xFF0288D1);
-      case SubscriptionTier.pro:     return const Color(0xFF7B1FA2);
-      case SubscriptionTier.premium: return const Color(0xFFE65100);
+      case SubscriptionTier.free:       return Colors.grey;
+      case SubscriptionTier.lite:       return const Color(0xFF0288D1);
+      case SubscriptionTier.pro:        return const Color(0xFF7B1FA2);
+      case SubscriptionTier.premium:    return const Color(0xFFE65100);
+      case SubscriptionTier.enterprise: return const Color(0xFF4338CA);
     }
   }
 
   static IconData _featureIcon(LimitType t) {
     switch (t) {
-      case LimitType.monthlyInvoices: return Icons.receipt_long;
-      case LimitType.clients:         return Icons.people;
-      case LimitType.serviceItems:    return Icons.inventory_2;
-      case LimitType.templates:       return Icons.style;
-      case LimitType.paymentMethods:  return Icons.account_balance_wallet;
-      case LimitType.multiCurrency:   return Icons.currency_exchange;
-      case LimitType.partialPayments: return Icons.payments;
-      case LimitType.driveSync:       return Icons.cloud_sync;
+      case LimitType.monthlyInvoices:   return Icons.receipt_long;
+      case LimitType.clients:           return Icons.people;
+      case LimitType.serviceItems:      return Icons.inventory_2;
+      case LimitType.templates:         return Icons.style;
+      case LimitType.paymentMethods:    return Icons.account_balance_wallet;
+      case LimitType.multiCurrency:     return Icons.currency_exchange;
+      case LimitType.partialPayments:   return Icons.payments;
+      case LimitType.driveSync:         return Icons.cloud_sync;
       case LimitType.customPrefix:      return Icons.edit_note;
-      case LimitType.messageTemplates:   return Icons.chat_outlined;
-      case LimitType.gstReports:         return Icons.summarize_outlined;
-      case LimitType.manageTeam:         return Icons.group_outlined;
+      case LimitType.messageTemplates:  return Icons.chat_outlined;
+      case LimitType.gstReports:        return Icons.summarize_outlined;
+      case LimitType.manageTeam:        return Icons.group_outlined;
+      case LimitType.expenses:          return Icons.receipt;
+      case LimitType.reports:           return Icons.bar_chart_rounded;
+      case LimitType.quotations:        return Icons.description_outlined;
+      case LimitType.creditNotes:       return Icons.credit_card_off_outlined;
+      case LimitType.recurringInvoices: return Icons.repeat_rounded;
+      case LimitType.inventory:         return Icons.warehouse_outlined;
+      case LimitType.categoryAnalytics: return Icons.pie_chart_outline_rounded;
+      case LimitType.posScreen:         return Icons.point_of_sale_rounded;
+      case LimitType.bulkReminders:     return Icons.campaign_outlined;
     }
   }
 
@@ -205,27 +216,35 @@ class _PaywallSheet extends StatelessWidget {
     switch (t) {
       case SubscriptionTier.lite:
         return [
-          '50 invoices per month',
-          '50 clients',
-          'Google Drive sync & backup',
-          '3 invoice templates',
-          'Partial payments tracking',
+          '50 invoices/month · 50 clients',
+          'Expense tracking with receipt photos',
+          'P&L, outstanding & client statement reports',
+          'Quotations & partial payment tracking',
+          'Google Drive sync & AES-256 backup',
         ];
       case SubscriptionTier.pro:
         return [
-          'Unlimited invoices & clients',
-          'All 5 invoice templates',
-          'Multi-currency support',
-          'Custom invoice prefix',
-          'Unlimited payment methods',
+          'Unlimited invoices, clients & items',
+          'All 11 invoice templates + custom prefix',
+          'Recurring invoices & credit notes',
+          'GST reports, inventory & POS screen',
+          'Multi-currency & category analytics',
         ];
       case SubscriptionTier.premium:
         return [
           'Everything in Pro',
-          'Recurring invoices',
-          'Multiple business profiles',
-          'Revenue analytics',
-          'Priority verification (48hr)',
+          'Team management with 4 role levels',
+          'Custom WhatsApp & email message templates',
+          'Scheduled payment reminders',
+          'Web dashboard with smart insights',
+        ];
+      case SubscriptionTier.enterprise:
+        return [
+          'Everything in Premium',
+          'Unlimited team members',
+          'Dedicated account manager',
+          'Phone & WhatsApp support + SLA guarantee',
+          'API & webhook access + audit log',
         ];
       default:
         return [];

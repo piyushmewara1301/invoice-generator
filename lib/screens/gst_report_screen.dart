@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -16,6 +17,7 @@ import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import '../utils/gst_utils.dart';
+import '../widgets/feature_guide_sheet.dart';
 import '../widgets/paywall_sheet.dart';
 
 // ── Internal data types ───────────────────────────────────────────────────────
@@ -121,6 +123,9 @@ class _GstReportScreenState extends State<GstReportScreen> {
   void initState() {
     super.initState();
     _period = _currentFyQuarter();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showFeatureGuide(context, AppGuides.gstReport);
+    });
   }
 
   // ── Period helpers ─────────────────────────────────────────────────────────
@@ -249,6 +254,133 @@ class _GstReportScreenState extends State<GstReportScreen> {
     );
   }
 
+  // ── GSTR-1 JSON export ────────────────────────────────────────────────────
+
+  Map<String, dynamic> _buildGstr1Json(
+      _ReportData data, BusinessProfile profile) {
+    final fp = _periodLabel.replaceAll(RegExp(r'[^0-9]'), '');
+    final gstin = profile.gstin ?? '';
+
+    // B2B — group invoices by buyer GSTIN
+    final b2bMap = <String, List<Map<String, dynamic>>>{};
+    for (final r in data.b2b) {
+      final buyerGstin = r.invoice.client?.gstin ?? '';
+      final inv = r.invoice;
+      final pos = inv.client?.state ?? profile.state;
+      final isInter = r.supplyType == GstSupplyType.interState;
+      b2bMap.putIfAbsent(buyerGstin, () => []).add({
+        'inum': inv.invoiceNumber,
+        'idt': Fmt.shortDate(inv.invoiceDate),
+        'val': double.parse(inv.grandTotal.toStringAsFixed(2)),
+        'pos': pos,
+        'rchrg': 'N',
+        'inv_typ': 'R',
+        'itms': [
+          {
+            'num': 1,
+            'itm_det': {
+              'txval': double.parse(r.taxable.toStringAsFixed(2)),
+              'rt': isInter ? 0 : 0,
+              'camt': double.parse(r.cgst.toStringAsFixed(2)),
+              'samt': double.parse(r.sgst.toStringAsFixed(2)),
+              'iamt': double.parse(r.igst.toStringAsFixed(2)),
+              'csamt': 0,
+            },
+          }
+        ],
+      });
+    }
+    final b2b = b2bMap.entries
+        .map((e) => {'ctin': e.key, 'inv': e.value})
+        .toList();
+
+    // B2CS — group by supply type
+    final b2csGrouped = <String, Map<String, dynamic>>{};
+    for (final r in data.b2c) {
+      final isInter = r.supplyType == GstSupplyType.interState;
+      final key = isInter ? 'INTER' : 'INTRA';
+      b2csGrouped.putIfAbsent(key, () => {
+        'sply_ty': key,
+        'pos': profile.state,
+        'typ': 'OE',
+        'txval': 0.0,
+        'iamt': 0.0,
+        'camt': 0.0,
+        'samt': 0.0,
+        'csamt': 0.0,
+      });
+      b2csGrouped[key]!['txval'] =
+          (b2csGrouped[key]!['txval'] as double) + r.taxable;
+      b2csGrouped[key]!['iamt'] =
+          (b2csGrouped[key]!['iamt'] as double) + r.igst;
+      b2csGrouped[key]!['camt'] =
+          (b2csGrouped[key]!['camt'] as double) + r.cgst;
+      b2csGrouped[key]!['samt'] =
+          (b2csGrouped[key]!['samt'] as double) + r.sgst;
+    }
+    final b2cs = b2csGrouped.values.map((e) => {
+          'sply_ty': e['sply_ty'],
+          'pos': e['pos'],
+          'typ': e['typ'],
+          'txval': double.parse((e['txval'] as double).toStringAsFixed(2)),
+          'iamt': double.parse((e['iamt'] as double).toStringAsFixed(2)),
+          'camt': double.parse((e['camt'] as double).toStringAsFixed(2)),
+          'samt': double.parse((e['samt'] as double).toStringAsFixed(2)),
+          'csamt': 0.0,
+        }).toList();
+
+    // HSN summary
+    final hsn = data.hsnGroups.where((h) => h.code != '—').map((h) => {
+          'hsn_sc': h.code,
+          'desc': '',
+          'uqc': 'NOS',
+          'qty': 0,
+          'val': double.parse((h.taxable + h.total).toStringAsFixed(2)),
+          'txval': double.parse(h.taxable.toStringAsFixed(2)),
+          'iamt': double.parse(h.igst.toStringAsFixed(2)),
+          'camt': double.parse(h.cgst.toStringAsFixed(2)),
+          'samt': double.parse(h.sgst.toStringAsFixed(2)),
+          'csamt': 0.0,
+        }).toList();
+
+    return {
+      'gstin': gstin,
+      'fp': fp,
+      'version': 'GST3.0.4',
+      'hash': 'hash',
+      'b2b': b2b,
+      'b2cs': b2cs,
+      'hsn': {'data': hsn},
+    };
+  }
+
+  Future<void> _exportJson(_ReportData data, BusinessProfile profile) async {
+    setState(() => _exporting = true);
+    try {
+      final payload = _buildGstr1Json(data, profile);
+      final jsonStr = const JsonEncoder.withIndent('  ').convert(payload);
+      final safe = _periodLabel.replaceAll(RegExp(r'[/\\:*?"<>|]'), '_');
+      final bytes = Uint8List.fromList(utf8.encode(jsonStr));
+      if (kIsWeb) {
+        await Share.shareXFiles(
+          [XFile.fromData(bytes,
+              name: 'GSTR1_$safe.json', mimeType: 'application/json')],
+          subject: 'GSTR-1 JSON – $_periodLabel',
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/GSTR1_$safe.json');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles(
+          [XFile(file.path, mimeType: 'application/json')],
+          subject: 'GSTR-1 JSON – $_periodLabel',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   // ── PDF export ─────────────────────────────────────────────────────────────
 
   Future<void> _exportPdf(
@@ -323,7 +455,6 @@ class _GstReportScreenState extends State<GstReportScreen> {
     final data = _compute(invoices, profile);
 
     return Scaffold(
-      backgroundColor: AppTheme.surface,
       appBar: AppBar(
         title: const Text('GST Reports'),
         actions: [
@@ -334,13 +465,37 @@ class _GstReportScreenState extends State<GstReportScreen> {
                     child: SizedBox(
                         width: 20,
                         height: 20,
-                        child:
-                            CircularProgressIndicator(strokeWidth: 2)),
+                        child: CircularProgressIndicator(strokeWidth: 2)),
                   )
-                : IconButton(
-                    icon: const Icon(Icons.picture_as_pdf_outlined),
-                    tooltip: 'Export PDF',
-                    onPressed: () => _exportPdf(data, profile, sym),
+                : PopupMenuButton<String>(
+                    icon: const Icon(Icons.download_outlined),
+                    tooltip: 'Export',
+                    onSelected: (v) {
+                      if (v == 'pdf') _exportPdf(data, profile, sym);
+                      if (v == 'json') _exportJson(data, profile);
+                    },
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'pdf',
+                        child: ListTile(
+                          leading: Icon(Icons.picture_as_pdf_outlined,
+                              color: Color(0xFFE65100)),
+                          title: Text('Export PDF'),
+                          subtitle: Text('Printable GST report'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'json',
+                        child: ListTile(
+                          leading: Icon(Icons.code_outlined,
+                              color: Color(0xFF1D4ED8)),
+                          title: Text('Export GSTR-1 JSON'),
+                          subtitle: Text('Upload to GST portal'),
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ],
                   ),
         ],
       ),
@@ -352,8 +507,8 @@ class _GstReportScreenState extends State<GstReportScreen> {
           const SizedBox(height: 4),
           Text(
             _periodLabel,
-            style: const TextStyle(
-                fontSize: 12, color: AppTheme.textSecondary),
+            style: TextStyle(
+                fontSize: 12, color: AppTheme.subtext(context)),
           ),
           const SizedBox(height: 16),
 
@@ -457,11 +612,11 @@ class _GstReportScreenState extends State<GstReportScreen> {
                 labelStyle: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: sel ? Colors.white : AppTheme.textPrimary,
+                  color: sel ? Colors.white : AppTheme.onCard(context),
                 ),
                 side: BorderSide(
-                    color: sel ? _saffron : AppTheme.divider),
-                backgroundColor: Colors.white,
+                    color: sel ? _saffron : AppTheme.outline(context)),
+                backgroundColor: AppTheme.card(context),
                 padding:
                     const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
               ),
@@ -480,7 +635,7 @@ class _GstReportScreenState extends State<GstReportScreen> {
                     fontWeight: FontWeight.w500,
                     color: _period == _GstPeriod.custom
                         ? _saffron
-                        : AppTheme.textPrimary,
+                        : AppTheme.onCard(context),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -488,17 +643,17 @@ class _GstReportScreenState extends State<GstReportScreen> {
                     size: 14,
                     color: _period == _GstPeriod.custom
                         ? _saffron
-                        : AppTheme.textSecondary),
+                        : AppTheme.subtext(context)),
               ],
             ),
             onPressed: _pickCustomRange,
             side: BorderSide(
                 color: _period == _GstPeriod.custom
                     ? _saffron
-                    : AppTheme.divider),
+                    : AppTheme.outline(context)),
             backgroundColor: _period == _GstPeriod.custom
                 ? _saffron.withValues(alpha: 0.08)
-                : Colors.white,
+                : AppTheme.card(context),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           ),
         ],
@@ -659,9 +814,9 @@ class _GstReportScreenState extends State<GstReportScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -685,14 +840,14 @@ class _GstReportScreenState extends State<GstReportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary)),
+                              color: AppTheme.onCard(context))),
                       Text(subtitle,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textSecondary)),
+                              color: AppTheme.subtext(context))),
                     ],
                   ),
                 ),
@@ -724,12 +879,12 @@ class _GstReportScreenState extends State<GstReportScreen> {
         dataRowMaxHeight: 40,
         horizontalMargin: 0,
         columnSpacing: 20,
-        headingTextStyle: const TextStyle(
+        headingTextStyle: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary),
-        dataTextStyle: const TextStyle(
-            fontSize: 12, color: AppTheme.textPrimary),
+            color: AppTheme.subtext(context)),
+        dataTextStyle: TextStyle(
+            fontSize: 12, color: AppTheme.onCard(context)),
         columns: [
           const DataColumn(label: Text('Rate')),
           DataColumn(
@@ -824,12 +979,12 @@ class _GstReportScreenState extends State<GstReportScreen> {
         dataRowMaxHeight: 40,
         horizontalMargin: 0,
         columnSpacing: 20,
-        headingTextStyle: const TextStyle(
+        headingTextStyle: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary),
-        dataTextStyle: const TextStyle(
-            fontSize: 12, color: AppTheme.textPrimary),
+            color: AppTheme.subtext(context)),
+        dataTextStyle: TextStyle(
+            fontSize: 12, color: AppTheme.onCard(context)),
         columns: const [
           DataColumn(label: Text('HSN / SAC')),
           DataColumn(label: Text('Taxable Value'), numeric: true),
@@ -884,10 +1039,10 @@ class _GstReportScreenState extends State<GstReportScreen> {
                             Expanded(
                               child: Text(
                                 inv.client?.displayName ?? '—',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: AppTheme.textPrimary),
+                                    color: AppTheme.onCard(context)),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -899,9 +1054,9 @@ class _GstReportScreenState extends State<GstReportScreen> {
                         const SizedBox(height: 2),
                         Text(
                           '${inv.invoiceNumber} · ${Fmt.date(inv.invoiceDate)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11,
-                              color: AppTheme.textSecondary),
+                              color: AppTheme.subtext(context)),
                         ),
                         if (showGstin &&
                             inv.client?.gstin?.isNotEmpty == true) ...[
@@ -925,10 +1080,10 @@ class _GstReportScreenState extends State<GstReportScreen> {
                     children: [
                       Text(
                         '$sym${_amt(inv.grandTotal)}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary),
+                            color: AppTheme.onCard(context)),
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -984,8 +1139,8 @@ class _GstReportScreenState extends State<GstReportScreen> {
     }
     return Text(
       parts.join(' · '),
-      style: const TextStyle(
-          fontSize: 10, color: AppTheme.textSecondary),
+      style: TextStyle(
+          fontSize: 10, color: AppTheme.subtext(context)),
     );
   }
 
@@ -1001,12 +1156,12 @@ class _GstReportScreenState extends State<GstReportScreen> {
         dataRowMaxHeight: 44,
         horizontalMargin: 0,
         columnSpacing: 16,
-        headingTextStyle: const TextStyle(
+        headingTextStyle: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w600,
-            color: AppTheme.textSecondary),
-        dataTextStyle: const TextStyle(
-            fontSize: 12, color: AppTheme.textPrimary),
+            color: AppTheme.subtext(context)),
+        dataTextStyle: TextStyle(
+            fontSize: 12, color: AppTheme.onCard(context)),
         columns: const [
           DataColumn(label: Text('Date')),
           DataColumn(label: Text('Invoice #')),
@@ -1100,16 +1255,16 @@ class _GstReportScreenState extends State<GstReportScreen> {
                   size: 30, color: _saffron),
             ),
             const SizedBox(height: 16),
-            const Text('No invoices in this period',
+            Text('No invoices in this period',
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary)),
+                    color: AppTheme.onCard(context))),
             const SizedBox(height: 6),
-            const Text('Select a different period or create invoices',
+            Text('Select a different period or create invoices',
                 style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.textSecondary)),
+                    color: AppTheme.subtext(context))),
           ],
         ),
       ),

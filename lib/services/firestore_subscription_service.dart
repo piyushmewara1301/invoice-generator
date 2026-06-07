@@ -153,17 +153,8 @@ class FirestoreSubscriptionService {
   /// Whether upgrading from [current] to [target] is a valid transition.
   bool canUpgradeTo(SubscriptionTier currentTier, SubscriptionTier targetTier) {
     if (targetTier == currentTier) return false;
-    switch (currentTier) {
-      case SubscriptionTier.free:
-        return true;
-      case SubscriptionTier.lite:
-        return targetTier == SubscriptionTier.pro ||
-            targetTier == SubscriptionTier.premium;
-      case SubscriptionTier.pro:
-        return targetTier == SubscriptionTier.premium;
-      case SubscriptionTier.premium:
-        return false;
-    }
+    // Any higher-index tier is an upgrade; enterprise is the ceiling.
+    return targetTier.index > currentTier.index;
   }
 
   /// Stored expiry date for a specific business.
@@ -210,10 +201,11 @@ class FirestoreSubscriptionService {
 
   SubscriptionTier _stringToTier(String s) {
     switch (s.toLowerCase()) {
-      case 'lite':    return SubscriptionTier.lite;
-      case 'pro':     return SubscriptionTier.pro;
-      case 'premium': return SubscriptionTier.premium;
-      default:        return SubscriptionTier.free;
+      case 'lite':       return SubscriptionTier.lite;
+      case 'pro':        return SubscriptionTier.pro;
+      case 'premium':    return SubscriptionTier.premium;
+      case 'enterprise': return SubscriptionTier.enterprise;
+      default:           return SubscriptionTier.free;
     }
   }
 }

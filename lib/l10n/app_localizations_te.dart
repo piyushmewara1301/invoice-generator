@@ -616,4 +616,73 @@ class AppLocalizationsTe extends AppLocalizations {
 
   @override
   String get daysAfterDue => 'గడువు తేదీ తర్వాత రోజులు';
+
+  @override
+  String get expenses => 'ఖర్చులు';
+
+  @override
+  String get expense => 'ఖర్చు';
+
+  @override
+  String get addExpense => 'ఖర్చు జోడించు';
+
+  @override
+  String get editExpense => 'ఖర్చు సవరించు';
+
+  @override
+  String get noExpensesYet => 'ఇంకా ఖర్చులు లేవు';
+
+  @override
+  String get noExpensesHint => 'జీతం, అద్దె, బిల్లులు మరియు ఇంకా ట్రాక్ చేయి';
+
+  @override
+  String get recurring => 'నెలవారీ';
+
+  @override
+  String get thisWeek => 'ఈ వారం';
+
+  @override
+  String get thisYear => 'ఈ సంవత్సరం';
+
+  @override
+  String get allTime => 'అన్ని సమయం';
+
+  @override
+  String get custom => 'కస్టమ్';
+
+  @override
+  String get revenue => 'ఆదాయం';
+
+  @override
+  String get invoiceDetails => 'ఇన్వాయిస్ వివరాలు';
+
+  @override
+  String get lineItems => 'లైన్ అంశాలు';
+
+  @override
+  String get change => 'మార్చు';
+
+  @override
+  String get previewPdf => 'PDF ముందుజూపు';
+
+  @override
+  String get totalPaid => 'మొత్తం చెల్లించారు';
+
+  @override
+  String get invoiceTotal => 'ఇన్వాయిస్ మొత్తం';
+
+  @override
+  String get all => 'అన్నీ';
+
+  @override
+  String get clearFilters => 'ఫిల్టర్లు క్లియర్ చేయి';
+
+  @override
+  String get filterByClient => 'క్లయింట్ ద్వారా ఫిల్టర్';
+
+  @override
+  String get allClients => 'అన్ని క్లయింట్లు';
+
+  @override
+  String get newClient => 'నూతన క్లయింట్';
 }

@@ -14,8 +14,16 @@ import '../utils/formatters.dart';
 import '../utils/gst_utils.dart';
 import '../utils/pdf_generator.dart';
 import '../utils/share_service.dart';
+import '../models/subscription_limits.dart' show LimitType;
+import '../widgets/paywall_sheet.dart';
+import '../widgets/quotation_status_sheet.dart';
 import '../widgets/status_badge.dart';
 import 'client_picker_screen.dart';
+import 'recurring_invoices_screen.dart';
+import '../l10n/app_localizations.dart';
+import '../models/custom_field.dart';
+import '../models/employee.dart';
+import '../models/recurring_schedule.dart';
 
 class CreateInvoiceScreen extends StatefulWidget {
   final Invoice invoice;
@@ -82,7 +90,21 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     _invoice.notes = _notesCtrl.text.trim();
     _invoice.terms = _termsCtrl.text.trim();
     _invoice.invoiceNumber = _invoiceNumCtrl.text.trim();
+    // Capture context-dependent values before any await.
     final provider = context.read<AppProvider>();
+    final fx = context.read<ExchangeRateService>();
+    final baseCurrency = provider.profile.currency;
+    // Freeze the secondary-currency exchange rate at save time so the PDF
+    // always shows a consistent converted amount regardless of future rate changes.
+    if (_invoice.secondaryCurrency != null) {
+      await fx.fetchIfNeeded(baseCurrency);
+      _invoice.secondaryExchangeRate = fx.getRate(
+        _invoice.currency,
+        _invoice.secondaryCurrency!,
+      );
+    } else {
+      _invoice.secondaryExchangeRate = null;
+    }
     setState(() => _saving = true);
     await provider.saveInvoice(_invoice);
     setState(() => _saving = false);
@@ -193,6 +215,12 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   Future<void> _recordPayment({bool prefillRemaining = false}) async {
+    final limitInfo = context.read<AppProvider>().checkFeature(LimitType.partialPayments);
+    if (limitInfo != null) {
+      final upgrade = await showPaywallSheet(context, limitInfo);
+      if (upgrade && mounted) Navigator.pushNamed(context, '/plans');
+      return;
+    }
     final provider = context.read<AppProvider>();
     final baseCurrency = provider.profile.currency;
     final payment = await showModalBottomSheet<PartialPayment>(
@@ -225,11 +253,127 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     await provider.saveInvoice(_invoice);
   }
 
+  Future<void> _showCreditNoteDialog() async {
+    // Guard: only one credit note per invoice.
+    if (context.read<AppProvider>().hasCreditNote(_invoice.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('A credit note has already been issued for this invoice.'),
+        ),
+      );
+      return;
+    }
+
+    final provider = context.read<AppProvider>();
+    final reasonCtrl = TextEditingController();
+
+    // issueCreditNote is called INSIDE the button handler, BEFORE Navigator.pop,
+    // so notifyListeners() fires while the dialog is fully mounted (no animation
+    // in progress). The dialog pops with the finished Invoice as its result,
+    // eliminating the _dependents.isEmpty race entirely.
+    final cn = await showDialog<Invoice>(
+      context: context,
+      builder: (ctx) {
+        String? errorText;
+        bool submitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Issue Credit Note'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Invoice: ${_invoice.invoiceNumber}  ·  '
+                    '${Fmt.currencyAmount(_invoice.grandTotal, _invoice.currency)}',
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonCtrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Reason for credit note',
+                      hintText: 'e.g. Goods returned, overcharged',
+                      errorText: errorText,
+                    ),
+                    maxLines: 2,
+                    onChanged: (_) {
+                      if (errorText != null) {
+                        setDialogState(() => errorText = null);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        if (reasonCtrl.text.trim().isEmpty) {
+                          setDialogState(() => errorText = 'Please enter a reason');
+                          return;
+                        }
+                        setDialogState(() => submitting = true);
+                        try {
+                          final invoice = await provider.issueCreditNote(
+                            linkedInvoiceId: _invoice.id,
+                            reason: reasonCtrl.text.trim(),
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx, invoice);
+                        } catch (e) {
+                          setDialogState(() {
+                            submitting = false;
+                            errorText = e.toString();
+                          });
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Issue Credit Note'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    // Defer disposal to let the dialog's exit animation finish before the
+    // TextField releases its reference to the controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) => reasonCtrl.dispose());
+
+    if (cn == null || !mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CreateInvoiceScreen(invoice: cn)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final provider = context.watch<AppProvider>();
     final symbol = Fmt.currencySymbol(_invoice.currency);
-    final profile = context.watch<AppProvider>().profile;
-    final showTax = profile.defaultTaxPercent > 0;
+    final profile = provider.profile;
+
+    // Determine whether this is a new invoice (not yet persisted).
+    final isNew = !provider.invoices.any((i) => i.id == _invoice.id);
+    final canEdit = provider.canDo(
+        isNew ? AppPermission.createInvoice : AppPermission.editInvoice);
+    final canChangeStatus = provider.canDo(AppPermission.sendInvoice) ||
+        provider.canDo(AppPermission.markInvoicePaid);
+    final showTax = profile.isGstRegistered || profile.defaultTaxPercent > 0;
     final showQty = profile.showQuantity;
 
     return Scaffold(
@@ -238,17 +382,54 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         actions: [
           StatusBadge(status: _invoice.status),
           const SizedBox(width: 8),
-          PopupMenuButton<InvoiceStatus>(
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'Change status',
-            onSelected: _changeStatus,
-            itemBuilder: (_) => InvoiceStatus.values
-                .map((s) => PopupMenuItem(
+          if (canChangeStatus)
+            PopupMenuButton<InvoiceStatus>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'Change status',
+              onSelected: _changeStatus,
+              itemBuilder: (_) {
+                return InvoiceStatus.values.where((s) {
+                  if (s == InvoiceStatus.sent) {
+                    return provider.canDo(AppPermission.sendInvoice);
+                  }
+                  if (s == InvoiceStatus.paid ||
+                      s == InvoiceStatus.partiallyPaid) {
+                    return provider.canDo(AppPermission.markInvoicePaid);
+                  }
+                  return canEdit;
+                }).map((s) => PopupMenuItem(
                       value: s,
                       child: Text(s.label),
-                    ))
-                .toList(),
-          ),
+                    )).toList();
+              },
+            ),
+          if (!isNew && canEdit)
+            IconButton(
+              icon: const Icon(Icons.copy_outlined),
+              tooltip: 'Duplicate Invoice',
+              onPressed: () async {
+                final copy = await provider.duplicateInvoice(_invoice.id);
+                if (context.mounted) {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => CreateInvoiceScreen(invoice: copy)),
+                  );
+                }
+              },
+            ),
+          if (!_invoice.isQuotation && !_invoice.isCreditNote && !isNew &&
+              !provider.hasCreditNote(_invoice.id))
+            IconButton(
+              icon: const Icon(Icons.credit_card_off_outlined),
+              tooltip: 'Issue Credit Note',
+              onPressed: () async {
+                final info = context.read<AppProvider>().checkFeature(LimitType.creditNotes);
+                if (info == null) { _showCreditNoteDialog(); return; }
+                final up = await showPaywallSheet(context, info); // ignore: use_build_context_synchronously
+                if (up && mounted) Navigator.pushNamed(context, '/plans');
+              },
+            ),
         ],
       ),
       body: Form(
@@ -256,8 +437,66 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            // ── Credit Note linked-invoice banner ────────────────────────────
+            if (_invoice.isCreditNote &&
+                _invoice.creditNoteLinkedInvoiceId != null) ...[
+              Builder(builder: (ctx) {
+                final linked = context
+                    .read<AppProvider>()
+                    .invoices
+                    .cast<Invoice?>()
+                    .firstWhere(
+                      (i) => i?.id == _invoice.creditNoteLinkedInvoiceId,
+                      orElse: () => null,
+                    );
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: const Color(0xFFFCA5A5), width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.link_rounded,
+                          size: 16, color: Color(0xFFDC2626)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          linked != null
+                              ? 'Credit note for ${linked.invoiceNumber}'
+                              : 'Credit note for original invoice',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (linked != null)
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    CreateInvoiceScreen(invoice: linked)),
+                          ),
+                          child: const Text('View',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFFDC2626),
+                                  fontWeight: FontWeight.w700,
+                                  decoration: TextDecoration.underline)),
+                        ),
+                    ],
+                  ),
+                );
+              }),
+            ],
             _section(
-              'Invoice Details',
+              l10n.invoiceDetails,
               child: Column(
                 children: [
                   Row(
@@ -280,22 +519,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _datePicker(
-                          label: 'Due Date',
-                          date: _invoice.dueDate,
-                          onPicked: (d) =>
-                              setState(() => _invoice.dueDate = d),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _currencyDropdown(),
-                      ),
-                    ],
+                  _datePicker(
+                    label: 'Due Date',
+                    date: _invoice.dueDate,
+                    onPicked: (d) => setState(() => _invoice.dueDate = d),
                   ),
+                  const SizedBox(height: 12),
+                  _currencySection(),
                   if (profile.isGstRegistered) ...[
                     const SizedBox(height: 12),
                     InputDecorator(
@@ -342,15 +572,147 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 ],
               ),
             ),
+            // ── Quotation toggle ─────────────────────────────────────────
+            if (canEdit) ...[
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.card(context),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.outline(context)),
+                ),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16),
+                      title: const Text('Mark as Quotation / Estimate',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                      subtitle: const Text(
+                          'PDF shows "QUOTATION" · convert to invoice when approved',
+                          style: TextStyle(fontSize: 11)),
+                      value: _invoice.isQuotation,
+                      activeThumbColor: const Color(0xFF7C3AED),
+                      onChanged: (v) async {
+                        if (v) {
+                          final info = context.read<AppProvider>().checkFeature(LimitType.quotations);
+                          if (info != null) {
+                            final up = await showPaywallSheet(context, info); // ignore: use_build_context_synchronously
+                            if (up && mounted) Navigator.pushNamed(context, '/plans');
+                            return;
+                          }
+                        }
+                        final provider = context.read<AppProvider>();
+                        final isNewDoc = !provider.invoices
+                            .any((i) => i.id == _invoice.id);
+                        setState(() {
+                          _invoice.isQuotation = v;
+                          if (v) {
+                            _invoice.quotationStatus ??= QuotationStatus.draft;
+                            // Auto-fill a quotation number for unsaved docs.
+                            if (isNewDoc) {
+                              _invoiceNumCtrl.text =
+                                  provider.generateQuotationNumber();
+                            }
+                          } else if (isNewDoc) {
+                            // Restore to invoice number when toggling off.
+                            _invoiceNumCtrl.text =
+                                provider.generateInvoiceNumber();
+                          }
+                        });
+                      },
+                    ),
+                    if (_invoice.isQuotation) ...[
+                      const Divider(height: 1),
+                      // ── Tappable status badge ──────────────────────────
+                      InkWell(
+                        onTap: () => showQuotationStatusSheet(
+                          context,
+                          currentStatus: _invoice.quotationStatus,
+                          onStatusSelected: (s) =>
+                              setState(() => _invoice.quotationStatus = s),
+                          onConvertToInvoice: isNew
+                              ? null // can't convert an unsaved quotation
+                              : () async {
+                                  await _save();
+                                  if (!context.mounted) return;
+                                  final inv = await context
+                                      .read<AppProvider>()
+                                      .convertQuotationToInvoice(_invoice.id);
+                                  if (context.mounted) {
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (_) =>
+                                              CreateInvoiceScreen(invoice: inv)),
+                                    );
+                                  }
+                                },
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                          child: Row(
+                            children: [
+                              Text('Status:',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      color: AppTheme.subtext(context))),
+                              const SizedBox(width: 10),
+                              Builder(builder: (_) {
+                                final s = _invoice.quotationStatus ??
+                                    QuotationStatus.draft;
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: s.color.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                        color: s.color.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(s.label,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: s.color)),
+                                      const SizedBox(width: 4),
+                                      Icon(Icons.arrow_drop_down,
+                                          size: 16, color: s.color),
+                                    ],
+                                  ),
+                                );
+                              }),
+                              const Spacer(),
+                              Text('tap to change',
+                                  style: TextStyle(
+                                      fontSize: 11,
+                                      color: AppTheme.subtext(context))),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             _section(
-              'Client',
-              action: TextButton.icon(
-                icon: const Icon(Icons.person_add_outlined, size: 16),
-                label: Text(
-                    _invoice.client == null ? 'Select Client' : 'Change'),
-                onPressed: _pickClient,
-              ),
+              l10n.client,
+              action: canEdit
+                  ? TextButton.icon(
+                      icon: const Icon(Icons.person_add_outlined, size: 16),
+                      label: Text(_invoice.client == null
+                          ? l10n.selectClient
+                          : l10n.change),
+                      onPressed: _pickClient,
+                    )
+                  : null,
               child: _invoice.client == null
                   ? GestureDetector(
                       onTap: _pickClient,
@@ -359,18 +721,18 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           border: Border.all(
-                              color: AppTheme.divider,
+                              color: AppTheme.outline(context),
                               style: BorderStyle.solid),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Column(
+                        child: Column(
                           children: [
                             Icon(Icons.person_outline,
-                                color: AppTheme.textSecondary),
-                            SizedBox(height: 4),
+                                color: AppTheme.subtext(context)),
+                            const SizedBox(height: 4),
                             Text('Tap to select client',
                                 style: TextStyle(
-                                    color: AppTheme.textSecondary,
+                                    color: AppTheme.subtext(context),
                                     fontSize: 13)),
                           ],
                         ),
@@ -380,12 +742,14 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
             const SizedBox(height: 16),
             _section(
-              'Line Items',
-              action: TextButton.icon(
-                icon: const Icon(Icons.add, size: 16),
-                label: Text('Add ${profile.itemLabel}'),
-                onPressed: _addLineItem,
-              ),
+              l10n.lineItems,
+              action: canEdit
+                  ? TextButton.icon(
+                      icon: const Icon(Icons.add, size: 16),
+                      label: Text('${l10n.add} ${profile.itemLabel}'),
+                      onPressed: _addLineItem,
+                    )
+                  : null,
               child: Column(
                 children: [
                   if (_invoice.items.isEmpty)
@@ -412,8 +776,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         onChanged: () => setState(() {}),
                         showTax: showTax,
                         showQty: showQty,
+                        showHsn: profile.isGstRegistered,
                         itemLabel: profile.itemLabel,
                         serviceItems: profile.serviceItems,
+                        canEdit: canEdit,
                       ),
                     ),
                 ],
@@ -425,7 +791,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             _paymentsSection(symbol),
             const SizedBox(height: 16),
             _section(
-              'Subject',
+              l10n.subject,
               child: TextField(
                 controller: _subjectCtrl,
                 maxLines: 2,
@@ -436,7 +802,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
             const SizedBox(height: 16),
             _section(
-              'Notes',
+              l10n.notes,
               child: TextField(
                 controller: _notesCtrl,
                 maxLines: 3,
@@ -447,7 +813,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             ),
             const SizedBox(height: 16),
             _section(
-              'Terms & Conditions',
+              l10n.termsAndConditions,
               child: TextField(
                 controller: _termsCtrl,
                 maxLines: 3,
@@ -463,25 +829,55 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                   child: OutlinedButton.icon(
                     onPressed: _generatePdf,
                     icon: const Icon(Icons.picture_as_pdf_outlined),
-                    label: const Text('Preview PDF'),
+                    label: Text(l10n.previewPdf),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _saving ? null : _save,
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.save_outlined),
-                    label: const Text('Save'),
+                if (canEdit) ...[
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.save_outlined),
+                      label: Text(l10n.save),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
+
+            // ── Set Recurring ────────────────────────────────────────────
+            if (canEdit && !_invoice.isQuotation) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final info = context.read<AppProvider>().checkFeature(LimitType.recurringInvoices);
+                    if (info != null) {
+                      final up = await showPaywallSheet(context, info); // ignore: use_build_context_synchronously
+                      if (up && mounted) Navigator.pushNamed(context, '/plans');
+                      return;
+                    }
+                    if (mounted) showRecurringSetupSheet(context, _invoice);
+                  },
+                  icon: const Icon(Icons.repeat_rounded, size: 18),
+                  label: const Text('Set as Recurring Invoice'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF059669),
+                    side: const BorderSide(color: Color(0xFF059669)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
           ],
         ),
@@ -492,9 +888,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   Widget _section(String title, {required Widget child, Widget? action}) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -505,10 +901,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             child: Row(
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                        color: AppTheme.onCard(context))),
                 const Spacer(),
                 ?action,
               ],
@@ -557,27 +953,136 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
           suffixIcon: const Icon(Icons.calendar_today_outlined, size: 16),
         ),
         child: Text(Fmt.date(date),
-            style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary)),
+            style: TextStyle(fontSize: 14, color: AppTheme.onCard(context))),
       ),
     );
   }
 
-  Widget _currencyDropdown() {
-    const currencies = ['INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD'];
-    return InputDecorator(
-      decoration: const InputDecoration(labelText: 'Currency'),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _invoice.currency,
-          isDense: true,
-          items: currencies
-              .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) setState(() => _invoice.currency = v);
-          },
+  Widget _currencySection() {
+    final fx = context.watch<ExchangeRateService>();
+    final baseCurrency = context.read<AppProvider>().profile.currency;
+    final secCur = _invoice.secondaryCurrency;
+
+    // Live rate string shown beneath the secondary dropdown
+    String? liveRateLabel;
+    if (secCur != null && fx.hasRates) {
+      final rate = fx.getRate(_invoice.currency, secCur);
+      final secSym = Fmt.currencySymbol(secCur);
+      liveRateLabel = '1 ${_invoice.currency} ≈ $secSym${rate.toStringAsFixed(4)}  (live rate)';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Primary currency ──────────────────────────────────────────
+        Row(
+          children: [
+            Expanded(
+              child: InputDecorator(
+                decoration: const InputDecoration(labelText: 'Currency'),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _invoice.currency,
+                    isDense: true,
+                    items: Fmt.supportedCurrencies
+                        .map((c) => DropdownMenuItem(
+                              value: c,
+                              child: Text('$c  ${Fmt.currencySymbol(c).trim()}'),
+                            ))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() {
+                        _invoice.currency = v;
+                        // Clear frozen rate — will be re-fetched on save
+                        _invoice.secondaryExchangeRate = null;
+                      });
+                      // Fetch rates so the live-rate preview updates immediately
+                      fx.fetchIfNeeded(baseCurrency);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-      ),
+        const SizedBox(height: 10),
+        // ── Secondary / converted currency (optional) ─────────────────
+        Row(
+          children: [
+            Expanded(
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Also show converted total in',
+                  helperText: 'Optional — printed on the invoice PDF',
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String?>(
+                    value: secCur,
+                    isDense: true,
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Off — single currency'),
+                      ),
+                      ...Fmt.supportedCurrencies
+                          .where((c) => c != _invoice.currency)
+                          .map((c) => DropdownMenuItem<String?>(
+                                value: c,
+                                child: Text('$c  ${Fmt.currencySymbol(c).trim()}'),
+                              )),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _invoice.secondaryCurrency = v;
+                        _invoice.secondaryExchangeRate = null;
+                      });
+                      if (v != null) fx.fetchIfNeeded(baseCurrency);
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // ── Live rate preview ─────────────────────────────────────────
+        if (secCur != null) ...[
+          const SizedBox(height: 6),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: fx.loading
+                ? const Padding(
+                    padding: EdgeInsets.only(left: 4),
+                    child: Row(children: [
+                      SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2)),
+                      SizedBox(width: 8),
+                      Text('Fetching live rate…', style: TextStyle(fontSize: 12)),
+                    ]),
+                  )
+                : liveRateLabel != null
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.swap_horiz, size: 14, color: Colors.green),
+                            const SizedBox(width: 4),
+                            Text(
+                              liveRateLabel,
+                              style: const TextStyle(fontSize: 12, color: Colors.green),
+                            ),
+                          ],
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text(
+                          'Rate unavailable — connect to the internet to fetch',
+                          style: TextStyle(fontSize: 12, color: Colors.orange.shade700),
+                        ),
+                      ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -608,16 +1113,16 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(client.displayName,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                        color: AppTheme.onCard(context))),
                 Text(client.email,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.subtext(context))),
                 if (client.city.isNotEmpty)
                   Text('${client.city}, ${client.state}',
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.subtext(context))),
               ],
             ),
           ),
@@ -646,9 +1151,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -714,8 +1219,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       child: Row(
         children: [
           // Label
-          const Text('Bill Discount',
-              style: TextStyle(fontSize: 14, color: AppTheme.textSecondary)),
+          Text('Bill Discount',
+              style: TextStyle(fontSize: 14, color: AppTheme.subtext(context))),
           const SizedBox(width: 8),
 
           // % / ₹ toggle chip
@@ -809,9 +1314,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   Widget _totalRow(String label, String value,
       {bool isBold = false,
       double fontSize = 14,
-      Color color = AppTheme.textPrimary}) {
+      Color? color}) {
+    final effectiveColor = color ?? AppTheme.onCard(context);
     final style =
-        TextStyle(fontSize: fontSize, fontWeight: isBold ? FontWeight.w700 : FontWeight.w400, color: color);
+        TextStyle(fontSize: fontSize, fontWeight: isBold ? FontWeight.w700 : FontWeight.w400, color: effectiveColor);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
@@ -825,17 +1331,19 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   }
 
   Widget _paymentsSection(String symbol) {
-    final canRecord = _invoice.status != InvoiceStatus.paid &&
-        _invoice.status != InvoiceStatus.cancelled;
+    // Invoice must not be paid/cancelled AND the user must have the permission.
+    final canRecord = (_invoice.status != InvoiceStatus.paid &&
+            _invoice.status != InvoiceStatus.cancelled) &&
+        context.read<AppProvider>().canDo(AppPermission.recordPayment);
     final hasPayments = _invoice.payments.isNotEmpty;
 
     if (!hasPayments && !canRecord) return const SizedBox.shrink();
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -844,16 +1352,25 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                const Text('Payments',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(AppLocalizations.of(context)!.payment,
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.onCard(context))),
+                    Text('TDS deduction supported',
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppTheme.subtext(context))),
+                  ],
+                ),
                 const Spacer(),
                 if (canRecord)
                   TextButton.icon(
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('Record'),
+                    label: Text(AppLocalizations.of(context)!.recordPayment),
                     onPressed: _recordPayment,
                   ),
               ],
@@ -889,38 +1406,58 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                             children: [
                               Text(
                                 p.paymentMethodName ?? 'Payment',
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w500,
-                                    color: AppTheme.textPrimary),
+                                    color: AppTheme.onCard(context)),
                               ),
                               Text(
                                 date +
                                     (p.notes != null
                                         ? ' · ${p.notes}'
                                         : ''),
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 11,
-                                    color: AppTheme.textSecondary),
+                                    color: AppTheme.subtext(context)),
                               ),
                               if (p.baseAmount != null &&
                                   p.exchangeRate != null &&
                                   p.baseCurrencyCode != null)
                                 Text(
                                   '≈ ${p.baseCurrencyCode} ${p.baseAmount!.toStringAsFixed(2)}  (1 ${_invoice.currency} = ${p.exchangeRate!.toStringAsFixed(4)} ${p.baseCurrencyCode})',
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: AppTheme.subtext(context)),
+                                ),
+                              if ((p.tdsAmount ?? 0) > 0)
+                                Text(
+                                  'TDS ${p.tdsPercent != null ? '(${p.tdsPercent!.toStringAsFixed(0)}%)' : ''}: $symbol${p.tdsAmount!.toStringAsFixed(2)}',
                                   style: const TextStyle(
                                       fontSize: 10,
-                                      color: AppTheme.textSecondary),
+                                      color: Color(0xFF0284C7)),
                                 ),
                             ],
                           ),
                         ),
-                        Text(
-                          '$symbol${p.amount.toStringAsFixed(2)}',
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.success),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$symbol${p.amount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.success),
+                            ),
+                            if ((p.tdsAmount ?? 0) > 0)
+                              Text(
+                                '+$symbol${p.tdsAmount!.toStringAsFixed(2)} TDS',
+                                style: const TextStyle(
+                                    fontSize: 10,
+                                    color: Color(0xFF0284C7),
+                                    fontWeight: FontWeight.w500),
+                              ),
+                          ],
                         ),
                       ],
                     ),
@@ -937,13 +1474,51 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             child: Column(
               children: [
                 if (hasPayments) ...[
+                  // Cash received row
+                  if (_invoice.totalTdsDeducted > 0)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Cash Received',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.subtext(context))),
+                        Text(
+                          '$symbol${_invoice.cashReceived.toStringAsFixed(2)}',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.subtext(context)),
+                        ),
+                      ],
+                    ),
+                  // TDS credit row
+                  if (_invoice.totalTdsDeducted > 0) ...[
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('TDS Credit',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF0284C7))),
+                        Text(
+                          '+$symbol${_invoice.totalTdsDeducted.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: Color(0xFF0284C7),
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Total Paid',
+                      Text(AppLocalizations.of(context)!.totalPaid,
                           style: TextStyle(
                               fontSize: 13,
-                              color: AppTheme.textSecondary)),
+                              color: AppTheme.subtext(context))),
                       Text(
                         '$symbol${_invoice.amountPaid.toStringAsFixed(2)}',
                         style: const TextStyle(
@@ -958,11 +1533,11 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Balance Due',
+                    Text(AppLocalizations.of(context)!.balanceDue,
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary)),
+                            color: AppTheme.onCard(context))),
                     Text(
                       '$symbol${_invoice.amountRemaining.toStringAsFixed(2)}',
                       style: TextStyle(
@@ -976,6 +1551,22 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                 ),
               ],
             ),
+          ),
+          // ── "Show on invoice" toggle ─────────────────────────────
+          const Divider(height: 1),
+          SwitchListTile(
+            dense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            title: const Text('Show payments on bill',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+            subtitle: const Text(
+                'Prints paid amounts & balance due on the invoice PDF',
+                style: TextStyle(fontSize: 11)),
+            value: _invoice.showPaymentsOnInvoice,
+            activeThumbColor: AppTheme.primary,
+            onChanged: (v) =>
+                setState(() => _invoice.showPaymentsOnInvoice = v),
           ),
         ],
       ),
@@ -1011,6 +1602,8 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
   late TextEditingController _notesCtrl;
   String _selectedMethodId = '__cash__';
   final _formKey = GlobalKey<FormState>();
+  bool _hasTds = false;
+  final _tdsCtrl = TextEditingController();
 
   bool get _isForeign => widget.currency != widget.baseCurrency;
 
@@ -1041,6 +1634,7 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
   void dispose() {
     _amountCtrl.dispose();
     _notesCtrl.dispose();
+    _tdsCtrl.dispose();
     super.dispose();
   }
 
@@ -1060,6 +1654,11 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
       }
     }
 
+    final tdsAmt = _hasTds ? (double.tryParse(_tdsCtrl.text) ?? 0) : null;
+    final tdsPercent = (tdsAmt != null && amount > 0)
+        ? tdsAmt / (amount + tdsAmt) * 100
+        : null;
+
     Navigator.pop(
       context,
       PartialPayment(
@@ -1072,6 +1671,8 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
         exchangeRate: rate,
         baseCurrencyCode: _isForeign ? widget.baseCurrency : null,
         baseAmount: baseAmount,
+        tdsPercent: tdsPercent,
+        tdsAmount: tdsAmt,
       ),
     );
   }
@@ -1127,7 +1728,7 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppTheme.surface,
+                color: AppTheme.bg(context),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -1135,7 +1736,7 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
                 children: [
                   _summaryCol('Invoice Total',
                       '$sym${widget.grandTotal.toStringAsFixed(2)}',
-                      AppTheme.textPrimary),
+                      AppTheme.onCard(context)),
                   if (widget.amountPaid > 0)
                     _summaryCol('Paid',
                         '$sym${widget.amountPaid.toStringAsFixed(2)}',
@@ -1160,12 +1761,56 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
                 if (v == null || v.trim().isEmpty) return 'Enter amount';
                 final n = double.tryParse(v);
                 if (n == null || n <= 0) return 'Enter a valid amount';
-                if (n > remaining + 0.01) {
+                final tdsAmt = _hasTds
+                    ? (double.tryParse(_tdsCtrl.text) ?? 0)
+                    : 0.0;
+                if (n + tdsAmt > remaining + 0.01) {
                   return 'Exceeds balance due ($sym${remaining.toStringAsFixed(2)})';
                 }
                 return null;
               },
             ),
+            const SizedBox(height: 12),
+            // TDS toggle
+            SwitchListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('TDS Deducted by Client', style: TextStyle(fontSize: 13)),
+              subtitle: const Text('Tax Deducted at Source (Section 194J, 194C, etc.)', style: TextStyle(fontSize: 10)),
+              value: _hasTds,
+              activeThumbColor: AppTheme.primary,
+              onChanged: (v) => setState(() { _hasTds = v; if (!v) _tdsCtrl.clear(); }),
+            ),
+            if (_hasTds) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _tdsCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: 'TDS Amount',
+                  prefixText: sym,
+                  hintText: '0.00',
+                ),
+                validator: (v) {
+                  if (!_hasTds) return null;
+                  final n = double.tryParse(v ?? '');
+                  if (n == null || n < 0) return 'Enter valid TDS amount';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 4),
+              // Helper: show TDS % relative to invoice total
+              Builder(builder: (ctx) {
+                final tdsAmt = double.tryParse(_tdsCtrl.text) ?? 0;
+                final cashAmt = double.tryParse(_amountCtrl.text) ?? 0;
+                final total = cashAmt + tdsAmt;
+                if (total <= 0) return const SizedBox.shrink();
+                final pct = (tdsAmt / total * 100).toStringAsFixed(1);
+                return Text('TDS = $pct% of total settlement ($sym${total.toStringAsFixed(2)})',
+                    style: TextStyle(fontSize: 10, color: AppTheme.subtext(context)));
+              }),
+            ],
             // Exchange rate row — only shown when currencies differ
             if (_isForeign) ...[
               const SizedBox(height: 6),
@@ -1180,12 +1825,12 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
                       style: TextStyle(
                           fontSize: 11,
                           color:
-                              AppTheme.textSecondary.withValues(alpha: 0.8))),
+                              AppTheme.subtext(context).withValues(alpha: 0.8))),
                 ])
               else if (rate != null)
                 Row(children: [
-                  const Icon(Icons.swap_horiz,
-                      size: 14, color: AppTheme.textSecondary),
+                  Icon(Icons.swap_horiz,
+                      size: 14, color: AppTheme.subtext(context)),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -1193,8 +1838,8 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
                           ? '≈ $baseSym${convertedAmount.toStringAsFixed(2)}  '
                               '(1 ${widget.currency} = $baseSym${rate.toStringAsFixed(2)})'
                           : '1 ${widget.currency} = $baseSym${rate.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                          fontSize: 11, color: AppTheme.textSecondary),
+                      style: TextStyle(
+                          fontSize: 11, color: AppTheme.subtext(context)),
                     ),
                   ),
                 ])
@@ -1202,14 +1847,14 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
                 Text('Rate unavailable — amount recorded as-is',
                     style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textSecondary.withValues(alpha: 0.7))),
+                        color: AppTheme.subtext(context).withValues(alpha: 0.7))),
             ],
             const SizedBox(height: 16),
-            const Text('Payment Method',
+            Text('Payment Method',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textPrimary)),
+                    color: AppTheme.onCard(context))),
             const SizedBox(height: 4),
             RadioGroup<String>(
               groupValue: _selectedMethodId,
@@ -1261,8 +1906,8 @@ class _RecordPaymentSheetState extends State<_RecordPaymentSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: const TextStyle(
-                fontSize: 11, color: AppTheme.textSecondary)),
+            style: TextStyle(
+                fontSize: 11, color: AppTheme.subtext(context))),
         const SizedBox(height: 2),
         Text(value,
             style: TextStyle(
@@ -1284,8 +1929,10 @@ class _LineItemRow extends StatefulWidget {
   final VoidCallback onChanged;
   final bool showTax;
   final bool showQty;
+  final bool showHsn;
   final String itemLabel;
   final List<ServiceItem> serviceItems;
+  final bool canEdit;
 
   const _LineItemRow({
     Key? key,
@@ -1296,8 +1943,10 @@ class _LineItemRow extends StatefulWidget {
     required this.onChanged,
     this.showTax = true,
     this.showQty = true,
+    this.showHsn = false,
     this.itemLabel = 'Item',
     this.serviceItems = const [],
+    this.canEdit = true,
   }) : super(key: key);
 
   @override
@@ -1309,6 +1958,7 @@ class _LineItemRowState extends State<_LineItemRow> {
   late TextEditingController _rateCtrl;
   late TextEditingController _taxCtrl;
   late TextEditingController _discCtrl;
+  late TextEditingController _hsnCtrl;
 
   @override
   void initState() {
@@ -1317,6 +1967,7 @@ class _LineItemRowState extends State<_LineItemRow> {
     _rateCtrl = TextEditingController(text: widget.item.rate == 0 ? '' : widget.item.rate.toString());
     _taxCtrl = TextEditingController(text: widget.item.taxPercent.toString());
     _discCtrl = TextEditingController(text: widget.item.discountPercent.toString());
+    _hsnCtrl = TextEditingController(text: widget.item.hsnSac ?? '');
   }
 
   @override
@@ -1325,6 +1976,7 @@ class _LineItemRowState extends State<_LineItemRow> {
     _rateCtrl.dispose();
     _taxCtrl.dispose();
     _discCtrl.dispose();
+    _hsnCtrl.dispose();
     super.dispose();
   }
 
@@ -1333,6 +1985,8 @@ class _LineItemRowState extends State<_LineItemRow> {
     widget.item.rate = double.tryParse(_rateCtrl.text) ?? 0;
     widget.item.taxPercent = double.tryParse(_taxCtrl.text) ?? 0;
     widget.item.discountPercent = double.tryParse(_discCtrl.text) ?? 0;
+    final hsn = _hsnCtrl.text.trim();
+    widget.item.hsnSac = hsn.isEmpty ? null : hsn;
     widget.onChanged();
   }
 
@@ -1346,6 +2000,10 @@ class _LineItemRowState extends State<_LineItemRow> {
     _taxCtrl.text = s.taxPercent.toString();
     widget.item.taxPercent = s.taxPercent;
     widget.item.category = s.category;
+    if (s.hsnSac?.isNotEmpty == true) {
+      _hsnCtrl.text = s.hsnSac!;
+      widget.item.hsnSac = s.hsnSac;
+    }
 
     // Defer to the next frame so the autocomplete overlay finishes closing
     // before we push the dialog route — avoids the InheritedElement
@@ -1367,9 +2025,9 @@ class _LineItemRowState extends State<_LineItemRow> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1377,18 +2035,19 @@ class _LineItemRowState extends State<_LineItemRow> {
           Row(
             children: [
               Text('${widget.itemLabel} ${widget.index + 1}',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary)),
+                      color: AppTheme.subtext(context))),
               const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.delete_outline,
-                    size: 18, color: AppTheme.error),
-                onPressed: widget.onRemove,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              ),
+              if (widget.canEdit)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      size: 18, color: AppTheme.error),
+                  onPressed: widget.onRemove,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
             ],
           ),
           const SizedBox(height: 8),
@@ -1408,16 +2067,21 @@ class _LineItemRowState extends State<_LineItemRow> {
             fieldViewBuilder: (ctx, ctrl, focusNode, _) => TextField(
               controller: ctrl,
               focusNode: focusNode,
-              onChanged: (v) {
-                widget.item.description = v;
-                widget.onChanged();
-              },
+              readOnly: !widget.canEdit,
+              onChanged: widget.canEdit
+                  ? (v) {
+                      widget.item.description = v;
+                      widget.onChanged();
+                    }
+                  : null,
               decoration: InputDecoration(
                 labelText: 'Description',
-                hintText: 'Type or search ${widget.itemLabel.toLowerCase()}s',
-                suffixIcon: widget.serviceItems.isNotEmpty
-                    ? const Icon(Icons.search, size: 18,
-                        color: AppTheme.textSecondary)
+                hintText: widget.canEdit
+                    ? 'Type or search ${widget.itemLabel.toLowerCase()}s'
+                    : null,
+                suffixIcon: widget.canEdit && widget.serviceItems.isNotEmpty
+                    ? Icon(Icons.search, size: 18,
+                        color: AppTheme.subtext(ctx))
                     : null,
               ),
             ),
@@ -1444,9 +2108,9 @@ class _LineItemRowState extends State<_LineItemRow> {
                                 fontSize: 13, fontWeight: FontWeight.w600)),
                         subtitle: desc != null
                             ? Text(desc,
-                                style: const TextStyle(
+                                style: TextStyle(
                                     fontSize: 11,
-                                    color: AppTheme.textSecondary),
+                                    color: AppTheme.subtext(ctx)),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis)
                             : null,
@@ -1464,18 +2128,31 @@ class _LineItemRowState extends State<_LineItemRow> {
               ),
             ),
           ),
+          if (widget.showHsn) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _hsnCtrl,
+              readOnly: !widget.canEdit,
+              onChanged: widget.canEdit ? (_) => _update() : null,
+              decoration: const InputDecoration(
+                labelText: 'HSN / SAC Code',
+                hintText: 'e.g. 998313',
+                prefixIcon: Icon(Icons.tag_outlined, size: 16),
+              ),
+            ),
+          ],
           if (item.category != null && item.category!.isNotEmpty) ...[
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.folder_outlined,
-                    size: 13, color: AppTheme.textSecondary),
+                Icon(Icons.folder_outlined,
+                    size: 13, color: AppTheme.subtext(context)),
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
                     item.category!,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.subtext(context)),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1491,7 +2168,8 @@ class _LineItemRowState extends State<_LineItemRow> {
                   child: TextField(
                     controller: _qtyCtrl,
                     keyboardType: TextInputType.number,
-                    onChanged: (_) => _update(),
+                    readOnly: !widget.canEdit,
+                    onChanged: widget.canEdit ? (_) => _update() : null,
                     decoration: const InputDecoration(labelText: 'Qty'),
                   ),
                 ),
@@ -1502,7 +2180,8 @@ class _LineItemRowState extends State<_LineItemRow> {
                     controller: _rateCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => _update(),
+                    readOnly: !widget.canEdit,
+                    onChanged: widget.canEdit ? (_) => _update() : null,
                     decoration: InputDecoration(
                       labelText: 'Rate',
                       prefixText: widget.symbol,
@@ -1516,7 +2195,8 @@ class _LineItemRowState extends State<_LineItemRow> {
               controller: _rateCtrl,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => _update(),
+              readOnly: !widget.canEdit,
+              onChanged: widget.canEdit ? (_) => _update() : null,
               decoration: InputDecoration(
                 labelText: 'Price',
                 prefixText: widget.symbol,
@@ -1531,7 +2211,8 @@ class _LineItemRowState extends State<_LineItemRow> {
                     controller: _taxCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => _update(),
+                    readOnly: !widget.canEdit,
+                    onChanged: widget.canEdit ? (_) => _update() : null,
                     decoration: const InputDecoration(
                       labelText: 'Tax %',
                       suffixText: '%',
@@ -1545,7 +2226,8 @@ class _LineItemRowState extends State<_LineItemRow> {
                   controller: _discCtrl,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => _update(),
+                  readOnly: !widget.canEdit,
+                  onChanged: widget.canEdit ? (_) => _update() : null,
                   decoration: const InputDecoration(
                     labelText: 'Discount %',
                     suffixText: '%',
@@ -1564,10 +2246,10 @@ class _LineItemRowState extends State<_LineItemRow> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Subtotal',
+                      Text('Subtotal',
                           style: TextStyle(
                               fontSize: 10,
-                              color: AppTheme.textSecondary)),
+                              color: AppTheme.subtext(context))),
                       Text(
                         '${widget.symbol}${item.taxableAmount.toStringAsFixed(2)}',
                         style: const TextStyle(
@@ -1674,8 +2356,8 @@ class _CatalogPickerSheetState extends State<_CatalogPickerSheet> {
                       GestureDetector(
                         onTap: () =>
                             setState(() => _selectedCategory = null),
-                        child: const Icon(Icons.arrow_back,
-                            size: 20, color: AppTheme.textSecondary),
+                        child: Icon(Icons.arrow_back,
+                            size: 20, color: AppTheme.subtext(context)),
                       )
                     else
                       const Icon(Icons.grid_view_rounded,
@@ -1692,10 +2374,10 @@ class _CatalogPickerSheetState extends State<_CatalogPickerSheet> {
                                     : _selectedCategory == ''
                                         ? 'All ${widget.itemLabel}s'
                                         : 'Pick a ${widget.itemLabel}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary),
+                            color: AppTheme.onCard(context)),
                       ),
                     ),
                   ],
@@ -1711,15 +2393,15 @@ class _CatalogPickerSheetState extends State<_CatalogPickerSheet> {
                   decoration: InputDecoration(
                     hintText: 'Search ${widget.itemLabel.toLowerCase()}s…',
                     prefixIcon:
-                        const Icon(Icons.search, size: 18, color: AppTheme.textSecondary),
+                        Icon(Icons.search, size: 18, color: AppTheme.subtext(context)),
                     suffixIcon: _query.isNotEmpty
                         ? GestureDetector(
                             onTap: () {
                               _searchCtrl.clear();
                               setState(() => _query = '');
                             },
-                            child: const Icon(Icons.clear,
-                                size: 18, color: AppTheme.textSecondary),
+                            child: Icon(Icons.clear,
+                                size: 18, color: AppTheme.subtext(context)),
                           )
                         : null,
                     isDense: true,
@@ -1824,8 +2506,8 @@ class _CategoryListView extends StatelessWidget {
                   children: [
                     _CountBadge(_countForCategory(cat)),
                     const SizedBox(width: 4),
-                    const Icon(Icons.chevron_right,
-                        size: 18, color: AppTheme.textSecondary),
+                    Icon(Icons.chevron_right,
+                        size: 18, color: AppTheme.subtext(context)),
                   ],
                 ),
                 onTap: () => onSelectCategory(cat),
@@ -1838,17 +2520,17 @@ class _CategoryListView extends StatelessWidget {
         if (_uncategorizedCount > 0) ...[
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            leading: const Icon(Icons.help_outline,
-                color: AppTheme.textSecondary),
-            title: const Text('Uncategorized',
-                style: TextStyle(color: AppTheme.textSecondary)),
+            leading: Icon(Icons.help_outline,
+                color: AppTheme.subtext(context)),
+            title: Text('Uncategorized',
+                style: TextStyle(color: AppTheme.subtext(context))),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _CountBadge(_uncategorizedCount),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right,
-                    size: 18, color: AppTheme.textSecondary),
+                Icon(Icons.chevron_right,
+                    size: 18, color: AppTheme.subtext(context)),
               ],
             ),
             onTap: () => onSelectCategory('__uncategorized__'),
@@ -1874,11 +2556,11 @@ class _ItemListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Text('No items found',
-              style: TextStyle(color: AppTheme.textSecondary)),
+              style: TextStyle(color: AppTheme.subtext(context))),
         ),
       );
     }
@@ -1887,23 +2569,23 @@ class _ItemListView extends StatelessWidget {
       padding: EdgeInsets.zero,
       itemCount: items.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (_, i) {
+      itemBuilder: (ctx, i) {
         final s = items[i];
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           title: Text(s.name,
               style: const TextStyle(
                   fontSize: 14, fontWeight: FontWeight.w500)),
-          subtitle: _subtitle(s),
+          subtitle: _subtitle(ctx, s),
           onTap: () => onPick(s),
-          trailing: const Icon(Icons.chevron_right,
-              size: 18, color: AppTheme.textSecondary),
+          trailing: Icon(Icons.chevron_right,
+              size: 18, color: AppTheme.subtext(ctx)),
         );
       },
     );
   }
 
-  Widget? _subtitle(ServiceItem s) {
+  Widget? _subtitle(BuildContext context, ServiceItem s) {
     final parts = <String>[
       if (s.category != null && s.category!.isNotEmpty) s.category!,
       if (s.description != null && s.description!.isNotEmpty) s.description!,
@@ -1914,7 +2596,7 @@ class _ItemListView extends StatelessWidget {
     if (parts.isEmpty) return null;
     return Text(
       parts.join(' · '),
-      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+      style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
@@ -1993,7 +2675,7 @@ class _QtyPickerDialogState extends State<_QtyPickerDialog> {
         children: [
           Text(
             widget.itemName,
-            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 13, color: AppTheme.subtext(context)),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

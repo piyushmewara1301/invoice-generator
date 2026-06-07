@@ -8,6 +8,12 @@ class ServiceItem {
   String? hsnSac; // HSN (goods) or SAC (services) code
   String? category;
 
+  // ── Inventory / stock tracking ──────────────────────────────────────────────
+  /// Current quantity on hand. null = stock not tracked for this item.
+  double? quantityOnHand;
+  /// Show a low-stock alert when quantity drops to or below this level.
+  double? lowStockThreshold;
+
   ServiceItem({
     required this.id,
     required this.name,
@@ -17,7 +23,16 @@ class ServiceItem {
     this.unit,
     this.hsnSac,
     this.category,
+    this.quantityOnHand,
+    this.lowStockThreshold,
   });
+
+  bool get isTrackingStock => quantityOnHand != null;
+
+  bool get isLowStock =>
+      isTrackingStock &&
+      lowStockThreshold != null &&
+      quantityOnHand! <= lowStockThreshold!;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -28,6 +43,8 @@ class ServiceItem {
         'unit': unit,
         'hsnSac': hsnSac,
         'category': category,
+        'quantityOnHand': quantityOnHand,
+        'lowStockThreshold': lowStockThreshold,
       };
 
   factory ServiceItem.fromJson(Map<String, dynamic> json) => ServiceItem(
@@ -39,5 +56,7 @@ class ServiceItem {
         unit: json['unit'] as String?,
         hsnSac: json['hsnSac'] as String?,
         category: json['category'] as String?,
+        quantityOnHand: (json['quantityOnHand'] as num?)?.toDouble(),
+        lowStockThreshold: (json['lowStockThreshold'] as num?)?.toDouble(),
       );
 }

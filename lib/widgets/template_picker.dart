@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 import '../models/invoice_template.dart';
+import '../utils/app_theme.dart';
 import '../utils/pdf_generator.dart';
 
 class TemplatePicker extends StatelessWidget {
@@ -90,12 +91,12 @@ class _TemplateCardState extends State<_TemplateCard> {
             width: 130,
             margin: const EdgeInsets.only(right: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.card(context),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
                 color: isSelected
                     ? scheme.primary
-                    : const Color(0xFFE0E0E0),
+                    : AppTheme.outline(context),
                 width: isSelected ? 2 : 1,
               ),
               boxShadow: isSelected
@@ -130,22 +131,26 @@ class _TemplateCardState extends State<_TemplateCard> {
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: isSelected
+                                color: isSelected && !AppTheme.isDark(context)
                                     ? scheme.primary
-                                    : const Color(0xFF212121),
+                                    : AppTheme.onCard(context),
                               ),
                             ),
                           ),
                           if (isSelected)
                             Icon(Icons.check_circle,
-                                size: 14, color: scheme.primary),
+                                size: 14,
+                                color: AppTheme.isDark(context)
+                                    ? AppTheme.primary
+                                    : scheme.primary),
                         ],
                       ),
                       const SizedBox(height: 2),
                       Text(
                         widget.template.description,
-                        style: const TextStyle(
-                            fontSize: 10, color: Color(0xFF757575)),
+                        style: TextStyle(
+                            fontSize: 10,
+                            color: AppTheme.subtext(context)),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -155,29 +160,41 @@ class _TemplateCardState extends State<_TemplateCard> {
               ],
             ),
           ),
-          // Lock badge + preview hint
-          if (isLocked)
-            Positioned(
-              top: 6,
-              right: 16,
-              child: _previewing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : Container(
+
+          // Top-right badge: lock icon for locked cards, eye icon for unlocked
+          Positioned(
+            top: 6,
+            right: 16,
+            child: _previewing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : GestureDetector(
+                    // For unlocked cards the eye icon triggers preview;
+                    // for locked cards the whole card tap already does, so the
+                    // badge is just decorative (no separate tap needed).
+                    onTap: isLocked ? null : _openPreview,
+                    child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(
                         color: Color(0xCC000000),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.lock_outline,
-                          size: 12, color: Colors.white),
+                      child: Icon(
+                        isLocked
+                            ? Icons.lock_outline
+                            : Icons.visibility_outlined,
+                        size: 12,
+                        color: Colors.white,
+                      ),
                     ),
-            ),
-          // "Tap to preview" label at the bottom of locked cards
+                  ),
+          ),
+
+          // "Tap to preview" bottom banner — locked cards only
           if (isLocked)
             Positioned(
               left: 0,
@@ -192,9 +209,9 @@ class _TemplateCardState extends State<_TemplateCard> {
                   ),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(Icons.visibility_outlined,
                         size: 10, color: Colors.white),
                     SizedBox(width: 3),
@@ -291,6 +308,14 @@ class _TemplateCardState extends State<_TemplateCard> {
           primary: Color(0xFF37474F),
           header: Colors.white,
           accent: Color(0xFF37474F),
+          row1: Color(0xFFF5F5F5),
+          row2: Colors.white,
+        );
+      case InvoiceTemplate.thermalReceipt:
+        return const _TemplateScheme(
+          primary: Color(0xFF212121),
+          header: Colors.white,
+          accent: Color(0xFF212121),
           row1: Color(0xFFF5F5F5),
           row2: Colors.white,
         );

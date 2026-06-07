@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/app_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/theme_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -29,7 +30,9 @@ void main() async {
   final enc = EncryptionService();
   final appProvider = AppProvider(enc);
   final localeProvider = LocaleProvider();
+  final themeProvider = ThemeProvider();
   await localeProvider.init();
+  await themeProvider.init();
 
   if (kIsWeb) {
     // On web, run the app immediately so the landing page renders at once.
@@ -59,6 +62,7 @@ void main() async {
         ChangeNotifierProvider.value(value: authService),
         ChangeNotifierProvider.value(value: appProvider),
         ChangeNotifierProvider.value(value: localeProvider),
+        ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider(create: (_) => ExchangeRateService()),
       ],
       child: const InvoiceApp(),
@@ -85,13 +89,14 @@ class InvoiceApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final locale = context.watch<LocaleProvider>().locale;
-    print('>>> MaterialApp locale: ${locale.languageCode}');
-    print('>>> Supported: ${AppLocalizations.supportedLocales}');
+    final themeMode = context.watch<ThemeProvider>().mode;
     return MaterialApp(
       title: 'BillBook',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
-      locale: locale, 
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      locale: locale,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const KeyboardDismisser(child: _AuthGate()),

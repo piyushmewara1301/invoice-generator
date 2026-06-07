@@ -1,10 +1,15 @@
+import 'custom_field.dart';
 import 'invoice_template.dart';
 import 'payment_method.dart';
 import 'service_item.dart';
 
+export 'custom_field.dart';
 export 'invoice_template.dart';
 export 'payment_method.dart';
 export 'service_item.dart';
+
+// Sentinel for distinguishing "not provided" from null in copyWith.
+const Object _sentinel = Object();
 
 // Legacy enum kept only for JSON migration — no longer used in UI or PDF.
 enum InvoiceHeaderStyle { textOnly, logoOnly, logoAndText }
@@ -21,12 +26,51 @@ const kHeaderWebsite = 'website';
 
 enum VerificationStatus { unverified, pending, verified, rejected }
 
-enum SubscriptionTier { free, lite, pro, premium }
+enum BusinessType {
+  restaurant,
+  grocery,
+  retail,
+  professional,
+  healthcare,
+  education,
+  construction,
+  salon,
+  technology,
+  manufacturing,
+  wholesale,
+  transport,
+  freelancer,
+  other,
+}
+
+extension BusinessTypeX on BusinessType {
+  String get displayName {
+    switch (this) {
+      case BusinessType.restaurant:    return 'Restaurant & Food';
+      case BusinessType.grocery:       return 'Grocery';
+      case BusinessType.retail:        return 'Retail Shop';
+      case BusinessType.professional:  return 'Professional Services';
+      case BusinessType.healthcare:    return 'Healthcare';
+      case BusinessType.education:     return 'Education';
+      case BusinessType.construction:  return 'Construction';
+      case BusinessType.salon:         return 'Salon & Beauty';
+      case BusinessType.technology:    return 'Technology / IT';
+      case BusinessType.manufacturing: return 'Manufacturing';
+      case BusinessType.wholesale:     return 'Wholesale & Trading';
+      case BusinessType.transport:     return 'Transport & Logistics';
+      case BusinessType.freelancer:    return 'Freelancer';
+      case BusinessType.other:         return 'Other';
+    }
+  }
+}
+
+enum SubscriptionTier { free, lite, pro, premium, enterprise }
 
 extension SubscriptionTierX on SubscriptionTier {
   bool get isAnyPaid => this != SubscriptionTier.free;
-  bool get isPro => this == SubscriptionTier.pro || this == SubscriptionTier.premium;
-  bool get isPremium => this == SubscriptionTier.premium;
+  bool get isPro => index >= SubscriptionTier.pro.index;
+  bool get isPremium => index >= SubscriptionTier.premium.index;
+  bool get isEnterprise => this == SubscriptionTier.enterprise;
 }
 
 class BusinessProfile {
@@ -42,7 +86,12 @@ class BusinessProfile {
   String? website;
   String currency;
   String invoicePrefix;
+  String quotationPrefix;
+  String challanPrefix;
   int nextInvoiceNumber;
+  int nextQuotationNumber;
+  int nextChallanNumber;
+  int nextCreditNoteNumber;
   String? logoBase64;
   Set<String> headerFields;
   InvoiceTemplate defaultTemplate;
@@ -67,6 +116,17 @@ class BusinessProfile {
   String thankYouMessage;
   bool showClientAcknowledgment;
   bool posEnabled;
+  bool purchaseBillEnabled;
+  BusinessType? businessType;
+
+  /// Specific profession or designation shown on invoices below the business name.
+  /// Examples: "Chartered Accountant", "Advocate", "Doctor", "Architect".
+  /// Relevant for any business type — shown when non-null and non-empty.
+  String? professionTitle;
+
+  /// Extra registration / compliance fields shown on every invoice
+  /// (e.g. PAN Number, FSSAI Licence, MSME Reg., Trade Licence).
+  List<CustomField> businessInfoFields;
 
   BusinessProfile({
     this.name = '',
@@ -81,7 +141,12 @@ class BusinessProfile {
     this.website,
     this.currency = 'INR',
     this.invoicePrefix = 'INV-',
+    this.quotationPrefix = 'QT-',
+    this.challanPrefix = 'DC-',
     this.nextInvoiceNumber = 1,
+    this.nextQuotationNumber = 1,
+    this.nextChallanNumber = 1,
+    this.nextCreditNoteNumber = 1,
     this.logoBase64,
     Set<String>? headerFields,
     this.defaultTemplate = InvoiceTemplate.classic,
@@ -106,9 +171,111 @@ class BusinessProfile {
     this.thankYouMessage = 'Thank you for your business!',
     this.showClientAcknowledgment = true,
     this.posEnabled = false,
+    this.purchaseBillEnabled = true,
+    this.businessType,
+    this.professionTitle,
+    List<CustomField>? businessInfoFields,
   })  : headerFields = headerFields ?? {kHeaderLogo, kHeaderName, kHeaderAddress},
         paymentMethods = paymentMethods ?? [],
-        serviceItems = serviceItems ?? [];
+        serviceItems = serviceItems ?? [],
+        businessInfoFields = businessInfoFields ?? [];
+
+  BusinessProfile copyWith({
+    String? name,
+    String? email,
+    String? phone,
+    String? address,
+    String? city,
+    String? state,
+    String? country,
+    String? postalCode,
+    Object? gstin = _sentinel,
+    Object? website = _sentinel,
+    String? currency,
+    String? invoicePrefix,
+    String? quotationPrefix,
+    String? challanPrefix,
+    int? nextInvoiceNumber,
+    int? nextQuotationNumber,
+    int? nextChallanNumber,
+    int? nextCreditNoteNumber,
+    Object? logoBase64 = _sentinel,
+    Set<String>? headerFields,
+    InvoiceTemplate? defaultTemplate,
+    Object? themeColorHex = _sentinel,
+    double? defaultTaxPercent,
+    bool? showQuantity,
+    String? itemLabel,
+    List<PaymentMethod>? paymentMethods,
+    List<ServiceItem>? serviceItems,
+    VerificationStatus? verificationStatus,
+    Object? verificationNotes = _sentinel,
+    Object? verificationSubmittedAt = _sentinel,
+    SubscriptionTier? subscriptionTier,
+    Object? subscriptionExpiryDate = _sentinel,
+    Object? subscriptionLastCheckedDate = _sentinel,
+    Object? signatureBase64 = _sentinel,
+    bool? showPaymentDetailsOnInvoice,
+    Object? defaultPlaceOfSupply = _sentinel,
+    bool? defaultReverseCharge,
+    bool? isCompositionDealer,
+    bool? showThankYouMessage,
+    String? thankYouMessage,
+    bool? showClientAcknowledgment,
+    bool? posEnabled,
+    bool? purchaseBillEnabled,
+    Object? businessType = _sentinel,
+    Object? professionTitle = _sentinel,
+    List<CustomField>? businessInfoFields,
+  }) =>
+      BusinessProfile(
+        name: name ?? this.name,
+        email: email ?? this.email,
+        phone: phone ?? this.phone,
+        address: address ?? this.address,
+        city: city ?? this.city,
+        state: state ?? this.state,
+        country: country ?? this.country,
+        postalCode: postalCode ?? this.postalCode,
+        gstin: gstin == _sentinel ? this.gstin : gstin as String?,
+        website: website == _sentinel ? this.website : website as String?,
+        currency: currency ?? this.currency,
+        invoicePrefix: invoicePrefix ?? this.invoicePrefix,
+        quotationPrefix: quotationPrefix ?? this.quotationPrefix,
+        challanPrefix: challanPrefix ?? this.challanPrefix,
+        nextInvoiceNumber: nextInvoiceNumber ?? this.nextInvoiceNumber,
+        nextQuotationNumber: nextQuotationNumber ?? this.nextQuotationNumber,
+        nextChallanNumber: nextChallanNumber ?? this.nextChallanNumber,
+        nextCreditNoteNumber: nextCreditNoteNumber ?? this.nextCreditNoteNumber,
+        logoBase64: logoBase64 == _sentinel ? this.logoBase64 : logoBase64 as String?,
+        headerFields: headerFields ?? this.headerFields,
+        defaultTemplate: defaultTemplate ?? this.defaultTemplate,
+        themeColorHex: themeColorHex == _sentinel ? this.themeColorHex : themeColorHex as String?,
+        defaultTaxPercent: defaultTaxPercent ?? this.defaultTaxPercent,
+        showQuantity: showQuantity ?? this.showQuantity,
+        itemLabel: itemLabel ?? this.itemLabel,
+        paymentMethods: paymentMethods ?? this.paymentMethods,
+        serviceItems: serviceItems ?? this.serviceItems,
+        verificationStatus: verificationStatus ?? this.verificationStatus,
+        verificationNotes: verificationNotes == _sentinel ? this.verificationNotes : verificationNotes as String?,
+        verificationSubmittedAt: verificationSubmittedAt == _sentinel ? this.verificationSubmittedAt : verificationSubmittedAt as String?,
+        subscriptionTier: subscriptionTier ?? this.subscriptionTier,
+        subscriptionExpiryDate: subscriptionExpiryDate == _sentinel ? this.subscriptionExpiryDate : subscriptionExpiryDate as DateTime?,
+        subscriptionLastCheckedDate: subscriptionLastCheckedDate == _sentinel ? this.subscriptionLastCheckedDate : subscriptionLastCheckedDate as DateTime?,
+        signatureBase64: signatureBase64 == _sentinel ? this.signatureBase64 : signatureBase64 as String?,
+        showPaymentDetailsOnInvoice: showPaymentDetailsOnInvoice ?? this.showPaymentDetailsOnInvoice,
+        defaultPlaceOfSupply: defaultPlaceOfSupply == _sentinel ? this.defaultPlaceOfSupply : defaultPlaceOfSupply as String?,
+        defaultReverseCharge: defaultReverseCharge ?? this.defaultReverseCharge,
+        isCompositionDealer: isCompositionDealer ?? this.isCompositionDealer,
+        showThankYouMessage: showThankYouMessage ?? this.showThankYouMessage,
+        thankYouMessage: thankYouMessage ?? this.thankYouMessage,
+        showClientAcknowledgment: showClientAcknowledgment ?? this.showClientAcknowledgment,
+        posEnabled: posEnabled ?? this.posEnabled,
+        purchaseBillEnabled: purchaseBillEnabled ?? this.purchaseBillEnabled,
+        businessType: businessType == _sentinel ? this.businessType : businessType as BusinessType?,
+        professionTitle: professionTitle == _sentinel ? this.professionTitle : professionTitle as String?,
+        businessInfoFields: businessInfoFields ?? this.businessInfoFields,
+      );
 
   List<PaymentMethod> get allPaymentMethods {
     // Built-in generic options always available; suppress a built-in if the user
@@ -152,7 +319,12 @@ class BusinessProfile {
         'website': website,
         'currency': currency,
         'invoicePrefix': invoicePrefix,
+        'quotationPrefix': quotationPrefix,
+        'challanPrefix': challanPrefix,
         'nextInvoiceNumber': nextInvoiceNumber,
+        'nextQuotationNumber': nextQuotationNumber,
+        'nextChallanNumber': nextChallanNumber,
+        'nextCreditNoteNumber': nextCreditNoteNumber,
         'logoBase64': logoBase64,
         'headerFields': headerFields.toList(),
         'defaultTemplate': defaultTemplate.name,
@@ -177,6 +349,10 @@ class BusinessProfile {
         'thankYouMessage': thankYouMessage,
         'showClientAcknowledgment': showClientAcknowledgment,
         'posEnabled': posEnabled,
+        'purchaseBillEnabled': purchaseBillEnabled,
+        'businessType': businessType?.name,
+        'professionTitle': professionTitle,
+        'businessInfoFields': businessInfoFields.map((f) => f.toJson()).toList(),
       };
 
   factory BusinessProfile.fromJson(Map<String, dynamic> json) =>
@@ -193,7 +369,12 @@ class BusinessProfile {
         website: json['website'],
         currency: json['currency'] ?? 'INR',
         invoicePrefix: json['invoicePrefix'] ?? 'INV-',
+        quotationPrefix: json['quotationPrefix'] ?? 'QT-',
+        challanPrefix: json['challanPrefix'] ?? 'DC-',
         nextInvoiceNumber: json['nextInvoiceNumber'] ?? 1,
+        nextQuotationNumber: json['nextQuotationNumber'] ?? 1,
+        nextChallanNumber: json['nextChallanNumber'] ?? 1,
+        nextCreditNoteNumber: json['nextCreditNoteNumber'] ?? 1,
         logoBase64: json['logoBase64'],
         headerFields: _parseHeaderFields(json),
         defaultTemplate: InvoiceTemplate.values.firstWhere(
@@ -238,6 +419,17 @@ class BusinessProfile {
         thankYouMessage: json['thankYouMessage'] as String? ?? 'Thank you for your business!',
         showClientAcknowledgment: json['showClientAcknowledgment'] as bool? ?? true,
         posEnabled: json['posEnabled'] as bool? ?? false,
+        purchaseBillEnabled: json['purchaseBillEnabled'] as bool? ?? true,
+        businessType: json['businessType'] != null
+            ? BusinessType.values.firstWhere(
+                (e) => e.name == json['businessType'],
+                orElse: () => BusinessType.other)
+            : null,
+        professionTitle: json['professionTitle'] as String?,
+        businessInfoFields: (json['businessInfoFields'] as List<dynamic>?)
+                ?.map((e) => CustomField.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
       );
 }
 

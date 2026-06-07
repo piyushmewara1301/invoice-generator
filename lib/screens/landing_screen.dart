@@ -52,7 +52,7 @@ class _LandingScreenState extends State<LandingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.isDark(context) ? AppTheme.darkSurface : Colors.white,
       body: Stack(
         children: [
           SingleChildScrollView(
@@ -186,12 +186,12 @@ class _NavLogo extends StatelessWidget {
                     fontWeight: FontWeight.w900)),
           ),
         ),
-        const SizedBox(width: 9),
-        const Text('BillBook',
+        SizedBox(width: 9),
+        Text('BillBook',
             style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w800,
-                color: AppTheme.textPrimary,
+                color: AppTheme.onCard(context),
                 letterSpacing: -0.4)),
       ],
     );
@@ -504,7 +504,7 @@ class _AppDashboardPreviewState extends State<_AppDashboardPreview>
         // Main dashboard card
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: AppTheme.card(context),
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
@@ -538,12 +538,12 @@ class _AppDashboardPreviewState extends State<_AppDashboardPreview>
                               fontWeight: FontWeight.w900)),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Text('BillBook',
+                  SizedBox(width: 8),
+                  Text('BillBook',
                       style: TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
-                          color: AppTheme.textPrimary)),
+                          color: AppTheme.onCard(context))),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -576,22 +576,22 @@ class _AppDashboardPreviewState extends State<_AppDashboardPreview>
               ),
               const SizedBox(height: 18),
               // Bar chart
-              const Text('Monthly Revenue',
+              Text('Monthly Revenue',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textSecondary)),
+                      color: AppTheme.subtext(context))),
               const SizedBox(height: 10),
               _MiniBarChart(),
               const SizedBox(height: 18),
               // Recent invoices label
               Row(
                 children: [
-                  const Text('Recent Invoices',
+                  Text('Recent Invoices',
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textSecondary)),
+                          color: AppTheme.subtext(context))),
                   const Spacer(),
                   Text('View all →',
                       style: TextStyle(
@@ -694,8 +694,8 @@ class _KpiTile extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: color)),
             Text(sub,
-                style: const TextStyle(
-                    fontSize: 9, color: AppTheme.textSecondary)),
+                style: TextStyle(
+                    fontSize: 9, color: AppTheme.subtext(context))),
           ],
         ),
       ),
@@ -732,10 +732,10 @@ class _MiniBarChart extends StatelessWidget {
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  SizedBox(height: 3),
                   Text(_months[i],
-                      style: const TextStyle(
-                          fontSize: 8, color: AppTheme.textSecondary)),
+                      style: TextStyle(
+                          fontSize: 8, color: AppTheme.subtext(context))),
                 ],
               ),
             ),
@@ -776,21 +776,21 @@ class _InvoiceRow extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Expanded(
             child: Text(client,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.textPrimary),
+                    color: AppTheme.onCard(context)),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
           ),
           Text(amount,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
+                  color: AppTheme.onCard(context))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -903,10 +903,10 @@ class _AnimatedStat extends StatelessWidget {
                 color: AppTheme.primary,
                 letterSpacing: -1),
           ),
-          const SizedBox(height: 5),
+          SizedBox(height: 5),
           Text(label,
-              style: const TextStyle(
-                  fontSize: 13, color: AppTheme.textSecondary)),
+              style: TextStyle(
+                  fontSize: 13, color: AppTheme.subtext(context))),
         ],
       ),
     );
@@ -1058,7 +1058,7 @@ class _FeatureCardState extends State<_FeatureCard> {
             ? Matrix4.translationValues(0, -4, 0)
             : Matrix4.identity(),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.card(context),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
               color: _hovered
@@ -1087,17 +1087,17 @@ class _FeatureCardState extends State<_FeatureCard> {
               ),
               child: Icon(widget.icon, color: widget.color, size: 25),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
             Text(widget.title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary)),
-            const SizedBox(height: 9),
+                    color: AppTheme.onCard(context))),
+            SizedBox(height: 9),
             Text(widget.desc,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     height: 1.65)),
           ],
         ),
@@ -1176,7 +1176,7 @@ class _StepCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -1210,17 +1210,17 @@ class _StepCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: 18),
           Text(title,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 9),
+                  color: AppTheme.onCard(context))),
+          SizedBox(height: 9),
           Text(desc,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 14,
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.subtext(context),
                   height: 1.65)),
         ],
       ),
@@ -1303,7 +1303,7 @@ class _GstPoint extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFFED7AA).withValues(alpha: 0.8)),
         boxShadow: [
@@ -1324,21 +1324,21 @@ class _GstPoint extends StatelessWidget {
                 borderRadius: BorderRadius.circular(11)),
             child: Icon(icon, color: const Color(0xFFEA580C), size: 20),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 5),
+                        color: AppTheme.onCard(context))),
+                SizedBox(height: 5),
                 Text(desc,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.subtext(context),
                         height: 1.5)),
               ],
             ),
@@ -1904,7 +1904,7 @@ class _FaqTileState extends State<_FaqTile>
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
             color: _open
@@ -1932,10 +1932,10 @@ class _FaqTileState extends State<_FaqTile>
                 children: [
                   Expanded(
                     child: Text(widget.question,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary)),
+                            color: AppTheme.onCard(context))),
                   ),
                   const SizedBox(width: 12),
                   AnimatedRotation(
@@ -1950,11 +1950,11 @@ class _FaqTileState extends State<_FaqTile>
                 opacity: _fade,
                 child: _open
                     ? Column(children: [
-                        const SizedBox(height: 14),
+                        SizedBox(height: 14),
                         Text(widget.answer,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 14,
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.subtext(context),
                                 height: 1.7)),
                       ])
                     : const SizedBox.shrink(),
@@ -2227,10 +2227,10 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: const TextStyle(
+      style: TextStyle(
           fontSize: 36,
           fontWeight: FontWeight.w900,
-          color: AppTheme.textPrimary,
+          color: AppTheme.onCard(context),
           height: 1.15,
           letterSpacing: -0.8),
     );
@@ -2247,8 +2247,8 @@ class _SectionSubtitle extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 620),
       child: Text(text,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-              fontSize: 16, color: AppTheme.textSecondary, height: 1.65)),
+          style: TextStyle(
+              fontSize: 16, color: AppTheme.subtext(context), height: 1.65)),
     );
   }
 }

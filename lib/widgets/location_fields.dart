@@ -8,12 +8,14 @@ class LocationFields extends StatefulWidget {
   final TextEditingController countryCtrl;
   final TextEditingController stateCtrl;
   final TextEditingController postalCtrl;
+  final bool readOnly;
 
   const LocationFields({
     super.key,
     required this.countryCtrl,
     required this.stateCtrl,
     required this.postalCtrl,
+    this.readOnly = false,
   });
 
   @override
@@ -43,41 +45,55 @@ class _LocationFieldsState extends State<LocationFields> {
     return Column(
       children: [
         // Country
-        _GeoAutocomplete(
-          label: 'Country',
-          controller: widget.countryCtrl,
-          options: GeoData.countries,
-          onSelected: _onCountrySelected,
-        ),
+        widget.readOnly
+            ? TextFormField(
+                controller: widget.countryCtrl,
+                readOnly: true,
+                decoration:
+                    const InputDecoration(labelText: 'Country'),
+              )
+            : _GeoAutocomplete(
+                label: 'Country',
+                controller: widget.countryCtrl,
+                options: GeoData.countries,
+                onSelected: _onCountrySelected,
+              ),
         const SizedBox(height: 12),
         // State + Postal Code
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              // ValueKey forces the widget to fully recreate whenever the
-            // country changes, so Autocomplete's internal text resets too.
-            child: states.isNotEmpty
-                  ? _GeoAutocomplete(
-                      key: ValueKey(_country),
-                      label: 'State / Province',
+              child: widget.readOnly
+                  ? TextFormField(
                       controller: widget.stateCtrl,
-                      options: states,
-                      onSelected: (v) => widget.stateCtrl.text = v,
-                    )
-                  : TextFormField(
-                      key: ValueKey(_country),
-                      controller: widget.stateCtrl,
+                      readOnly: true,
                       decoration: const InputDecoration(
                           labelText: 'State / Province'),
-                    ),
+                    )
+                  : (states.isNotEmpty
+                      ? _GeoAutocomplete(
+                          key: ValueKey(_country),
+                          label: 'State / Province',
+                          controller: widget.stateCtrl,
+                          options: states,
+                          onSelected: (v) => widget.stateCtrl.text = v,
+                        )
+                      : TextFormField(
+                          key: ValueKey(_country),
+                          controller: widget.stateCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'State / Province'),
+                        )),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: TextFormField(
                 controller: widget.postalCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Postal Code'),
+                keyboardType: widget.readOnly ? null : TextInputType.number,
+                readOnly: widget.readOnly,
+                decoration:
+                    const InputDecoration(labelText: 'Postal Code'),
               ),
             ),
           ],
@@ -133,8 +149,8 @@ class _GeoAutocompleteState extends State<_GeoAutocomplete> {
           onFieldSubmitted: (_) => onSubmit(),
           decoration: InputDecoration(
             labelText: widget.label,
-            suffixIcon: const Icon(Icons.arrow_drop_down, size: 20,
-                color: AppTheme.textSecondary),
+            suffixIcon: Icon(Icons.arrow_drop_down, size: 20,
+                color: AppTheme.subtext(context)),
           ),
         );
       },
@@ -169,7 +185,7 @@ class _GeoAutocompleteState extends State<_GeoAutocomplete> {
                           fontSize: 13,
                           color: isSelected
                               ? AppTheme.primary
-                              : AppTheme.textPrimary,
+                              : AppTheme.onCard(context),
                           fontWeight: isSelected
                               ? FontWeight.w600
                               : FontWeight.normal,

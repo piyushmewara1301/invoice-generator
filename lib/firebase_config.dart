@@ -12,8 +12,11 @@
 /// rules_version = '2';
 /// service cloud.firestore {
 ///   match /databases/{database}/documents {
-///     match /verifications/{doc} { allow read, write: if true; }
-///     match /stats/{doc}         { allow read, write: if true; }
+///     match /verifications/{doc}   { allow read, write: if true; }
+///     match /stats/{doc}           { allow read, write: if true; }
+///     // subscriptions collection — read/write required by the client app for
+///     // IAP expiry checks and admin-granted tier sync.
+///     match /subscriptions/{doc}   { allow read, write: if true; }
 ///   }
 /// }
 /// ───────────────────────────────────────────────────────────

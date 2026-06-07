@@ -11,6 +11,11 @@ class Client {
   String? gstin;
   String? companyName;
 
+  // Audit fields — stamped by AppProvider on every create/edit
+  String? createdBy;
+  String? lastEditedBy;
+  DateTime? lastEditedAt;
+
   Client({
     required this.id,
     required this.name,
@@ -23,6 +28,9 @@ class Client {
     this.postalCode = '',
     this.gstin,
     this.companyName,
+    this.createdBy,
+    this.lastEditedBy,
+    this.lastEditedAt,
   });
 
   String get displayName => companyName?.isNotEmpty == true ? companyName! : name;
@@ -39,6 +47,9 @@ class Client {
         'postalCode': postalCode,
         'gstin': gstin,
         'companyName': companyName,
+        'createdBy': createdBy,
+        'lastEditedBy': lastEditedBy,
+        'lastEditedAt': lastEditedAt?.toIso8601String(),
       };
 
   factory Client.fromJson(Map<String, dynamic> json) => Client(
@@ -53,5 +64,10 @@ class Client {
         postalCode: json['postalCode'] ?? '',
         gstin: json['gstin'],
         companyName: json['companyName'],
+        createdBy: json['createdBy'] as String?,
+        lastEditedBy: json['lastEditedBy'] as String?,
+        lastEditedAt: json['lastEditedAt'] != null
+            ? DateTime.tryParse(json['lastEditedAt'] as String)
+            : null,
       );
 }

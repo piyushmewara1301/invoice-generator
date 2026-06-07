@@ -235,7 +235,7 @@ class _PosScreenState extends State<PosScreen> {
     final total = _cartTotal(allItems);
 
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+
       appBar: AppBar(
         title: _searchMode
             ? TextField(
@@ -322,7 +322,7 @@ class _PosScreenState extends State<PosScreen> {
                           child: Text(
                             'No items found',
                             style: TextStyle(
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.subtext(context),
                                 fontSize: 15),
                           ),
                         )
@@ -382,7 +382,7 @@ class _CategoryBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
+      color: AppTheme.card(context),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -460,7 +460,7 @@ class _ItemCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppTheme.card(context),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: inCart
@@ -509,10 +509,10 @@ class _ItemCard extends StatelessWidget {
                   // Name
                   Text(
                     item.name,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
+                      color: AppTheme.onCard(context),
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -533,15 +533,15 @@ class _ItemCard extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 color: inCart
                                     ? AppTheme.primary
-                                    : AppTheme.textPrimary,
+                                    : AppTheme.onCard(context),
                               ),
                             ),
                             if (item.taxPercent > 0)
                               Text(
                                 '+${item.taxPercent.toStringAsFixed(0)}% tax',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 10,
-                                  color: AppTheme.textSecondary,
+                                  color: AppTheme.subtext(context),
                                 ),
                               ),
                           ],
@@ -691,7 +691,7 @@ class _CartBar extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
           16, 10, 16, 10 + MediaQuery.of(context).padding.bottom),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.08),
@@ -796,9 +796,9 @@ class _CartSheet extends StatelessWidget {
     final sym = Fmt.currencySymbol(currency);
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).padding.bottom + 16),
@@ -811,7 +811,7 @@ class _CartSheet extends StatelessWidget {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: AppTheme.divider,
+              color: AppTheme.outline(context),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -822,13 +822,13 @@ class _CartSheet extends StatelessWidget {
               children: [
                 const Icon(Icons.shopping_cart_rounded,
                     size: 20, color: AppTheme.primary),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Text(
                   'Cart (${entries.length} ${entries.length == 1 ? 'item' : 'items'})',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.onCard(context),
                   ),
                 ),
                 const Spacer(),
@@ -872,17 +872,17 @@ class _CartSheet extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(e.item.name,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
-                                  color: AppTheme.textPrimary,
+                                  color: AppTheme.onCard(context),
                                 )),
-                            const SizedBox(height: 2),
+                            SizedBox(height: 2),
                             Text(
                               '$sym${_fmtVal(e.item.rate)} × ${e.qty}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: AppTheme.textSecondary,
+                                color: AppTheme.subtext(context),
                               ),
                             ),
                           ],
@@ -893,16 +893,16 @@ class _CartSheet extends StatelessWidget {
                         onAdd: () => onIncrement(e.item.id),
                         onRemove: () => onDecrement(e.item.id),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       SizedBox(
                         width: 72,
                         child: Text(
                           '$sym${_fmtVal(lineTotal)}',
                           textAlign: TextAlign.right,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary,
+                            color: AppTheme.onCard(context),
                           ),
                         ),
                       ),
@@ -985,7 +985,7 @@ class _TotalRow extends StatelessWidget {
           style: TextStyle(
             fontSize: bold ? 15 : 13,
             fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-            color: bold ? AppTheme.textPrimary : AppTheme.textSecondary,
+            color: bold ? AppTheme.onCard(context) : AppTheme.subtext(context),
           ),
         ),
         Text(
@@ -993,7 +993,7 @@ class _TotalRow extends StatelessWidget {
           style: TextStyle(
             fontSize: bold ? 16 : 13,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
-            color: bold ? AppTheme.primary : AppTheme.textPrimary,
+            color: bold ? AppTheme.primary : AppTheme.onCard(context),
           ),
         ),
       ],
@@ -1052,9 +1052,9 @@ class _ChargeSheetState extends State<_ChargeSheet> {
     final methods = widget.profile.allPaymentMethods;
 
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).padding.bottom + 16),
@@ -1070,20 +1070,20 @@ class _ChargeSheetState extends State<_ChargeSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: AppTheme.divider,
+                  color: AppTheme.outline(context),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
             // Header
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
               child: Text(
                 'Confirm Charge',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary,
+                  color: AppTheme.onCard(context),
                 ),
               ),
             ),
@@ -1093,22 +1093,22 @@ class _ChargeSheetState extends State<_ChargeSheet> {
                   const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
               child: Text(
                 '${widget.entries.fold(0, (s, e) => s + e.qty)} item(s)  ·  $sym${_fmtVal(_total)}',
-                style: const TextStyle(
-                    fontSize: 13, color: AppTheme.textSecondary),
+                style: TextStyle(
+                    fontSize: 13, color: AppTheme.subtext(context)),
               ),
             ),
             const SizedBox(height: 12),
             const Divider(height: 1),
 
             // Client selector
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 14, 20, 6),
               child: Text(
                 'Customer',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     letterSpacing: 0.4),
               ),
             ),
@@ -1123,7 +1123,7 @@ class _ChargeSheetState extends State<_ChargeSheet> {
                   decoration: BoxDecoration(
                     color: AppTheme.surface,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppTheme.divider),
+                    border: Border.all(color: AppTheme.outline(context)),
                   ),
                   child: Row(
                     children: [
@@ -1143,8 +1143,8 @@ class _ChargeSheetState extends State<_ChargeSheet> {
                           style: TextStyle(
                             fontSize: 14,
                             color: _client != null
-                                ? AppTheme.textPrimary
-                                : AppTheme.textSecondary,
+                                ? AppTheme.onCard(context)
+                                : AppTheme.subtext(context),
                             fontWeight: _client != null
                                 ? FontWeight.w500
                                 : FontWeight.w400,
@@ -1154,12 +1154,12 @@ class _ChargeSheetState extends State<_ChargeSheet> {
                       if (_client != null)
                         GestureDetector(
                           onTap: () => setState(() => _client = null),
-                          child: const Icon(Icons.close_rounded,
-                              size: 16, color: AppTheme.textSecondary),
+                          child: Icon(Icons.close_rounded,
+                              size: 16, color: AppTheme.subtext(context)),
                         )
                       else
-                        const Icon(Icons.chevron_right_rounded,
-                            size: 18, color: AppTheme.textSecondary),
+                        Icon(Icons.chevron_right_rounded,
+                            size: 18, color: AppTheme.subtext(context)),
                     ],
                   ),
                 ),
@@ -1167,14 +1167,14 @@ class _ChargeSheetState extends State<_ChargeSheet> {
             ),
 
             // Payment method
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 16, 20, 6),
               child: Text(
                 'Payment Method',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textSecondary,
+                    color: AppTheme.subtext(context),
                     letterSpacing: 0.4),
               ),
             ),
@@ -1249,11 +1249,11 @@ class _ChargeSheetState extends State<_ChargeSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total Amount',
+                  Text('Total Amount',
                       style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary)),
+                          color: AppTheme.onCard(context))),
                   Text(
                     '$sym${_fmtVal(_total)}',
                     style: const TextStyle(
@@ -1366,20 +1366,20 @@ class _EmptyCatalog extends StatelessWidget {
               child: const Icon(Icons.inventory_2_outlined,
                   size: 36, color: AppTheme.primary),
             ),
-            const SizedBox(height: 20),
-            const Text(
+            SizedBox(height: 20),
+            Text(
               'No items in catalog',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: AppTheme.textPrimary),
+                  color: AppTheme.onCard(context)),
             ),
-            const SizedBox(height: 8),
-            const Text(
+            SizedBox(height: 8),
+            Text(
               'Add products or services in Settings → Items & Services to start using POS.',
               textAlign: TextAlign.center,
               style:
-                  TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.5),
+                  TextStyle(fontSize: 14, color: AppTheme.subtext(context), height: 1.5),
             ),
           ],
         ),

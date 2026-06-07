@@ -616,4 +616,74 @@ class AppLocalizationsTa extends AppLocalizations {
 
   @override
   String get daysAfterDue => 'கடைசி தேதிக்கு பின் நாட்கள்';
+
+  @override
+  String get expenses => 'செலவுகள்';
+
+  @override
+  String get expense => 'செலவு';
+
+  @override
+  String get addExpense => 'செலவு சேர்க்கவும்';
+
+  @override
+  String get editExpense => 'செலவை திருத்தவும்';
+
+  @override
+  String get noExpensesYet => 'இன்னும் செலவுகள் இல்லை';
+
+  @override
+  String get noExpensesHint =>
+      'சம்பளம், வாடகை, பில்கள் மற்றும் பலவற்றை கண்காணிக்கவும்';
+
+  @override
+  String get recurring => 'மாதாந்திர';
+
+  @override
+  String get thisWeek => 'இந்த வாரம்';
+
+  @override
+  String get thisYear => 'இந்த ஆண்டு';
+
+  @override
+  String get allTime => 'எல்லா நேரமும்';
+
+  @override
+  String get custom => 'தனிப்பயன்';
+
+  @override
+  String get revenue => 'வருவாய்';
+
+  @override
+  String get invoiceDetails => 'விலைப்பட்டியல் விவரங்கள்';
+
+  @override
+  String get lineItems => 'வரி உருப்படிகள்';
+
+  @override
+  String get change => 'மாற்றவும்';
+
+  @override
+  String get previewPdf => 'PDF முன்னோட்டம்';
+
+  @override
+  String get totalPaid => 'மொத்த கட்டணம்';
+
+  @override
+  String get invoiceTotal => 'விலைப்பட்டியல் மொத்தம்';
+
+  @override
+  String get all => 'அனைத்தும்';
+
+  @override
+  String get clearFilters => 'வடிப்பான்களை அழிக்கவும்';
+
+  @override
+  String get filterByClient => 'வாடிக்கையாளரால் வடிகட்டவும்';
+
+  @override
+  String get allClients => 'அனைத்து வாடிக்கையாளர்களும்';
+
+  @override
+  String get newClient => 'புதிய வாடிக்கையாளர்';
 }

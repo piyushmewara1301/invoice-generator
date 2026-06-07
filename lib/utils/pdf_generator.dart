@@ -51,6 +51,8 @@ class PdfGenerator {
         return _buildLetterhead(invoice, profile, theme);
       case InvoiceTemplate.legalPro:
         return _buildLegalPro(invoice, profile, theme);
+      case InvoiceTemplate.thermalReceipt:
+        return _buildThermalReceipt(invoice, profile, theme);
     }
   }
 
@@ -173,7 +175,7 @@ class PdfGenerator {
                     ),
                     borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                   ),
-                  child: pw.Text(_invoiceTitle(profile),
+                  child: pw.Text(_invoiceTitle(profile, invoice),
                       style: pw.TextStyle(
                           fontSize: 26,
                           fontWeight: pw.FontWeight.bold,
@@ -184,6 +186,7 @@ class PdfGenerator {
                 _kv('Date', Fmt.date(invoice.invoiceDate)),
                 _kv('Due Date', Fmt.date(invoice.dueDate)),
                 ..._gstMetaRows(invoice, profile),
+                ..._customFieldRows(invoice),
               ],
             ),
           ],
@@ -196,7 +199,7 @@ class PdfGenerator {
             showHsn: profile.isGstRegistered),
         pw.SizedBox(height: 12),
         _totalsBlock(invoice, sym, profile: profile),
-        ..._notesTerms(invoice),
+        ..._notesTerms(invoice, profile: profile),
         ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
@@ -251,7 +254,7 @@ class PdfGenerator {
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.end,
               children: [
-                pw.Text(_invoiceTitle(profile),
+                pw.Text(_invoiceTitle(profile, invoice),
                     style: pw.TextStyle(
                         fontSize: 30,
                         fontWeight: pw.FontWeight.bold,
@@ -296,7 +299,9 @@ class PdfGenerator {
                 _kvLight('Due Date', Fmt.date(invoice.dueDate)),
                 if (profile.gstin?.isNotEmpty == true)
                   _kvLight('GSTIN', profile.gstin!),
+                ..._businessInfoWidgets(profile, style: 'kvLight'),
                 ..._gstMetaRowsLight(invoice, profile),
+                ..._customFieldRows(invoice),
               ],
             ),
           ],
@@ -310,7 +315,7 @@ class PdfGenerator {
           alignment: pw.Alignment.centerRight,
           child: _totalsBlock(invoice, sym, width: 200, profile: profile),
         ),
-        ..._notesTerms(invoice),
+        ..._notesTerms(invoice, profile: profile),
         ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
@@ -386,7 +391,7 @@ class PdfGenerator {
               pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 children: [
-                  pw.Text(_invoiceTitle(profile),
+                  pw.Text(_invoiceTitle(profile, invoice),
                       style: pw.TextStyle(
                           fontSize: 28,
                           fontWeight: pw.FontWeight.bold,
@@ -443,7 +448,9 @@ class PdfGenerator {
                         _kv('Due Date', Fmt.date(invoice.dueDate)),
                         if (profile.gstin?.isNotEmpty == true)
                           _kv('GSTIN', profile.gstin!),
+                        ..._businessInfoWidgets(profile, style: 'kv'),
                         ..._gstMetaRows(invoice, profile),
+                ..._customFieldRows(invoice),
                       ],
                     ),
                   ),
@@ -495,12 +502,15 @@ class PdfGenerator {
                                     color: PdfColors.white)),
                           ],
                         ),
+                        // Partial / advance payment (white-text variant)
+                        ..._partialPaymentRowsWhite(invoice, sym),
+                        _secondaryConversionRow(invoice),
                       ],
                     ),
                   ),
                 ],
               ),
-              ..._notesTerms(invoice),
+              ..._notesTerms(invoice, profile: profile),
               ..._paymentAndSignatureSection(profile),
               if (profile.verificationStatus != VerificationStatus.verified)
                 _unverifiedDisclaimer(),
@@ -574,7 +584,7 @@ class PdfGenerator {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text(_invoiceTitle(profile),
+                      pw.Text(_invoiceTitle(profile, invoice),
                           style: pw.TextStyle(
                               fontSize: 11,
                               fontWeight: pw.FontWeight.bold,
@@ -603,9 +613,11 @@ class PdfGenerator {
                     _tealKv('Due Date', Fmt.date(invoice.dueDate), teal),
                     if (profile.gstin?.isNotEmpty == true)
                       _tealKv('GSTIN', profile.gstin!, teal),
+                    ..._businessInfoWidgets(profile, style: 'teal', accentColor: teal),
                     if (invoice.placeOfSupply?.isNotEmpty == true &&
                         profile.isGstRegistered)
                       _tealKv('Place of Supply', invoice.placeOfSupply!, teal),
+                    ...invoice.customFields.map((cf) => _tealKv(cf.name, cf.value, teal)),
                   ],
                 ),
               ),
@@ -671,12 +683,15 @@ class PdfGenerator {
                                     fontSize: 13)),
                           ],
                         ),
+                        // Partial / advance payment summary
+                        ..._partialPaymentRows(invoice, sym),
+                        _secondaryConversionRow(invoice),
                       ],
                     ),
                   ),
                 ],
               ),
-              ..._notesTerms(invoice),
+              ..._notesTerms(invoice, profile: profile),
               ..._paymentAndSignatureSection(profile),
               if (profile.verificationStatus != VerificationStatus.verified)
                 _unverifiedDisclaimer(),
@@ -781,6 +796,9 @@ class PdfGenerator {
                       textAlign: pw.TextAlign.center,
                       style: const pw.TextStyle(
                           fontSize: 9, color: PdfColors.grey700)),
+                ...profile.businessInfoFields.map((f) => pw.Text(
+                    '${f.name}: ${f.value}',
+                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
               ],
             ],
           ),
@@ -790,9 +808,9 @@ class PdfGenerator {
         // Gold rule
         pw.Container(height: 2, color: gold),
         pw.SizedBox(height: 4),
-        // TAX INVOICE label centered
+        // Document title (dynamic — matches document type)
         pw.Center(
-          child: pw.Text('TAX INVOICE',
+          child: pw.Text(_invoiceTitle(profile, invoice),
               style: pw.TextStyle(
                   fontSize: 11,
                   fontWeight: pw.FontWeight.bold,
@@ -838,6 +856,7 @@ class PdfGenerator {
                   _kv('Date', Fmt.date(invoice.invoiceDate)),
                   _kv('Due Date', Fmt.date(invoice.dueDate)),
                   ..._gstMetaRows(invoice, profile),
+                ..._customFieldRows(invoice),
                 ],
               ),
             ),
@@ -908,12 +927,21 @@ class PdfGenerator {
                       ],
                     ),
                   ),
+                  // Partial / advance payment summary
+                  if (invoice.showPaymentsOnInvoice && invoice.amountPaid > 0)
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.fromLTRB(12, 6, 12, 6),
+                      child: pw.Column(
+                        children: _partialPaymentRows(invoice, sym),
+                      ),
+                    ),
+                  _secondaryConversionRow(invoice),
                 ],
               ),
             ),
           ],
         ),
-        ..._notesTerms(invoice),
+        ..._notesTerms(invoice, profile: profile),
         ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
@@ -1014,6 +1042,9 @@ class PdfGenerator {
             pw.Center(child: pw.Text('GSTIN: ${profile.gstin}',
                 textAlign: pw.TextAlign.center,
                 style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))),
+          ...profile.businessInfoFields.map((f) => pw.Center(
+              child: pw.Text('${f.name}: ${f.value}',
+                  style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700)))),
         ],
         pw.SizedBox(height: 10),
         _dashedDivider(),
@@ -1030,6 +1061,10 @@ class PdfGenerator {
         if (invoice.subject?.isNotEmpty == true)
           pw.Center(child: pw.Text('Ref: ${invoice.subject}',
               style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))),
+        ...invoice.customFields.map((cf) => pw.Center(
+            child: pw.Text('${cf.name}: ${cf.value}',
+                textAlign: pw.TextAlign.center,
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)))),
         if (invoice.client != null) ...[
           pw.SizedBox(height: 4),
           pw.Center(child: pw.Text(
@@ -1060,6 +1095,27 @@ class PdfGenerator {
           pw.SizedBox(height: 4),
         ],
         _receiptTotRow('Total', '$sym${invoice.grandTotal.toStringAsFixed(2)}', bold: true, fontSize: 13),
+        // Partial / advance payment summary (receipt style)
+        if (invoice.showPaymentsOnInvoice && invoice.amountPaid > 0) ...[
+          pw.SizedBox(height: 4),
+          _dashedDivider(),
+          pw.SizedBox(height: 4),
+          for (final p in invoice.payments)
+            _receiptTotRow(
+              '${p.paymentMethodName ?? "Paid"} (${Fmt.date(p.date)})',
+              '-$sym${p.amount.toStringAsFixed(2)}',
+              bold: false,
+            ),
+          _dashedDivider(),
+          pw.SizedBox(height: 4),
+          _receiptTotRow(
+            'Balance Due',
+            '$sym${invoice.amountRemaining.toStringAsFixed(2)}',
+            bold: true,
+            fontSize: 12,
+          ),
+        ],
+        _secondaryConversionRow(invoice),
         pw.SizedBox(height: 6),
 
         // ── Payment mode ─────────────────────────────────────────
@@ -1170,6 +1226,14 @@ class PdfGenerator {
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
                 ),
+                if (profile.professionTitle?.isNotEmpty == true) ...[
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    profile.professionTitle!,
+                    textAlign: pw.TextAlign.center,
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                  ),
+                ],
                 pw.SizedBox(height: 4),
                 // Address line
                 () {
@@ -1201,6 +1265,9 @@ class PdfGenerator {
                   pw.Text('PAN/GSTIN: ${profile.gstin}',
                       textAlign: pw.TextAlign.center,
                       style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+                ...profile.businessInfoFields.map((f) => pw.Text(
+                    '${f.name}: ${f.value}',
+                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
               ],
             ],
           ),
@@ -1216,7 +1283,7 @@ class PdfGenerator {
             decoration: const pw.BoxDecoration(
               border: pw.Border(bottom: pw.BorderSide(width: 1.5)),
             ),
-            child: pw.Text(_invoiceTitle(profile),
+            child: pw.Text(_invoiceTitle(profile, invoice),
                 style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, letterSpacing: 3)),
           ),
         ),
@@ -1240,6 +1307,9 @@ class PdfGenerator {
                 if (profile.isGstRegistered && invoice.reverseCharge)
                   pw.Text('Reverse Charge: Yes',
                       style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+                ...invoice.customFields.map((cf) => pw.Text(
+                    '${cf.name}: ${cf.value}',
+                    style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700))),
               ],
             ),
           ],
@@ -1296,6 +1366,7 @@ class PdfGenerator {
             ],
           ),
         ),
+        _secondaryConversionRow(invoice),
         pw.SizedBox(height: 20),
 
         // ── Notes ────────────────────────────────────────────────
@@ -1357,12 +1428,17 @@ class PdfGenerator {
                 if (profile.gstin?.isNotEmpty == true)
                   pw.Text('Pan Card:  ${profile.gstin}',
                       style: const pw.TextStyle(fontSize: 9)),
+                ...profile.businessInfoFields.map((f) => pw.Text(
+                    '${f.name}: ${f.value}',
+                    style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
               ],
             ),
           ),
         ],
+        ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
+        _centeredFooter(profile),
         _brandingFooter(),
       ],
     ));
@@ -1583,6 +1659,98 @@ class PdfGenerator {
   }
 
   // ─────────────────────────────────────────────────────────────
+  // PARTIAL-PAYMENT SUMMARY HELPERS
+  // ─────────────────────────────────────────────────────────────
+
+  // Rows for light/white backgrounds (most templates).
+  static List<pw.Widget> _partialPaymentRows(Invoice inv, String sym) {
+    // Show when payments are enabled OR when TDS was deducted (compliance).
+    if (inv.amountPaid <= 0) return [];
+    if (!inv.showPaymentsOnInvoice && inv.totalTdsDeducted <= 0) return [];
+    const green = PdfColor(0.09, 0.56, 0.24);
+    const red   = PdfColor(0.78, 0.10, 0.10);
+    const tdsBlue = PdfColor(0.30, 0.54, 0.80);
+    final remaining = inv.amountRemaining;
+    return [
+      pw.Divider(color: PdfColors.grey300, thickness: 0.5),
+      // Individual payment rows only when user opted in.
+      if (inv.showPaymentsOnInvoice)
+        for (final p in inv.payments) ...[
+          _totRow(
+            '${p.paymentMethodName ?? "Payment"} (${Fmt.date(p.date)})',
+            '-$sym${p.amount.toStringAsFixed(2)}',
+            color: green,
+          ),
+          if ((p.tdsAmount ?? 0) > 0)
+            _totRow(
+              '  TDS Deducted (${p.tdsPercent?.toStringAsFixed(0) ?? ''}%)',
+              '-$sym${p.tdsAmount!.toStringAsFixed(2)}',
+              color: tdsBlue,
+              fontSize: 9,
+            ),
+        ],
+      // TDS credit summary always shown when TDS was deducted.
+      if (inv.totalTdsDeducted > 0)
+        _totRow('TDS Credit (deducted by client)',
+            '$sym${inv.totalTdsDeducted.toStringAsFixed(2)}',
+            color: tdsBlue),
+      pw.Divider(color: PdfColors.grey500, thickness: 0.8),
+      _totRow(
+        'Balance Due',
+        '$sym${remaining.toStringAsFixed(2)}',
+        bold: true,
+        fontSize: 12,
+        color: remaining > 0.01 ? red : green,
+      ),
+    ];
+  }
+
+  // Rows for dark/coloured backgrounds (Corporate template).
+  static List<pw.Widget> _partialPaymentRowsWhite(Invoice inv, String sym) {
+    if (inv.amountPaid <= 0) return [];
+    if (!inv.showPaymentsOnInvoice && inv.totalTdsDeducted <= 0) return [];
+    const lightGreen = PdfColor(0.55, 0.95, 0.55);
+    const lightRed   = PdfColor(0.98, 0.55, 0.55);
+    final remaining = inv.amountRemaining;
+    return [
+      pw.Divider(color: const PdfColor(1, 1, 1, 0.3), thickness: 0.5),
+      if (inv.showPaymentsOnInvoice)
+        for (final p in inv.payments) ...[
+          _kvWhite(
+            '${p.paymentMethodName ?? "Payment"} (${Fmt.date(p.date)})',
+            '-$sym${p.amount.toStringAsFixed(2)}',
+          ),
+          if ((p.tdsAmount ?? 0) > 0)
+            _kvWhite(
+              '  TDS Deducted (${p.tdsPercent?.toStringAsFixed(0) ?? ''}%)',
+              '-$sym${p.tdsAmount!.toStringAsFixed(2)}',
+            ),
+        ],
+      if (inv.totalTdsDeducted > 0)
+        _kvWhite(
+          'TDS Credit (deducted by client)',
+          '$sym${inv.totalTdsDeducted.toStringAsFixed(2)}',
+        ),
+      pw.Divider(color: const PdfColor(1, 1, 1, 0.5), thickness: 0.8),
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text('Balance Due',
+              style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                  color: remaining > 0.01 ? lightRed : lightGreen)),
+          pw.Text('$sym${remaining.toStringAsFixed(2)}',
+              style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                  color: remaining > 0.01 ? lightRed : lightGreen)),
+        ],
+      ),
+    ];
+  }
+
+  // ─────────────────────────────────────────────────────────────
   // TOTALS BLOCK
   // ─────────────────────────────────────────────────────────────
 
@@ -1610,6 +1778,9 @@ class PdfGenerator {
               ],
               _totRow('Total', '$sym${inv.grandTotal.toStringAsFixed(2)}',
                   bold: true, fontSize: 13),
+              // Partial / advance payment summary
+              ..._partialPaymentRows(inv, sym),
+              _secondaryConversionRow(inv),
             ],
           ),
         ),
@@ -1630,6 +1801,31 @@ class PdfGenerator {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [pw.Text(label, style: s), pw.Text(value, style: s)],
+      ),
+    );
+  }
+
+  /// Returns a single muted row showing the grand total converted into the
+  /// invoice's [secondaryCurrency], or an empty widget when the feature is off.
+  static pw.Widget _secondaryConversionRow(Invoice inv) {
+    final sec = inv.secondaryCurrency;
+    final rate = inv.secondaryExchangeRate;
+    if (sec == null || rate == null || rate == 0) return pw.SizedBox();
+    final secSym = Fmt.currencySymbol(sec);
+    final converted = inv.grandTotal * rate;
+    final style = pw.TextStyle(
+      fontSize: 9,
+      color: PdfColors.grey600,
+      fontStyle: pw.FontStyle.italic,
+    );
+    return pw.Padding(
+      padding: const pw.EdgeInsets.only(top: 4),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text('Approx. Total ($sec)', style: style),
+          pw.Text('$secSym${converted.toStringAsFixed(2)}', style: style),
+        ],
       ),
     );
   }
@@ -1790,6 +1986,41 @@ class PdfGenerator {
         _profCell('$sym${inv.grandTotal.toStringAsFixed(2)}', bold: true, align: pw.TextAlign.right),
       ],
     ));
+    // Partial / advance payment rows inside the table
+    if (inv.showPaymentsOnInvoice && inv.amountPaid > 0) {
+      const green = PdfColor(0.09, 0.56, 0.24);
+      const red   = PdfColor(0.78, 0.10, 0.10);
+      for (final p in inv.payments) {
+        rows.add(pw.TableRow(children: [
+          _profCell('${p.paymentMethodName ?? "Payment"} (${Fmt.date(p.date)})',
+              align: pw.TextAlign.right),
+          _profCell('-$sym${p.amount.toStringAsFixed(2)}', align: pw.TextAlign.right),
+        ]));
+      }
+      final remaining = inv.amountRemaining;
+      rows.add(pw.TableRow(
+        decoration: pw.BoxDecoration(
+          color: remaining > 0.01
+              ? const PdfColor(1.0, 0.93, 0.93)
+              : const PdfColor(0.93, 1.0, 0.93),
+        ),
+        children: [
+          _profCell('Balance Due', bold: true, align: pw.TextAlign.right),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: pw.Text(
+              '$sym${remaining.toStringAsFixed(2)}',
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 10,
+                fontWeight: pw.FontWeight.bold,
+                color: remaining > 0.01 ? red : green,
+              ),
+            ),
+          ),
+        ],
+      ));
+    }
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey600, width: 0.5),
       columnWidths: const {
@@ -1938,6 +2169,9 @@ class PdfGenerator {
     if (f.contains(kHeaderGstin) && p.gstin?.isNotEmpty == true) {
       lines.add(_grayLine('GSTIN: ${p.gstin}'));
     }
+    for (final field in p.businessInfoFields) {
+      lines.add(_grayLine('${field.name}: ${field.value}'));
+    }
     if (f.contains(kHeaderWebsite) && p.website?.isNotEmpty == true) {
       lines.add(_grayLine(p.website!));
     }
@@ -1946,6 +2180,30 @@ class PdfGenerator {
 
   static pw.Widget _grayLine(String text) => pw.Text(text,
       style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700));
+
+  // Returns key-value rows for business registration fields (PAN, FSSAI, etc.)
+  // style: 'kv' | 'kvLight' | 'kvWhite' | 'text' | 'teal'
+  static List<pw.Widget> _businessInfoWidgets(
+    BusinessProfile profile, {
+    String style = 'kv',
+    PdfColor? accentColor,
+  }) {
+    if (profile.businessInfoFields.isEmpty) return [];
+    return profile.businessInfoFields.map((f) {
+      switch (style) {
+        case 'kvLight': return _kvLight(f.name, f.value);
+        case 'kvWhite': return _kvWhite(f.name, f.value);
+        case 'text':
+          return pw.Text('${f.name}: ${f.value}',
+              style: pw.TextStyle(fontSize: 8, color: PdfColors.grey700));
+        case 'teal':
+          return accentColor != null
+              ? _tealKv(f.name, f.value, accentColor)
+              : _kv(f.name, f.value);
+        default: return _kv(f.name, f.value);
+      }
+    }).toList();
+  }
 
   static pw.Widget _kv(String label, String value) {
     return pw.Padding(
@@ -2013,7 +2271,8 @@ class PdfGenerator {
     );
   }
 
-  static List<pw.Widget> _notesTerms(Invoice inv) {
+  static List<pw.Widget> _notesTerms(Invoice inv,
+      {BusinessProfile? profile}) {
     final out = <pw.Widget>[];
     if (inv.notes?.isNotEmpty == true) {
       out.addAll([
@@ -2037,6 +2296,26 @@ class PdfGenerator {
         pw.Text(inv.terms!,
             style: const pw.TextStyle(
                 fontSize: 9, color: PdfColors.grey700)),
+      ]);
+    }
+    if (profile?.isCompositionDealer == true) {
+      out.addAll([
+        pw.SizedBox(height: 12),
+        pw.Container(
+          width: double.infinity,
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: pw.BoxDecoration(
+            color: const PdfColor(1.0, 0.97, 0.88),
+            border: pw.Border.all(
+                color: const PdfColor(0.87, 0.62, 0.10), width: 0.6),
+            borderRadius: pw.BorderRadius.circular(3),
+          ),
+          child: pw.Text(
+            'Composition taxable person, not eligible to collect tax on supplies.',
+            style: const pw.TextStyle(
+                fontSize: 8.5, color: PdfColors.brown),
+          ),
+        ),
       ]);
     }
     return out;
@@ -2281,7 +2560,7 @@ class PdfGenerator {
                   ),
                 ),
                 child: pw.Center(
-                  child: pw.Text('TAX INVOICE',
+                  child: pw.Text(_invoiceTitle(profile, invoice),
                       style: pw.TextStyle(
                           fontSize: 13,
                           fontWeight: pw.FontWeight.bold,
@@ -2343,6 +2622,7 @@ class PdfGenerator {
                               pw.SizedBox(height: 4),
                               _gstInfoRow('GSTIN', profile.gstin!),
                             ],
+                            ...profile.businessInfoFields.map((f) => _gstInfoRow(f.name, f.value)),
                           ],
                         ),
                       ),
@@ -2445,7 +2725,8 @@ class PdfGenerator {
                       flex: 4,
                       child: _gstTotalsBox(
                           invoice, sym, saffron, saffronLight,
-                          isInter: isInter),
+                          isInter: isInter,
+                          showPayments: invoice.showPaymentsOnInvoice),
                     ),
                   ],
                 ),
@@ -2511,6 +2792,12 @@ class PdfGenerator {
                               fontSize: 8, color: PdfColors.grey700)),
                       pw.SizedBox(height: 8),
                     ],
+                    if (invoice.customFields.isNotEmpty) ...[
+                      ...invoice.customFields.map((cf) => pw.Text(
+                          '${cf.name}: ${cf.value}',
+                          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700))),
+                      pw.SizedBox(height: 8),
+                    ],
                     // Reverse charge declaration
                     pw.Text(
                       'Whether the tax is payable on Reverse Charge basis: '
@@ -2574,11 +2861,13 @@ class PdfGenerator {
             ],
           ),
         ),
+        ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           pw.Padding(
             padding: const pw.EdgeInsets.only(top: 10),
             child: _unverifiedDisclaimer(),
           ),
+        _centeredFooter(profile),
         _brandingFooter(),
       ],
     ));
@@ -2752,7 +3041,7 @@ class PdfGenerator {
   }
 
   static pw.Widget _gstTotalsBox(Invoice inv, String sym, PdfColor saffron,
-      PdfColor saffronLight, {bool isInter = false}) {
+      PdfColor saffronLight, {bool isInter = false, bool showPayments = false}) {
     final taxItems = inv.items
         .where((i) => i.taxPercent > 0)
         .map((i) => (taxableAmount: i.taxableAmount, taxPercent: i.taxPercent))
@@ -2804,6 +3093,15 @@ class PdfGenerator {
               ],
             ),
           ),
+          // Partial / advance payment summary
+          if (showPayments && inv.amountPaid > 0)
+            pw.Padding(
+              padding: const pw.EdgeInsets.fromLTRB(10, 6, 10, 6),
+              child: pw.Column(
+                children: _partialPaymentRows(inv, sym),
+              ),
+            ),
+          _secondaryConversionRow(inv),
         ],
       ),
     );
@@ -2972,15 +3270,31 @@ class PdfGenerator {
   // GST HELPERS
   // ─────────────────────────────────────────────────────────────
 
-  static String _invoiceTitle(BusinessProfile profile) =>
-      profile.isGstRegistered ? 'TAX INVOICE' : 'INVOICE';
+  static String _invoiceTitle(BusinessProfile profile,
+          [Invoice? invoice]) {
+    if (invoice?.isCreditNote == true) return 'CREDIT NOTE';
+    if (invoice?.isQuotation == true) return 'QUOTATION';
+    if (invoice?.isDeliveryChallan == true) return 'DELIVERY CHALLAN';
+    if (profile.isCompositionDealer) return 'BILL OF SUPPLY';
+    return profile.isGstRegistered ? 'TAX INVOICE' : 'INVOICE';
+  }
+
+  /// Renders custom fields as compact key-value rows below the invoice meta.
+  static List<pw.Widget> _customFieldRows(Invoice invoice) {
+    if (invoice.customFields.isEmpty) return [];
+    return invoice.customFields
+        .map((f) => _kv(f.name, f.value))
+        .toList();
+  }
 
   static String _formatRate(double r) =>
       r % 1 == 0 ? r.toInt().toString() : r.toStringAsFixed(1);
 
   // Returns (label, value) pairs for tax rows — CGST+SGST or IGST split when GST registered.
+  // Composition dealers cannot collect tax, so no tax rows are emitted.
   static List<(String, String)> _gstTaxLabelValues(
       Invoice inv, BusinessProfile profile, String sym) {
+    if (profile.isCompositionDealer) return [];
     if (!profile.isGstRegistered || inv.totalTax <= 0) {
       return [('Tax', '$sym${inv.totalTax.toStringAsFixed(2)}')];
     }
@@ -3075,6 +3389,16 @@ class PdfGenerator {
               style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, letterSpacing: 1.5),
             ),
           ),
+        if (profile.professionTitle?.isNotEmpty == true) ...[
+          pw.SizedBox(height: 3),
+          pw.Center(
+            child: pw.Text(
+              profile.professionTitle!,
+              textAlign: pw.TextAlign.center,
+              style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+            ),
+          ),
+        ],
         pw.SizedBox(height: 5),
 
         // ── Rule 1 ───────────────────────────────────────────────
@@ -3112,7 +3436,7 @@ class PdfGenerator {
               border: pw.Border(bottom: pw.BorderSide(width: 1.5, color: PdfColors.black)),
             ),
             child: pw.Text(
-              _invoiceTitle(profile).toUpperCase(),
+              _invoiceTitle(profile, invoice).toUpperCase(),
               style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, letterSpacing: 4),
             ),
           ),
@@ -3152,6 +3476,9 @@ class PdfGenerator {
                   if (f.contains(kHeaderGstin) && profile.gstin?.isNotEmpty == true)
                     pw.Text('GSTIN: ${profile.gstin}',
                         style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800)),
+                  ...profile.businessInfoFields.map((bif) => pw.Text(
+                      '${bif.name}: ${bif.value}',
+                      style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800))),
                 ],
               ),
             ),
@@ -3173,6 +3500,9 @@ class PdfGenerator {
                   if (profile.isGstRegistered && invoice.placeOfSupply?.isNotEmpty == true)
                     pw.Text('Place of Supply: ${invoice.placeOfSupply}',
                         style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700)),
+                  ...invoice.customFields.map((cf) => pw.Text(
+                      '${cf.name}: ${cf.value}',
+                      style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700))),
                 ],
               ),
             ),
@@ -3247,6 +3577,7 @@ class PdfGenerator {
 
         // ── Items table: Sr.No | Particulars | Amount ─────────────
         _letterheadTable(invoice, sym, profile),
+        _secondaryConversionRow(invoice),
         pw.SizedBox(height: 6),
 
         // ── Amount in words ──────────────────────────────────────
@@ -3388,6 +3719,7 @@ class PdfGenerator {
           ),
         ],
 
+        ..._paymentAndSignatureSection(profile),
         _centeredFooter(profile),
         _brandingFooter(),
       ],
@@ -3468,6 +3800,44 @@ class PdfGenerator {
         ),
       ],
     ));
+
+    // Partial / advance payment rows inside the table
+    if (inv.showPaymentsOnInvoice && inv.amountPaid > 0) {
+      const green = PdfColor(0.09, 0.56, 0.24);
+      const red   = PdfColor(0.78, 0.10, 0.10);
+      for (final p in inv.payments) {
+        rows.add(pw.TableRow(children: [
+          _lhCell('', align: pw.TextAlign.center),
+          _lhCell('${p.paymentMethodName ?? "Payment"} (${Fmt.date(p.date)})',
+              align: pw.TextAlign.right),
+          _lhCell('-$sym${p.amount.toStringAsFixed(2)}', align: pw.TextAlign.right),
+        ]));
+      }
+      final remaining = inv.amountRemaining;
+      rows.add(pw.TableRow(
+        decoration: pw.BoxDecoration(
+          color: remaining > 0.01
+              ? const PdfColor(1.0, 0.93, 0.93)
+              : const PdfColor(0.93, 1.0, 0.93),
+        ),
+        children: [
+          _lhCell('', align: pw.TextAlign.center),
+          _lhCell('Balance Due', bold: true, align: pw.TextAlign.right),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+            child: pw.Text(
+              '$sym${remaining.toStringAsFixed(2)}',
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+                color: remaining > 0.01 ? red : green,
+              ),
+            ),
+          ),
+        ],
+      ));
+    }
 
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.5),
@@ -3555,6 +3925,11 @@ class PdfGenerator {
                             profile.name.isNotEmpty ? profile.name : 'Your Business',
                             style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold),
                           ),
+                        if (profile.professionTitle?.isNotEmpty == true)
+                          pw.Text(
+                            profile.professionTitle!,
+                            style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+                          ),
                         pw.SizedBox(height: 3),
                         if (f.contains(kHeaderAddress)) ...[
                           () {
@@ -3579,6 +3954,9 @@ class PdfGenerator {
                         if (f.contains(kHeaderWebsite) && profile.website?.isNotEmpty == true)
                           pw.Text('Web: ${profile.website}',
                               style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800)),
+                        ...profile.businessInfoFields.map((bif) => pw.Text(
+                            '${bif.name}: ${bif.value}',
+                            style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey800))),
                       ],
                     ),
                   ),
@@ -3643,6 +4021,9 @@ class PdfGenerator {
                     pw.Text('Payment terms ${invoice.terms}',
                         style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800)),
                   ],
+                  ...invoice.customFields.map((cf) => pw.Text(
+                      '${cf.name}: ${cf.value}',
+                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey800))),
                 ],
               ),
             ),
@@ -3660,7 +4041,7 @@ class PdfGenerator {
               ),
             ),
             child: pw.Text(
-              _invoiceTitle(profile).toUpperCase(),
+              _invoiceTitle(profile, invoice).toUpperCase(),
               style: pw.TextStyle(
                   fontSize: 13, fontWeight: pw.FontWeight.bold, letterSpacing: 4),
             ),
@@ -3689,6 +4070,7 @@ class PdfGenerator {
 
         // ── Items table: DATED | PARTICULARS | CURRENCY IN RUPEES ────
         _legalProTable(invoice, sym, profile),
+        _secondaryConversionRow(invoice),
         pw.SizedBox(height: 20),
 
         // ── Notes ────────────────────────────────────────────────────
@@ -3710,8 +4092,11 @@ class PdfGenerator {
               profile.name.isNotEmpty ? profile.name : 'Authorized Signatory',
               style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
             ),
-            pw.Text('Advocate',
-                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+            if (profile.professionTitle?.isNotEmpty == true)
+              pw.Text(
+                profile.professionTitle!,
+                style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+              ),
           ],
         ),
         pw.SizedBox(height: 14),
@@ -3769,8 +4154,10 @@ class PdfGenerator {
           ],
         ],
 
+        ..._paymentAndSignatureSection(profile),
         if (profile.verificationStatus != VerificationStatus.verified)
           _unverifiedDisclaimer(),
+        _centeredFooter(profile),
         _brandingFooter(),
       ],
     ));
@@ -3843,6 +4230,43 @@ class PdfGenerator {
       _lpCell(inv.grandTotal.toStringAsFixed(2), bold: true, align: pw.TextAlign.right),
     ]));
 
+    // Partial / advance payment rows
+    if (inv.showPaymentsOnInvoice && inv.amountPaid > 0) {
+      const green = PdfColor(0.09, 0.56, 0.24);
+      const red   = PdfColor(0.78, 0.10, 0.10);
+      for (final p in inv.payments) {
+        rows.add(pw.TableRow(children: [
+          _lpCell(Fmt.date(p.date), align: pw.TextAlign.center),
+          _lpCell('${p.paymentMethodName ?? "Payment"} Received', align: pw.TextAlign.left),
+          _lpCell('-${p.amount.toStringAsFixed(2)}', align: pw.TextAlign.right),
+        ]));
+      }
+      final remaining = inv.amountRemaining;
+      rows.add(pw.TableRow(
+        decoration: pw.BoxDecoration(
+          color: remaining > 0.01
+              ? const PdfColor(1.0, 0.93, 0.93)
+              : const PdfColor(0.93, 1.0, 0.93),
+        ),
+        children: [
+          _lpCell('', align: pw.TextAlign.center),
+          _lpCell('Balance Due', bold: true, align: pw.TextAlign.right),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+            child: pw.Text(
+              remaining.toStringAsFixed(2),
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+                color: remaining > 0.01 ? red : green,
+              ),
+            ),
+          ),
+        ],
+      ));
+    }
+
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey700, width: 0.5),
       columnWidths: const {
@@ -3875,5 +4299,795 @@ class PdfGenerator {
     } catch (_) {
       return null;
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // TEMPLATE 11 — THERMAL RECEIPT
+  // 80mm thermal printer format · POS style · monochrome
+  // ─────────────────────────────────────────────────────────────
+
+  // NotoSans line-height constants used for exact page sizing.
+  // Each font size × 1.2 gives the rendered line height in PDF points.
+  static const _kLh85  = 8.5  * 1.2; // body     → 10.20 pt
+  static const _kLh8   = 8.0  * 1.2; // small    →  9.60 pt
+  static const _kLh7   = 7.0  * 1.2; // label    →  8.40 pt
+  static const _kLh11  = 11.0 * 1.2; // total    → 13.20 pt
+  static const _kLh14  = 14.0 * 1.2; // title    → 16.80 pt
+  // Structural widget heights (pt)
+  static const _kSolid  = 1.0 + 4.0 + 4.0;  // solidLine  =  9.0 pt
+  static const _kDash   = 0.8 + 3.0 + 3.0;  // dashedLine =  6.8 pt
+  static const _kKvPad  = 1.5 + 1.5;        // kvRow vertical padding = 3 pt
+  static const _kItemPad = 2.0 + 2.0;       // item row vertical padding = 4 pt
+
+  /// Computes the page height in PDF points that tightly wraps the receipt
+  /// content.  Every section is accounted for with the same measurements
+  /// used in [_buildThermalReceipt], so there is no blank space at the end.
+  static double _thermalContentHeight(Invoice invoice, BusinessProfile profile) {
+    // ── margin (6 mm top + 6 mm bottom) ──────────────────────────────────
+    double h = 6 * PdfPageFormat.mm * 2;
+
+    // ── logo ──────────────────────────────────────────────────────────────
+    if (profile.logoBase64?.isNotEmpty == true &&
+        profile.headerFields.contains(kHeaderLogo)) {
+      h += 56 + 8; // image(56) + padding-bottom(8)
+    }
+
+    // ── business name block ───────────────────────────────────────────────
+    if (profile.headerFields.contains(kHeaderName)) {
+      h += _kLh14 + 4; // title + SizedBox(4)
+      if (profile.address.isNotEmpty) h += _kLh8;
+      if (profile.city.isNotEmpty || profile.state.isNotEmpty) h += _kLh8;
+      if (profile.phone.isNotEmpty) h += _kLh8;
+      if (profile.website?.isNotEmpty == true) h += _kLh8;
+      h += profile.businessInfoFields.length * _kLh8;
+    }
+
+    h += _kSolid; // separator
+
+    // ── invoice meta ──────────────────────────────────────────────────────
+    h += _kLh85 + 2; // date/time row + SizedBox(2)
+    h += _kLh85;     // receipt # / due date row
+    if (invoice.client != null) {
+      h += 3 + _kLh85; // SizedBox(3) + customer row
+      if (invoice.client!.phone.isNotEmpty) h += _kLh85;
+    }
+    if (invoice.subject?.isNotEmpty == true) h += 2 + _kLh8; // SizedBox(2) + ref text
+    if (invoice.customFields.isNotEmpty) {
+      h += invoice.customFields.length * (_kLh8 + _kKvPad);
+    }
+
+    h += _kDash;
+
+    // ── items ─────────────────────────────────────────────────────────────
+    h += _kLh7 + 4; // "ITEMS" label + SizedBox(4)
+    h += invoice.items.length * (_kLh85 + _kItemPad);
+
+    h += _kDash;
+
+    // ── totals ────────────────────────────────────────────────────────────
+    if (invoice.subtotal != invoice.grandTotal) {
+      h += _kLh85 + _kKvPad; // subtotal kvRow
+      if (invoice.totalDiscount > 0) h += _kLh85 + _kKvPad;
+      if (invoice.totalTax > 0) {
+        final lines = profile.isGstRegistered ? 2 : 1;
+        h += lines * (_kLh85 + _kKvPad);
+      }
+      h += _kDash;
+    }
+    h += _kLh11 + _kKvPad; // TOTAL (11pt)
+
+    // ── partial payments ──────────────────────────────────────────────────
+    if (invoice.showPaymentsOnInvoice && invoice.amountPaid > 0) {
+      h += _kDash;
+      h += invoice.payments.length * (_kLh85 + _kKvPad);
+      h += _kSolid;
+      h += _kLh11 + _kKvPad; // balance due
+    }
+
+    // ── payment method ────────────────────────────────────────────────────
+    if (invoice.paymentMethodName?.isNotEmpty == true) {
+      h += _kDash + _kLh7 + 4; // separator + label + SizedBox(4)
+      h += (_kLh85 + _kKvPad) * 2; // METHOD + STATUS rows
+    }
+
+    // ── notes ─────────────────────────────────────────────────────────────
+    if (invoice.notes?.isNotEmpty == true) {
+      h += _kDash + _kLh8 * 2; // separator + ~2 lines
+    }
+
+    // ── footer line + thank-you ───────────────────────────────────────────
+    h += _kSolid + 4; // solidLine + SizedBox(4)
+    if (profile.isGstRegistered && profile.gstin?.isNotEmpty == true) {
+      h += _kLh8 + 4; // GSTIN text + SizedBox(4)
+    }
+    h += 4; // SizedBox(4) before thank-you
+    if (profile.showThankYouMessage) h += _kLh85; // bold thank-you text
+    h += 8; // SizedBox(8)
+
+    // ── UPI QR code ───────────────────────────────────────────────────────
+    final hasUpi = profile.paymentMethods.any(
+        (m) => m.type == PaymentMethodType.upi && m.upiId?.isNotEmpty == true);
+    if (hasUpi) {
+      h += _kDash + 8;   // dashed separator + SizedBox(8)
+      h += _kLh7 + 2;    // "SCAN & PAY" label + SizedBox(2)
+      h += 76;           // QR image (76×76)
+      h += 4 + _kLh8;    // SizedBox(4) + UPI ID text
+      h += _kLh8 + 8;    // amount text + SizedBox(8)
+    }
+
+    // ── branding footer ───────────────────────────────────────────────────
+    h += 6 + _kLh7; // Padding(top:6) + 7pt text
+
+    return h + 8; // +8 pt safety buffer to avoid any clipping
+  }
+
+  static Future<Uint8List> _buildThermalReceipt(
+      Invoice invoice, BusinessProfile profile, pw.ThemeData theme) async {
+    final pdf = pw.Document();
+    final sym = Fmt.currencySymbol(invoice.currency);
+    final logo = _decodeLogo(profile.logoBase64);
+    final showTax = invoice.totalTax > 0;
+
+    // ── Find UPI payment method for QR ────────────────────────
+    PaymentMethod? upiMethod;
+    for (final m in profile.paymentMethods) {
+      if (m.type == PaymentMethodType.upi && m.upiId?.isNotEmpty == true) {
+        upiMethod = m;
+        break;
+      }
+    }
+
+    // Page height is computed from actual widget heights so the PDF is
+    // exactly the size of the bill — no blank space at the end.
+    final pageHeight = _thermalContentHeight(invoice, profile);
+    final pageFormat = PdfPageFormat(
+      80 * PdfPageFormat.mm,
+      pageHeight,
+      marginLeft:   5 * PdfPageFormat.mm,
+      marginRight:  5 * PdfPageFormat.mm,
+      marginTop:    6 * PdfPageFormat.mm,
+      marginBottom: 6 * PdfPageFormat.mm,
+    );
+
+    // ── Text style helpers ─────────────────────────────────────
+    const body  = pw.TextStyle(fontSize: 8.5);
+    const small = pw.TextStyle(fontSize: 8.0, color: PdfColors.grey700);
+    final bold  = pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold);
+    final title = pw.TextStyle(fontSize: 14.0, fontWeight: pw.FontWeight.bold);
+    final label = pw.TextStyle(fontSize: 7.0, fontWeight: pw.FontWeight.bold,
+        letterSpacing: 1.5, color: PdfColors.grey500);
+
+    // ── Divider widgets ────────────────────────────────────────
+    pw.Widget solidLine() => pw.Container(
+          height: 1,
+          margin: const pw.EdgeInsets.symmetric(vertical: 4),
+          color: PdfColors.black,
+        );
+    pw.Widget dashedLine() => pw.Container(
+          margin: const pw.EdgeInsets.symmetric(vertical: 3),
+          height: 0.8,
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(
+                  style: pw.BorderStyle.dashed,
+                  color: PdfColors.grey600,
+                  width: 0.8),
+            ),
+          ),
+        );
+
+    // ── Two-column label→value row ─────────────────────────────
+    pw.Widget kvRow(String lbl, String val, {pw.TextStyle? style}) {
+      final s = style ?? body;
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(lbl, style: s),
+            pw.Text(val, style: s),
+          ],
+        ),
+      );
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: pageFormat,
+      theme: theme,
+      build: (ctx) => [
+        // ── Logo ────────────────────────────────────────────────
+        if (logo != null && profile.headerFields.contains(kHeaderLogo))
+          pw.Center(
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 8),
+              child: pw.Image(logo, width: 56, height: 56,
+                  fit: pw.BoxFit.contain),
+            ),
+          ),
+
+        // ── Business name + address ────────────────────────────
+        if (profile.headerFields.contains(kHeaderName)) ...[
+          pw.Center(
+            child: pw.Text(
+              (profile.name.isNotEmpty ? profile.name : 'YOUR BUSINESS')
+                  .toUpperCase(),
+              textAlign: pw.TextAlign.center,
+              style: title,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          if (profile.address.isNotEmpty)
+            pw.Center(child: pw.Text(profile.address.toUpperCase(),
+                textAlign: pw.TextAlign.center, style: small)),
+          () {
+            final cs = [profile.city, profile.state]
+                .where((s) => s.isNotEmpty)
+                .join(', ')
+                .toUpperCase();
+            return cs.isNotEmpty
+                ? pw.Center(child: pw.Text(cs,
+                    textAlign: pw.TextAlign.center, style: small))
+                : pw.SizedBox.shrink();
+          }(),
+          if (profile.phone.isNotEmpty)
+            pw.Center(child: pw.Text('PHONE: ${profile.phone}',
+                textAlign: pw.TextAlign.center, style: small)),
+          if (profile.website?.isNotEmpty == true)
+            pw.Center(child: pw.Text(profile.website!.toUpperCase(),
+                textAlign: pw.TextAlign.center, style: small)),
+          ...profile.businessInfoFields.map((bif) => pw.Center(
+              child: pw.Text('${bif.name}: ${bif.value}',
+                  textAlign: pw.TextAlign.center, style: small))),
+        ],
+
+        solidLine(),
+
+        // ── Invoice meta ───────────────────────────────────────
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(Fmt.date(invoice.invoiceDate).toUpperCase(), style: body),
+            pw.Text(
+              '${invoice.invoiceDate.hour.toString().padLeft(2, '0')}:'
+              '${invoice.invoiceDate.minute.toString().padLeft(2, '0')}',
+              style: body,
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 2),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text('RECEIPT:  ${invoice.invoiceNumber}', style: body),
+            pw.Text('DUE: ${Fmt.date(invoice.dueDate).toUpperCase()}',
+                style: small),
+          ],
+        ),
+        if (invoice.client != null) ...[
+          pw.SizedBox(height: 3),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+            children: [
+              pw.Text('CUSTOMER:', style: small),
+              pw.Expanded(
+                child: pw.Text(invoice.client!.displayName.toUpperCase(),
+                    textAlign: pw.TextAlign.right, style: body),
+              ),
+            ],
+          ),
+          if (invoice.client!.phone.isNotEmpty)
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('PHONE:', style: small),
+                pw.Text(invoice.client!.phone, style: body),
+              ],
+            ),
+        ],
+        if (invoice.subject?.isNotEmpty == true) ...[
+          pw.SizedBox(height: 2),
+          pw.Text('REF: ${invoice.subject!.toUpperCase()}', style: small),
+        ],
+        ...invoice.customFields.map((cf) =>
+            kvRow(cf.name.toUpperCase(), cf.value, style: small)),
+
+        dashedLine(),
+
+        // ── Items ──────────────────────────────────────────────
+        pw.Text('ITEMS', style: label),
+        pw.SizedBox(height: 4),
+        ...invoice.items.map((item) {
+          final hasQty = profile.showQuantity && item.quantity != 1;
+          final desc = hasQty
+              ? '${item.quantity % 1 == 0 ? item.quantity.toInt() : item.quantity}X  '
+                '${item.description.toUpperCase()}'
+              : item.description.toUpperCase();
+          return pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 2),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Expanded(child: pw.Text(desc, style: body)),
+                pw.SizedBox(width: 8),
+                pw.Text('$sym${item.subtotal.toStringAsFixed(2)}',
+                    style: body),
+              ],
+            ),
+          );
+        }),
+
+        dashedLine(),
+
+        // ── Totals ─────────────────────────────────────────────
+        if (invoice.subtotal != invoice.grandTotal) ...[
+          kvRow('SUBTOTAL:', '$sym${invoice.subtotal.toStringAsFixed(2)}'),
+          if (invoice.totalDiscount > 0)
+            kvRow('DISCOUNT:',
+                '-$sym${invoice.totalDiscount.toStringAsFixed(2)}'),
+          if (showTax)
+            ..._gstTaxLabelValues(invoice, profile, sym)
+                .map((lv) => kvRow('${lv.$1.toUpperCase()}:', lv.$2)),
+          dashedLine(),
+        ],
+        kvRow('TOTAL:', '$sym${invoice.grandTotal.toStringAsFixed(2)}',
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+
+        // ── Partial payment summary ────────────────────────────
+        if (invoice.showPaymentsOnInvoice && invoice.amountPaid > 0) ...[
+          dashedLine(),
+          for (final p in invoice.payments)
+            kvRow(
+              '${(p.paymentMethodName ?? 'PAID').toUpperCase()}'
+              ' (${Fmt.date(p.date).toUpperCase()}):',
+              '-$sym${p.amount.toStringAsFixed(2)}',
+            ),
+          solidLine(),
+          kvRow(
+            'BALANCE DUE:',
+            '$sym${invoice.amountRemaining.toStringAsFixed(2)}',
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+              color: invoice.amountRemaining > 0.01
+                  ? const PdfColor(0.78, 0.10, 0.10)
+                  : const PdfColor(0.09, 0.56, 0.24),
+            ),
+          ),
+        ],
+        _secondaryConversionRow(invoice),
+
+        // ── Payment method details ─────────────────────────────
+        if (invoice.paymentMethodName?.isNotEmpty == true) ...[
+          dashedLine(),
+          pw.Text('PAYMENT', style: label),
+          pw.SizedBox(height: 4),
+          kvRow('METHOD:', invoice.paymentMethodName!.toUpperCase()),
+          kvRow('STATUS:', 'APPROVED'),
+        ],
+
+        // ── Notes ──────────────────────────────────────────────
+        if (invoice.notes?.isNotEmpty == true) ...[
+          dashedLine(),
+          pw.Center(
+            child: pw.Text(invoice.notes!,
+                textAlign: pw.TextAlign.center, style: small),
+          ),
+        ],
+
+        // ── Footer ─────────────────────────────────────────────
+        solidLine(),
+        pw.SizedBox(height: 4),
+        if (profile.isGstRegistered && profile.gstin?.isNotEmpty == true) ...[
+          pw.Center(child: pw.Text('GSTIN: ${profile.gstin}',
+              style: small, textAlign: pw.TextAlign.center)),
+          pw.SizedBox(height: 4),
+        ],
+        pw.SizedBox(height: 4),
+        if (profile.showThankYouMessage)
+          pw.Center(
+            child: pw.Text(profile.thankYouMessage.toUpperCase(),
+                textAlign: pw.TextAlign.center, style: bold),
+          ),
+        pw.SizedBox(height: 8),
+
+        // ── UPI Payment QR code ────────────────────────────────
+        if (upiMethod != null) ...[
+          dashedLine(),
+          pw.SizedBox(height: 8),
+          pw.Center(
+            child: pw.Text('SCAN & PAY',
+                style: pw.TextStyle(
+                    fontSize: 7,
+                    fontWeight: pw.FontWeight.bold,
+                    letterSpacing: 2,
+                    color: PdfColors.grey700)),
+          ),
+          pw.SizedBox(height: 2),
+          pw.Center(
+            child: pw.BarcodeWidget(
+              barcode: pw.Barcode.qrCode(),
+              data: 'upi://pay?pa=${upiMethod.upiId!}'
+                  '&pn=${Uri.encodeComponent(profile.name)}'
+                  '&am=${invoice.grandTotal.toStringAsFixed(2)}'
+                  '&cu=INR',
+              width: 76,
+              height: 76,
+              color: PdfColors.black,
+            ),
+          ),
+          pw.SizedBox(height: 4),
+          pw.Center(child: pw.Text('UPI: ${upiMethod.upiId}',
+              style: small, textAlign: pw.TextAlign.center)),
+          pw.Center(child: pw.Text(
+              'Amount: $sym${invoice.grandTotal.toStringAsFixed(2)}',
+              style: small, textAlign: pw.TextAlign.center)),
+          pw.SizedBox(height: 8),
+        ],
+
+        _brandingFooter(),
+      ],
+    ));
+    return pdf.save();
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // CLIENT STATEMENT PDF
+  // A4 · lists all invoices for a client in a date range
+  // ─────────────────────────────────────────────────────────────
+  static Future<Uint8List> generateClientStatementPdf({
+    required List<Invoice> invoices,
+    required Client client,
+    required BusinessProfile profile,
+    required DateTime rangeStart,
+    required DateTime rangeEnd,
+  }) async {
+    _cachedRegular ??= await _loadFont('assets/fonts/NotoSans-Regular.ttf');
+    _cachedBold    ??= await _loadFont('assets/fonts/NotoSans-Bold.ttf');
+    final theme = pw.ThemeData.withFont(
+        base: _cachedRegular!, bold: _cachedBold!);
+
+    final pdf = pw.Document();
+    final logo = _decodeLogo(profile.logoBase64);
+    final sym = Fmt.currencySymbol(profile.currency);
+    final primary = _colorFromHex(
+        profile.themeColorHex, const PdfColor(0.08, 0.40, 0.75));
+
+    final totalBilled =
+        invoices.fold(0.0, (s, inv) => s + inv.grandTotal);
+    final totalPaid =
+        invoices.fold(0.0, (s, inv) => s + inv.amountPaid);
+    final balanceDue =
+        invoices.fold(0.0, (s, inv) => s + inv.amountRemaining);
+
+    // ── Column widths (pts) for the statement table ──────────────
+    const Map<int, pw.TableColumnWidth> stColWidths = {
+      0: pw.FixedColumnWidth(64),   // Date
+      1: pw.FlexColumnWidth(2.5),   // Invoice #
+      2: pw.FixedColumnWidth(52),   // Status
+      3: pw.FixedColumnWidth(72),   // Amount
+      4: pw.FixedColumnWidth(72),   // Paid
+      5: pw.FixedColumnWidth(72),   // Balance
+    };
+
+    pw.Widget stCell(String text,
+        {pw.TextAlign align = pw.TextAlign.left,
+        pw.TextStyle? style,
+        PdfColor? color}) {
+      return pw.Padding(
+        padding:
+            const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        child: pw.Text(
+          text,
+          style: style ??
+              pw.TextStyle(
+                  fontSize: 9,
+                  color: color ?? PdfColors.black),
+          textAlign: align,
+          maxLines: 1,
+        ),
+      );
+    }
+
+    pw.TableRow stHeaderRow() {
+      final s = pw.TextStyle(
+          fontSize: 9,
+          fontWeight: pw.FontWeight.bold,
+          color: PdfColors.white);
+      return pw.TableRow(
+        decoration: pw.BoxDecoration(color: primary),
+        children: [
+          stCell('Date',      style: s),
+          stCell('Invoice #', style: s),
+          stCell('Status',    style: s),
+          stCell('Amount',    style: s, align: pw.TextAlign.right),
+          stCell('Paid',      style: s, align: pw.TextAlign.right),
+          stCell('Balance',   style: s, align: pw.TextAlign.right),
+        ],
+      );
+    }
+
+    String statusLabel(InvoiceStatus st) {
+      switch (st) {
+        case InvoiceStatus.paid:          return 'Paid';
+        case InvoiceStatus.sent:          return 'Sent';
+        case InvoiceStatus.overdue:       return 'Overdue';
+        case InvoiceStatus.partiallyPaid: return 'Partial';
+        case InvoiceStatus.draft:         return 'Draft';
+        case InvoiceStatus.cancelled:     return 'Cancelled';
+      }
+    }
+
+    PdfColor statusColor(InvoiceStatus st) {
+      switch (st) {
+        case InvoiceStatus.paid:          return const PdfColor(0.09, 0.56, 0.24);
+        case InvoiceStatus.overdue:       return const PdfColor(0.78, 0.10, 0.10);
+        case InvoiceStatus.partiallyPaid: return const PdfColor(0.90, 0.50, 0.00);
+        default:                          return PdfColors.grey700;
+      }
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      theme: theme,
+      build: (ctx) => [
+        // ── Header: business left, title right ───────────────────
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logo != null &&
+                    profile.headerFields.contains(kHeaderLogo))
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 6),
+                    child: pw.Image(logo,
+                        width: 100, height: 50,
+                        fit: pw.BoxFit.contain),
+                  ),
+                if (profile.headerFields.contains(kHeaderName))
+                  pw.Text(
+                    profile.name.isNotEmpty
+                        ? profile.name
+                        : 'Your Business',
+                    style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold),
+                  ),
+                ..._profileAddressLines(profile),
+              ],
+            ),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 6),
+                  decoration: pw.BoxDecoration(
+                    color: primary,
+                    borderRadius:
+                        pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Text('ACCOUNT STATEMENT',
+                      style: pw.TextStyle(
+                          fontSize: 16,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.white)),
+                ),
+                pw.SizedBox(height: 8),
+                _kv('Period',
+                    '${Fmt.date(rangeStart)} – ${Fmt.date(rangeEnd)}'),
+                _kv('Generated', Fmt.date(DateTime.now())),
+              ],
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 16),
+        pw.Divider(color: PdfColors.grey300),
+        pw.SizedBox(height: 10),
+
+        // ── Client info ──────────────────────────────────────────
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey100,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('CLIENT',
+                  style: pw.TextStyle(
+                      fontSize: 8,
+                      fontWeight: pw.FontWeight.bold,
+                      letterSpacing: 1.5,
+                      color: PdfColors.grey500)),
+              pw.SizedBox(height: 5),
+              ..._clientLines(client),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 16),
+
+        // ── Transactions table ────────────────────────────────────
+        pw.Text('TRANSACTIONS',
+            style: pw.TextStyle(
+                fontSize: 8,
+                fontWeight: pw.FontWeight.bold,
+                letterSpacing: 1.5,
+                color: PdfColors.grey500)),
+        pw.SizedBox(height: 6),
+        pw.Table(
+          border: pw.TableBorder.all(
+              color: PdfColors.grey300, width: 0.5),
+          columnWidths: stColWidths,
+          children: [
+            stHeaderRow(),
+            ...invoices.asMap().entries.map((e) {
+              final inv = e.value;
+              final bg = e.key.isEven
+                  ? PdfColors.white
+                  : PdfColors.grey50;
+              final balance = inv.amountRemaining;
+              final balColor = balance > 0.01
+                  ? const PdfColor(0.78, 0.10, 0.10)
+                  : const PdfColor(0.09, 0.56, 0.24);
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: bg),
+                children: [
+                  stCell(Fmt.shortDate(inv.invoiceDate)),
+                  stCell(inv.invoiceNumber),
+                  stCell(
+                    statusLabel(inv.status),
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: statusColor(inv.status)),
+                  ),
+                  stCell(
+                    '$sym${inv.grandTotal.toStringAsFixed(2)}',
+                    align: pw.TextAlign.right,
+                  ),
+                  stCell(
+                    '$sym${inv.amountPaid.toStringAsFixed(2)}',
+                    align: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        color: const PdfColor(0.09, 0.56, 0.24)),
+                  ),
+                  stCell(
+                    '$sym${balance.toStringAsFixed(2)}',
+                    align: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: balColor),
+                  ),
+                ],
+              );
+            }),
+            // Totals footer row
+            pw.TableRow(
+              decoration:
+                  const pw.BoxDecoration(color: PdfColors.grey100),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 6),
+                  child: pw.Text('TOTALS',
+                      style: pw.TextStyle(
+                          fontSize: 9,
+                          fontWeight: pw.FontWeight.bold),
+                      maxLines: 1),
+                ),
+                pw.SizedBox(),
+                pw.SizedBox(),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 6),
+                  child: pw.Text(
+                    '$sym${totalBilled.toStringAsFixed(2)}',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold),
+                    maxLines: 1,
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 6),
+                  child: pw.Text(
+                    '$sym${totalPaid.toStringAsFixed(2)}',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: const PdfColor(0.09, 0.56, 0.24)),
+                    maxLines: 1,
+                  ),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 6),
+                  child: pw.Text(
+                    '$sym${balanceDue.toStringAsFixed(2)}',
+                    textAlign: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 9,
+                        fontWeight: pw.FontWeight.bold,
+                        color: balanceDue > 0.01
+                            ? const PdfColor(0.78, 0.10, 0.10)
+                            : const PdfColor(0.09, 0.56, 0.24)),
+                    maxLines: 1,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        pw.SizedBox(height: 20),
+
+        // ── Summary boxes ────────────────────────────────────────
+        pw.Row(
+          children: [
+            _stSummaryBox('Total Billed',
+                '$sym${totalBilled.toStringAsFixed(2)}',
+                primary),
+            pw.SizedBox(width: 12),
+            _stSummaryBox('Total Paid',
+                '$sym${totalPaid.toStringAsFixed(2)}',
+                const PdfColor(0.09, 0.56, 0.24)),
+            pw.SizedBox(width: 12),
+            _stSummaryBox(
+              'Balance Due',
+              '$sym${balanceDue.toStringAsFixed(2)}',
+              balanceDue > 0.01
+                  ? const PdfColor(0.78, 0.10, 0.10)
+                  : const PdfColor(0.09, 0.56, 0.24),
+            ),
+          ],
+        ),
+
+        pw.SizedBox(height: 24),
+        pw.Divider(color: PdfColors.grey300),
+        pw.SizedBox(height: 6),
+        _brandingFooter(),
+      ],
+    ));
+
+    return pdf.save();
+  }
+
+  static pw.Widget _stSummaryBox(
+      String label, String value, PdfColor color) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.all(12),
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: color, width: 0.8),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(label,
+                style: pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColors.grey600,
+                    fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text(value,
+                style: pw.TextStyle(
+                    fontSize: 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: color)),
+          ],
+        ),
+      ),
+    );
   }
 }

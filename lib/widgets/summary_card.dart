@@ -21,7 +21,7 @@ class SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: AppTheme.cardShadow,
       ),
@@ -55,10 +55,10 @@ class SummaryCard extends StatelessWidget {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.textPrimary,
+                    color: AppTheme.onCard(context),
                   ),
                 ),
               ),
@@ -69,9 +69,9 @@ class SummaryCard extends StatelessWidget {
             title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
-              color: AppTheme.textSecondary,
+              color: AppTheme.subtext(context),
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -80,8 +80,8 @@ class SummaryCard extends StatelessWidget {
               subtitle!,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  fontSize: 10, color: AppTheme.textSecondary),
+              style: TextStyle(
+                  fontSize: 10, color: AppTheme.subtext(context)),
             ),
         ],
       ),

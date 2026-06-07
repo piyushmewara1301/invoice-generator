@@ -350,10 +350,10 @@ class _MessageTemplatesScreenState extends State<MessageTemplatesScreen>
   Widget _fieldLabel(String label) {
     return Text(
       label,
-      style: const TextStyle(
+      style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: AppTheme.textSecondary,
+          color: AppTheme.subtext(context),
           letterSpacing: 0.4),
     );
   }
@@ -362,12 +362,12 @@ class _MessageTemplatesScreenState extends State<MessageTemplatesScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'TAP TO INSERT',
           style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textSecondary,
+              color: AppTheme.subtext(context),
               letterSpacing: 0.8),
         ),
         const SizedBox(height: 8),
@@ -438,17 +438,17 @@ class _MessageTemplatesScreenState extends State<MessageTemplatesScreen>
               child: RichText(
                 text: TextSpan(
                   children: [
-                    const TextSpan(
+                    TextSpan(
                       text: 'Subject: ',
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF475569)),
+                          color: AppTheme.subtext(context)),
                     ),
                     TextSpan(
                       text: TemplateService.fillPreview(subjectTemplate),
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF334155)),
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.onCard(context)),
                     ),
                   ],
                 ),
@@ -460,16 +460,16 @@ class _MessageTemplatesScreenState extends State<MessageTemplatesScreen>
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
+              color: AppTheme.inputFill(context),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.all(color: AppTheme.outline(context)),
             ),
             child: Text(
               TemplateService.fillPreview(template),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13,
                   height: 1.65,
-                  color: Color(0xFF334155)),
+                  color: AppTheme.onCard(context)),
             ),
           ),
         ],

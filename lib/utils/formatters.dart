@@ -18,9 +18,40 @@ class Fmt {
       'GBP': '£',
       'AED': 'AED ',
       'SGD': 'S\$',
+      'JPY': '¥',
+      'CNY': '¥',
+      'CAD': 'CA\$',
+      'AUD': 'A\$',
+      'CHF': 'CHF ',
+      'HKD': 'HK\$',
+      'NZD': 'NZ\$',
+      'SEK': 'kr ',
+      'NOK': 'kr ',
+      'DKK': 'kr ',
+      'ZAR': 'R',
+      'BRL': 'R\$',
+      'MXN': 'MX\$',
+      'MYR': 'RM',
+      'THB': '฿',
+      'IDR': 'Rp',
+      'PHP': '₱',
+      'KWD': 'KWD ',
+      'QAR': 'QAR ',
+      'SAR': 'SAR ',
+      'BHD': 'BHD ',
+      'OMR': 'OMR ',
     };
-    return map[code] ?? code;
+    return map[code] ?? '$code ';
   }
+
+  /// Full ordered list of supported currencies for dropdowns.
+  static const List<String> supportedCurrencies = [
+    'INR', 'USD', 'EUR', 'GBP', 'AED', 'SGD',
+    'CAD', 'AUD', 'JPY', 'CHF', 'HKD', 'NZD',
+    'CNY', 'MYR', 'THB', 'IDR', 'PHP',
+    'SAR', 'QAR', 'KWD', 'BHD', 'OMR',
+    'ZAR', 'BRL', 'MXN', 'SEK', 'NOK', 'DKK',
+  ];
 
   static String currencyAmount(double amount, String currencyCode) {
     return currency(amount, symbol: currencySymbol(currencyCode));

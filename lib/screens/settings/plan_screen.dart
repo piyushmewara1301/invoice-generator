@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/subscription_limits.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/app_theme.dart';
@@ -9,12 +10,11 @@ class PlanScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final current =
-        context.watch<AppProvider>().profile.subscriptionTier;
+    final current = context.watch<AppProvider>().profile.subscriptionTier;
     final provider = context.watch<AppProvider>();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: AppTheme.bg(context),
       appBar: AppBar(
         title: const Text('Subscription Plans'),
         centerTitle: true,
@@ -23,19 +23,57 @@ class PlanScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           _CurrentPlanBanner(tier: current),
-          const SizedBox(height: 20),
+          const SizedBox(height: 8),
+          _DiscountBanner(),
+          const SizedBox(height: 12),
           ...SubscriptionTier.values.where((tier) {
-            // Hide ineligible tiers for upgrade
-            if (tier == current) return true; // Always show current
+            if (tier == current) return true;
             return provider.canUpgradeTo(tier);
           }).map(
             (tier) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _PlanCard(tier: tier, isCurrentPlan: tier == current),
+              child: tier == SubscriptionTier.enterprise
+                  ? _EnterpriseCard(isCurrentPlan: tier == current)
+                  : _PlanCard(tier: tier, isCurrentPlan: tier == current),
             ),
           ),
           const SizedBox(height: 8),
           const _BillingNote(),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Discount banner ───────────────────────────────────────────────────────────
+
+class _DiscountBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFF6B35), Color(0xFFFF8E53)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: const [
+          Text('🎉', style: TextStyle(fontSize: 18)),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Launch Offer — 25% OFF on all plans! Limited time.',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -64,7 +102,7 @@ class _CurrentPlanBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.workspace_premium, color: Colors.white, size: 32),
+          Icon(_tierIcon(tier), color: Colors.white, size: 32),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -79,38 +117,7 @@ class _CurrentPlanBanner extends StatelessWidget {
                 price.yearlyRupees == 0
                     ? const Text('Free forever',
                         style: TextStyle(color: Colors.white70, fontSize: 12))
-                    : Wrap(
-                        spacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.25),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: const Text('50% OFF',
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800)),
-                          ),
-                          Text(
-                            '₹${price.yearlyRupees * 2}/yr',
-                            style: const TextStyle(
-                                color: Colors.white54,
-                                fontSize: 11,
-                                decoration: TextDecoration.lineThrough,
-                                decorationColor: Colors.white54),
-                          ),
-                          Text(
-                            '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12),
-                          ),
-                        ],
-                      ),
+                    : _PriceRow(price: price, textColor: Colors.white70),
               ],
             ),
           ),
@@ -120,7 +127,49 @@ class _CurrentPlanBanner extends StatelessWidget {
   }
 }
 
-// ── Plan card ─────────────────────────────────────────────────────────────────
+// ── Shared price row (MRP crossed out + sale price) ───────────────────────────
+
+class _PriceRow extends StatelessWidget {
+  final TierPrice price;
+  final Color textColor;
+  const _PriceRow({required this.price, required this.textColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEF4444),
+            borderRadius: BorderRadius.circular(5),
+          ),
+          child: const Text('25% OFF',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800)),
+        ),
+        Text(
+          '₹${price.mrpRupees}/yr',
+          style: TextStyle(
+              color: textColor,
+              fontSize: 11,
+              decoration: TextDecoration.lineThrough,
+              decorationColor: textColor),
+        ),
+        Text(
+          '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
+          style: TextStyle(color: textColor, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Standard plan card ────────────────────────────────────────────────────────
 
 class _PlanCard extends StatelessWidget {
   final SubscriptionTier tier;
@@ -135,7 +184,7 @@ class _PlanCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: isCurrentPlan ? color : Colors.transparent,
@@ -203,42 +252,13 @@ class _PlanCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       price.yearlyRupees == 0
-                          ? const Text('Free forever',
+                          ? Text('Free forever',
                               style: TextStyle(
                                   fontSize: 12,
-                                  color: AppTheme.textSecondary))
-                          : Wrap(
-                              spacing: 5,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text('50% OFF',
-                                      style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 8,
-                                          fontWeight: FontWeight.w800)),
-                                ),
-                                Text(
-                                  '₹${price.yearlyRupees * 2}/yr',
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: AppTheme.textSecondary,
-                                      decoration: TextDecoration.lineThrough),
-                                ),
-                                Text(
-                                  '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: AppTheme.textSecondary),
-                                ),
-                              ],
-                            ),
+                                  color: AppTheme.subtext(context)))
+                          : _PriceRow(
+                              price: price,
+                              textColor: AppTheme.subtext(context)),
                     ],
                   ),
                 ),
@@ -275,18 +295,262 @@ class _PlanCard extends StatelessWidget {
                     child: Text('Current Plan',
                         style: TextStyle(color: color)),
                   )
-                : _buildUpgradeButton(context, tier, color),
+                : _UpgradeButton(tier: tier, color: color),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildUpgradeButton(
-    BuildContext context,
-    SubscriptionTier tier,
-    Color color,
-  ) {
+// ── Enterprise card ───────────────────────────────────────────────────────────
+
+class _EnterpriseCard extends StatelessWidget {
+  final bool isCurrentPlan;
+  const _EnterpriseCard({required this.isCurrentPlan});
+
+  @override
+  Widget build(BuildContext context) {
+    final price = tierPrices[SubscriptionTier.enterprise]!;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F172A), Color(0xFF1E1B4B), Color(0xFF2D1B69)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isCurrentPlan
+              ? Colors.white.withValues(alpha: 0.6)
+              : const Color(0xFF4338CA).withValues(alpha: 0.5),
+          width: isCurrentPlan ? 2 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF4338CA).withValues(alpha: 0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.business_outlined,
+                      color: Colors.white, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text('Enterprise',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15,
+                                  color: Colors.white)),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF7C3AED), Color(0xFF4338CA)],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text('NEW',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800)),
+                          ),
+                          if (isCurrentPlan) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text('Current',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: const Text('25% OFF',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800)),
+                          ),
+                          Text(
+                            '₹${price.mrpRupees}/yr',
+                            style: const TextStyle(
+                                color: Colors.white38,
+                                fontSize: 11,
+                                decoration: TextDecoration.lineThrough,
+                                decorationColor: Colors.white38),
+                          ),
+                          Text(
+                            '₹${price.yearlyRupees}/yr  ·  ₹${price.monthlyRupees}/mo',
+                            style: const TextStyle(
+                                color: Colors.white60, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Features
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Column(
+              children: _features(SubscriptionTier.enterprise)
+                  .map((f) => _EntFeatureRow(text: f.text))
+                  .toList(),
+            ),
+          ),
+
+          // CTA
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: isCurrentPlan
+                ? OutlinedButton(
+                    onPressed: null,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 44),
+                      side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.3)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text('Current Plan',
+                        style: TextStyle(color: Colors.white70)),
+                  )
+                : _EnterpriseContactButton(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EntFeatureRow extends StatelessWidget {
+  final String text;
+  const _EntFeatureRow({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.check_circle_outline,
+              size: 16, color: Color(0xFF818CF8)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(fontSize: 13, color: Color(0xFFCBD5E1)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EnterpriseContactButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: () => _contactSales(context),
+      style: ElevatedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 44),
+        backgroundColor: const Color(0xFF7C3AED),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+      ),
+      icon: const Icon(Icons.mail_outline, size: 16),
+      label: const Text('Contact Sales',
+          style: TextStyle(fontWeight: FontWeight.w700)),
+    );
+  }
+
+  void _contactSales(BuildContext context) async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'enterprise@billbook.app',
+      queryParameters: {
+        'subject': 'BillBook Enterprise Subscription',
+        'body':
+            'Hi BillBook Team,\n\nI am interested in the Enterprise plan.\n\nBusiness Name: \nNumber of Users: \nContact: \n',
+      },
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Contact us at enterprise@billbook.app'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+}
+
+// ── Upgrade button (non-enterprise plans) ─────────────────────────────────────
+
+class _UpgradeButton extends StatelessWidget {
+  final SubscriptionTier tier;
+  final Color color;
+  const _UpgradeButton({required this.tier, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
     final currentTier = provider.profile.subscriptionTier;
     final canUpgrade = provider.canUpgradeTo(tier);
@@ -301,37 +565,30 @@ class _PlanCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(10)),
         ),
         child: Text(
-          currentTier == SubscriptionTier.premium
-              ? 'Premium plan locked'
+          currentTier.index >= SubscriptionTier.premium.index
+              ? 'Upgrade to Enterprise'
               : 'Cannot downgrade',
-          style: TextStyle(
-            color: color.withValues(alpha: 0.5),
-          ),
+          style: TextStyle(color: color.withValues(alpha: 0.5)),
         ),
       );
     }
 
     return OutlinedButton.icon(
-      onPressed: () => _handleUpgrade(context, tier),
+      onPressed: () => showDialog(
+        context: context,
+        builder: (ctx) => _PurchaseDialog(tier: tier),
+      ),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(double.infinity, 44),
         side: BorderSide(color: color.withValues(alpha: 0.5)),
         foregroundColor: color,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       icon: const Icon(Icons.shopping_bag_outlined, size: 16),
       label: Text(
         currentTier == SubscriptionTier.free ? 'Subscribe' : 'Upgrade',
         style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-    );
-  }
-
-  void _handleUpgrade(BuildContext context, SubscriptionTier tier) {
-    showDialog(
-      context: context,
-      builder: (ctx) => _PurchaseDialog(tier: tier),
     );
   }
 }
@@ -362,8 +619,8 @@ class _FeatureRow extends StatelessWidget {
               style: TextStyle(
                   fontSize: 13,
                   color: included
-                      ? AppTheme.textPrimary
-                      : AppTheme.textSecondary),
+                      ? AppTheme.onCard(context)
+                      : AppTheme.subtext(context)),
             ),
           ),
         ],
@@ -382,22 +639,20 @@ class _BillingNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
-      child: const Row(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline, size: 16, color: AppTheme.textSecondary),
-          SizedBox(width: 10),
+          Icon(Icons.info_outline, size: 16, color: AppTheme.subtext(context)),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Paid plans (Lite, Pro, Premium) are now available! Subscribe directly from this screen via Google Play. Annual subscriptions will auto-renew each year.',
+              'All plans billed annually via Google Play. 25% launch discount applied automatically. Subscriptions auto-renew each year — cancel anytime from Google Play settings.',
               style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textSecondary,
-                  height: 1.5),
+                  fontSize: 12, color: AppTheme.subtext(context), height: 1.5),
             ),
           ),
         ],
@@ -410,28 +665,31 @@ class _BillingNote extends StatelessWidget {
 
 String _tierName(SubscriptionTier t) {
   switch (t) {
-    case SubscriptionTier.free:    return 'Free';
-    case SubscriptionTier.lite:    return 'Lite';
-    case SubscriptionTier.pro:     return 'Pro';
-    case SubscriptionTier.premium: return 'Premium';
+    case SubscriptionTier.free:       return 'Free';
+    case SubscriptionTier.lite:       return 'Lite';
+    case SubscriptionTier.pro:        return 'Pro';
+    case SubscriptionTier.premium:    return 'Premium';
+    case SubscriptionTier.enterprise: return 'Enterprise';
   }
 }
 
 Color _tierColor(SubscriptionTier t) {
   switch (t) {
-    case SubscriptionTier.free:    return const Color(0xFF546E7A);
-    case SubscriptionTier.lite:    return const Color(0xFF0288D1);
-    case SubscriptionTier.pro:     return const Color(0xFF7B1FA2);
-    case SubscriptionTier.premium: return const Color(0xFFE65100);
+    case SubscriptionTier.free:       return const Color(0xFF546E7A);
+    case SubscriptionTier.lite:       return const Color(0xFF0288D1);
+    case SubscriptionTier.pro:        return const Color(0xFF7B1FA2);
+    case SubscriptionTier.premium:    return const Color(0xFFE65100);
+    case SubscriptionTier.enterprise: return const Color(0xFF4338CA);
   }
 }
 
 IconData _tierIcon(SubscriptionTier t) {
   switch (t) {
-    case SubscriptionTier.free:    return Icons.free_breakfast_outlined;
-    case SubscriptionTier.lite:    return Icons.bolt_outlined;
-    case SubscriptionTier.pro:     return Icons.rocket_launch_outlined;
-    case SubscriptionTier.premium: return Icons.workspace_premium;
+    case SubscriptionTier.free:       return Icons.free_breakfast_outlined;
+    case SubscriptionTier.lite:       return Icons.bolt_outlined;
+    case SubscriptionTier.pro:        return Icons.rocket_launch_outlined;
+    case SubscriptionTier.premium:    return Icons.workspace_premium;
+    case SubscriptionTier.enterprise: return Icons.business_outlined;
   }
 }
 
@@ -448,42 +706,59 @@ List<_F> _features(SubscriptionTier t) {
     case SubscriptionTier.free:
       return [
         _F('5 invoices / month', included: true),
-        _F('10 clients', included: true),
-        _F('1 invoice template', included: true),
-        _F('PDF export', included: true),
+        _F('10 clients · 10 items', included: true),
+        _F('Classic template only', included: true),
+        _F('1 payment method', included: true),
         _F('Google Drive sync', included: false),
-        _F('Partial payments', included: false),
-        _F('Multi-currency', included: false),
+        _F('Partial payments & expenses', included: false),
+        _F('Reports & analytics', included: false),
       ];
     case SubscriptionTier.lite:
       return [
         _F('50 invoices / month', included: true),
-        _F('50 clients', included: true),
+        _F('50 clients · 50 items', included: true),
         _F('3 invoice templates', included: true),
         _F('Google Drive sync & backup', included: true),
-        _F('Partial payments', included: true),
-        _F('Multi-currency', included: false),
-        _F('Custom invoice prefix', included: false),
+        _F('Partial payments & TDS', included: true),
+        _F('Expense tracking', included: true),
+        _F('P&L · Outstanding · Statement', included: true),
+        _F('Multi-currency · custom prefix', included: false),
+        _F('Recurring invoices & POS', included: false),
       ];
     case SubscriptionTier.pro:
       return [
         _F('Unlimited invoices & clients', included: true),
-        _F('All 5 invoice templates', included: true),
-        _F('Multi-currency support', included: true),
-        _F('Custom invoice prefix', included: true),
-        _F('Unlimited payment methods', included: true),
-        _F('Recurring invoices', included: false),
-        _F('Multiple business profiles', included: false),
+        _F('All 11 PDF templates', included: true),
+        _F('Multi-currency · custom prefix', included: true),
+        _F('Recurring invoices & credit notes', included: true),
+        _F('GST reports (GSTR-1 style)', included: true),
+        _F('Inventory & POS screen', included: true),
+        _F('Bulk reminders & category analytics', included: true),
+        _F('Team management (up to 5)', included: false),
+        _F('Custom message templates', included: false),
       ];
     case SubscriptionTier.premium:
       return [
         _F('Everything in Pro', included: true),
-        _F('Recurring invoices', included: true),
-        _F('Multiple business profiles (3)', included: true),
-        _F('Revenue analytics dashboard', included: true),
-        _F('Priority verification (48hr)', included: true),
-        _F('CSV / Excel export', included: true),
-        _F('Priority support', included: true),
+        _F('Team management (up to 5 members)', included: true),
+        _F('Custom WhatsApp & email templates', included: true),
+        _F('Scheduled payment reminders', included: true),
+        _F('Web dashboard & smart insights', included: true),
+        _F('Priority email + chat support', included: true),
+        _F('Unlimited team members', included: false),
+        _F('Dedicated account manager', included: false),
+      ];
+    case SubscriptionTier.enterprise:
+      return [
+        _F('Everything in Premium', included: true),
+        _F('Unlimited team members', included: true),
+        _F('Dedicated account manager', included: true),
+        _F('Phone & WhatsApp support', included: true),
+        _F('Custom onboarding session', included: true),
+        _F('SLA guarantee (48hr response)', included: true),
+        _F('API & webhook access', included: true),
+        _F('Activity audit log', included: true),
+        _F('Volume & multi-business discounts', included: true),
       ];
   }
 }
@@ -505,24 +780,49 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
   @override
   Widget build(BuildContext context) {
     final price = tierPrices[widget.tier]!;
+    final color = _tierColor(widget.tier);
     return AlertDialog(
       title: Text('Upgrade to ${_tierName(widget.tier)}?'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '₹${price.yearlyRupees}/year (₹${price.monthlyRupees}/month)',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: Colors.blue,
-            ),
+          // Price with MRP and discount
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text('25% OFF',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '₹${price.mrpRupees}/yr',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey,
+                    decoration: TextDecoration.lineThrough),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 6),
+          Text(
+            '₹${price.yearlyRupees}/year  (₹${price.monthlyRupees}/month)',
+            style: TextStyle(
+                fontSize: 17, fontWeight: FontWeight.w700, color: color),
+          ),
+          const SizedBox(height: 14),
           const Text(
-            'Your subscription will auto-renew each year. You can cancel anytime from Google Play.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            'Billed annually via Google Play. Cancel anytime — your data stays safe.',
+            style: TextStyle(fontSize: 12, color: Colors.grey, height: 1.5),
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
@@ -532,10 +832,9 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
                 color: Colors.red.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: Text(
-                _error!,
-                style: const TextStyle(fontSize: 12, color: Colors.red),
-              ),
+              child: Text(_error!,
+                  style:
+                      const TextStyle(fontSize: 12, color: Colors.red)),
             ),
           ],
         ],
@@ -551,8 +850,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
               ? const SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+                  child: CircularProgressIndicator(strokeWidth: 2))
               : const Text('Subscribe'),
         ),
       ],
@@ -564,28 +862,23 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
       _loading = true;
       _error = null;
     });
-
     try {
       final appProvider = context.read<AppProvider>();
       await appProvider.purchaseSubscription(widget.tier);
-      
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully upgraded to ${_tierName(widget.tier)}!'),
+            content:
+                Text('Successfully upgraded to ${_tierName(widget.tier)}!'),
             backgroundColor: Colors.green,
           ),
         );
       }
     } catch (e) {
-      setState(() {
-        _error = 'Purchase failed: $e';
-      });
+      setState(() => _error = 'Purchase failed: $e');
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 }

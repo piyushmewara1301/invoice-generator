@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/business_profile.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/app_theme.dart';
+import '../../widgets/paywall_sheet.dart';
 
 class PaymentMethodsScreen extends StatefulWidget {
   const PaymentMethodsScreen({super.key});
@@ -23,33 +24,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   Future<void> _persist() async {
     final provider = context.read<AppProvider>();
     final cur = provider.profile;
-    await provider.updateProfile(BusinessProfile(
-      name: cur.name,
-      email: cur.email,
-      phone: cur.phone,
-      address: cur.address,
-      city: cur.city,
-      state: cur.state,
-      country: cur.country,
-      postalCode: cur.postalCode,
-      gstin: cur.gstin,
-      website: cur.website,
-      logoBase64: cur.logoBase64,
-      headerFields: cur.headerFields,
-      currency: cur.currency,
-      invoicePrefix: cur.invoicePrefix,
-      nextInvoiceNumber: cur.nextInvoiceNumber,
-      defaultTemplate: cur.defaultTemplate,
-      themeColorHex: cur.themeColorHex,
-      defaultTaxPercent: cur.defaultTaxPercent,
-      showQuantity: cur.showQuantity,
-      itemLabel: cur.itemLabel,
-      paymentMethods: _methods,
-      serviceItems: cur.serviceItems,
-    ));
+    await provider.updateProfile(cur.copyWith(paymentMethods: _methods));
   }
 
   Future<void> _add() async {
+    final limitInfo = context.read<AppProvider>().checkPaymentMethodLimit();
+    if (limitInfo != null) {
+      final upgrade = await showPaywallSheet(context, limitInfo);
+      if (upgrade && mounted) Navigator.pushNamed(context, '/plans');
+      return;
+    }
     final result = await _showForm();
     if (result != null) {
       setState(() => _methods.add(result));
@@ -72,7 +56,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     return showModalBottomSheet<PaymentMethod>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: AppTheme.card(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => _PaymentMethodForm(existing: existing),
@@ -113,9 +97,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: AppTheme.card(context),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.divider),
+              border: Border.all(color: AppTheme.outline(context)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,11 +109,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                       horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      const Text('Methods',
+                      Text('Methods',
                           style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: AppTheme.textPrimary)),
+                              color: AppTheme.onCard(context))),
                       const Spacer(),
                       TextButton.icon(
                         onPressed: _add,
@@ -152,9 +136,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   title: const Text('Cash',
                       style: TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Cash payment',
+                  subtitle: Text('Cash payment',
                       style: TextStyle(
-                          fontSize: 11, color: AppTheme.textSecondary)),
+                          fontSize: 11, color: AppTheme.subtext(context))),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 2),
@@ -177,7 +161,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     itemBuilder: (_, i) => _methodTile(_methods[i]),
                   ),
                 ] else ...[
-                  const Divider(height: 1),
+                  Divider(height: 1),
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Center(
@@ -186,7 +170,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(
                             fontSize: 13,
-                            color: AppTheme.textSecondary
+                            color: AppTheme.subtext(context)
                                 .withValues(alpha: 0.8)),
                       ),
                     ),
@@ -213,15 +197,15 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               fontSize: 13, fontWeight: FontWeight.w600)),
       subtitle: m.subtitle.isNotEmpty
           ? Text(m.subtitle,
-              style: const TextStyle(
-                  fontSize: 11, color: AppTheme.textSecondary))
+              style: TextStyle(
+                  fontSize: 11, color: AppTheme.subtext(context)))
           : null,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.edit_outlined,
-                size: 18, color: AppTheme.textSecondary),
+            icon: Icon(Icons.edit_outlined,
+                size: 18, color: AppTheme.subtext(context)),
             onPressed: () => _edit(m),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

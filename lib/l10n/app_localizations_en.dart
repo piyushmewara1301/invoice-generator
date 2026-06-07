@@ -616,4 +616,73 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get daysAfterDue => 'days after due';
+
+  @override
+  String get expenses => 'Expenses';
+
+  @override
+  String get expense => 'Expense';
+
+  @override
+  String get addExpense => 'Add Expense';
+
+  @override
+  String get editExpense => 'Edit Expense';
+
+  @override
+  String get noExpensesYet => 'No expenses yet';
+
+  @override
+  String get noExpensesHint => 'Track salary, rent, bills and more';
+
+  @override
+  String get recurring => 'Recurring Monthly';
+
+  @override
+  String get thisWeek => 'This Week';
+
+  @override
+  String get thisYear => 'This Year';
+
+  @override
+  String get allTime => 'All Time';
+
+  @override
+  String get custom => 'Custom';
+
+  @override
+  String get revenue => 'Revenue';
+
+  @override
+  String get invoiceDetails => 'Invoice Details';
+
+  @override
+  String get lineItems => 'Line Items';
+
+  @override
+  String get change => 'Change';
+
+  @override
+  String get previewPdf => 'Preview PDF';
+
+  @override
+  String get totalPaid => 'Total Paid';
+
+  @override
+  String get invoiceTotal => 'Invoice Total';
+
+  @override
+  String get all => 'All';
+
+  @override
+  String get clearFilters => 'Clear Filters';
+
+  @override
+  String get filterByClient => 'Filter by Client';
+
+  @override
+  String get allClients => 'All Clients';
+
+  @override
+  String get newClient => 'New Client';
 }

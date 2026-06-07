@@ -149,7 +149,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
               'Your verification request has been saved. '
               'Please send the details to our admin for review.',
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -158,8 +158,8 @@ class _VerificationScreenState extends State<VerificationScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.alternate_email,
-                      size: 16, color: AppTheme.textSecondary),
+                  Icon(Icons.alternate_email,
+                      size: 16, color: AppTheme.subtext(context)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -328,7 +328,7 @@ class _StatusCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cfg = _statusConfig(status);
+    final cfg = _statusConfig(context, status);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -347,7 +347,7 @@ class _StatusCard extends StatelessWidget {
             ),
             child: Icon(cfg.icon, color: cfg.color, size: 22),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,10 +357,10 @@ class _StatusCard extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: cfg.color,
                         fontSize: 15)),
-                const SizedBox(height: 2),
+                SizedBox(height: 2),
                 Text(cfg.description,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppTheme.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12, color: AppTheme.subtext(context))),
               ],
             ),
           ),
@@ -370,12 +370,12 @@ class _StatusCard extends StatelessWidget {
   }
 
   ({IconData icon, Color color, String label, String description})
-      _statusConfig(VerificationStatus s) {
+      _statusConfig(BuildContext context, VerificationStatus s) {
     switch (s) {
       case VerificationStatus.unverified:
         return (
           icon: Icons.shield_outlined,
-          color: AppTheme.textSecondary,
+          color: AppTheme.subtext(context),
           label: 'Not Verified',
           description: 'Submit documents to get your business verified.',
         );
@@ -422,15 +422,15 @@ class _InfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 20),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,10 +440,10 @@ class _InfoCard extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                         color: color)),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(body,
-                    style: const TextStyle(
-                        fontSize: 13, color: AppTheme.textSecondary,
+                    style: TextStyle(
+                        fontSize: 13, color: AppTheme.subtext(context),
                         height: 1.4)),
               ],
             ),
@@ -474,22 +474,22 @@ class _CodeEntrySection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Have a verification code?',
+          Text('Have a verification code?',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          const Text(
+                  color: AppTheme.onCard(context))),
+          SizedBox(height: 4),
+          Text(
             'Once the admin reviews your request, they will send you a code.',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+            style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
           ),
           const SizedBox(height: 12),
           Row(
@@ -559,24 +559,24 @@ class _SubmitSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Submit for verification',
+          Text('Submit for verification',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          const Text(
+                  color: AppTheme.onCard(context))),
+          SizedBox(height: 4),
+          Text(
             'Upload photos of your business documents (GST certificate, '
             'trade licence, incorporation certificate, etc.).',
             style: TextStyle(
-                fontSize: 12, color: AppTheme.textSecondary, height: 1.4),
+                fontSize: 12, color: AppTheme.subtext(context), height: 1.4),
           ),
           const SizedBox(height: 14),
 
@@ -684,10 +684,10 @@ class _AddDocButton extends StatelessWidget {
           color: AppTheme.surface,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color: AppTheme.divider, style: BorderStyle.solid),
+              color: AppTheme.outline(context), style: BorderStyle.solid),
         ),
-        child: const Icon(Icons.add_photo_alternate_outlined,
-            color: AppTheme.textSecondary, size: 28),
+        child: Icon(Icons.add_photo_alternate_outlined,
+            color: AppTheme.subtext(context), size: 28),
       ),
     );
   }
@@ -720,33 +720,33 @@ class _WhatHappensSection extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How verification works',
+          Text('How verification works',
               style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 14,
-                  color: AppTheme.textPrimary)),
+                  color: AppTheme.onCard(context))),
           const SizedBox(height: 12),
-          _step('1', 'Upload documents',
+          _step(context, '1', 'Upload documents',
               'Photos of your GST certificate, trade licence, or other business proof.'),
-          _step('2', 'Admin review',
+          _step(context, '2', 'Admin review',
               'Our team reviews your submission within 2–3 business days.'),
-          _step('3', 'Receive code',
+          _step(context, '3', 'Receive code',
               'Once approved, you\'ll receive a verification code to enter above.'),
-          _step('4', 'Verified badge',
+          _step(context, '4', 'Verified badge',
               'Your invoices will no longer show the unverified disclaimer.'),
         ],
       ),
     );
   }
 
-  Widget _step(String num, String title, String desc) {
+  Widget _step(BuildContext context, String num, String title, String desc) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -767,20 +767,20 @@ class _WhatHappensSection extends StatelessWidget {
                       color: AppTheme.primary)),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AppTheme.textPrimary)),
+                        color: AppTheme.onCard(context))),
                 Text(desc,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.textSecondary,
+                        color: AppTheme.subtext(context),
                         height: 1.4)),
               ],
             ),

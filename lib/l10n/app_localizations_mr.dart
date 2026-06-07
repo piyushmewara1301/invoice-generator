@@ -616,4 +616,73 @@ class AppLocalizationsMr extends AppLocalizations {
 
   @override
   String get daysAfterDue => 'देय तारखेनंतर दिवस';
+
+  @override
+  String get expenses => 'खर्च';
+
+  @override
+  String get expense => 'खर्च';
+
+  @override
+  String get addExpense => 'खर्च जोडा';
+
+  @override
+  String get editExpense => 'खर्च संपादित करा';
+
+  @override
+  String get noExpensesYet => 'अद्याप कोणताही खर्च नाही';
+
+  @override
+  String get noExpensesHint => 'पगार, भाडे, बिले आणि अधिक ट्रॅक करा';
+
+  @override
+  String get recurring => 'मासिक आवर्ती';
+
+  @override
+  String get thisWeek => 'या आठवड्यात';
+
+  @override
+  String get thisYear => 'या वर्षी';
+
+  @override
+  String get allTime => 'सर्व काळ';
+
+  @override
+  String get custom => 'सानुकूल';
+
+  @override
+  String get revenue => 'महसूल';
+
+  @override
+  String get invoiceDetails => 'बीजक तपशील';
+
+  @override
+  String get lineItems => 'वस्तू यादी';
+
+  @override
+  String get change => 'बदला';
+
+  @override
+  String get previewPdf => 'PDF पूर्वावलोकन';
+
+  @override
+  String get totalPaid => 'एकूण भरलेले';
+
+  @override
+  String get invoiceTotal => 'बीजक एकूण';
+
+  @override
+  String get all => 'सर्व';
+
+  @override
+  String get clearFilters => 'फिल्टर साफ करा';
+
+  @override
+  String get filterByClient => 'ग्राहकाने फिल्टर करा';
+
+  @override
+  String get allClients => 'सर्व ग्राहक';
+
+  @override
+  String get newClient => 'नवीन ग्राहक';
 }

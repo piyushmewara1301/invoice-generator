@@ -7,6 +7,46 @@ import '../../providers/app_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/location_fields.dart';
 
+// ── Business type visual metadata (kept in screen layer — not in model) ────────
+
+IconData _btIcon(BusinessType t) {
+  switch (t) {
+    case BusinessType.restaurant:    return Icons.restaurant_outlined;
+    case BusinessType.grocery:       return Icons.shopping_cart_outlined;
+    case BusinessType.retail:        return Icons.storefront_outlined;
+    case BusinessType.professional:  return Icons.work_outline;
+    case BusinessType.healthcare:    return Icons.local_hospital_outlined;
+    case BusinessType.education:     return Icons.school_outlined;
+    case BusinessType.construction:  return Icons.construction;
+    case BusinessType.salon:         return Icons.content_cut;
+    case BusinessType.technology:    return Icons.computer_outlined;
+    case BusinessType.manufacturing: return Icons.precision_manufacturing_outlined;
+    case BusinessType.wholesale:     return Icons.inventory_2_outlined;
+    case BusinessType.transport:     return Icons.local_shipping_outlined;
+    case BusinessType.freelancer:    return Icons.person_outline;
+    case BusinessType.other:         return Icons.category_outlined;
+  }
+}
+
+Color _btColor(BusinessType t) {
+  switch (t) {
+    case BusinessType.restaurant:    return const Color(0xFFF97316);
+    case BusinessType.grocery:       return const Color(0xFF16A34A);
+    case BusinessType.retail:        return const Color(0xFF0891B2);
+    case BusinessType.professional:  return const Color(0xFF2563EB);
+    case BusinessType.healthcare:    return const Color(0xFFEF4444);
+    case BusinessType.education:     return const Color(0xFF7C3AED);
+    case BusinessType.construction:  return const Color(0xFFD97706);
+    case BusinessType.salon:         return const Color(0xFFEC4899);
+    case BusinessType.technology:    return const Color(0xFF06B6D4);
+    case BusinessType.manufacturing: return const Color(0xFF78716C);
+    case BusinessType.wholesale:     return const Color(0xFF0F766E);
+    case BusinessType.transport:     return const Color(0xFF4F46E5);
+    case BusinessType.freelancer:    return const Color(0xFF9333EA);
+    case BusinessType.other:         return const Color(0xFF64748B);
+  }
+}
+
 class BusinessProfileScreen extends StatefulWidget {
   const BusinessProfileScreen({super.key});
 
@@ -26,8 +66,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   late TextEditingController _postalCtrl;
   late TextEditingController _gstinCtrl;
   late TextEditingController _websiteCtrl;
+  late TextEditingController _professionCtrl;
   String? _logoBase64;
   Set<String> _headerFields = {kHeaderLogo, kHeaderName, kHeaderAddress};
+  BusinessType? _businessType;
   bool _saving = false;
   bool _initialized = false;
 
@@ -44,6 +86,8 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     _websiteCtrl = TextEditingController(text: p.website ?? '');
     _logoBase64 = p.logoBase64;
     _headerFields = Set<String>.from(p.headerFields);
+    _businessType = p.businessType;
+    _professionCtrl = TextEditingController(text: p.professionTitle ?? '');
     _initialized = true;
 
     // Rebuild header selector whenever any field changes so _fieldHasData
@@ -64,7 +108,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       for (final c in [
         _nameCtrl, _emailCtrl, _phoneCtrl, _addressCtrl,
         _cityCtrl, _stateCtrl, _countryCtrl, _postalCtrl,
-        _gstinCtrl, _websiteCtrl,
+        _gstinCtrl, _websiteCtrl, _professionCtrl,
       ]) {
         c.dispose();
       }
@@ -89,7 +133,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     final provider = context.read<AppProvider>();
     final cur = provider.profile;
     setState(() => _saving = true);
-    await provider.updateProfile(BusinessProfile(
+    await provider.updateProfile(cur.copyWith(
       name: _nameCtrl.text.trim(),
       email: _emailCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
@@ -101,19 +145,11 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
       gstin: _gstinCtrl.text.trim().isEmpty ? null : _gstinCtrl.text.trim(),
       website: _websiteCtrl.text.trim().isEmpty ? null : _websiteCtrl.text.trim(),
       logoBase64: _logoBase64,
-      headerFields: _headerFields
-          .where(_fieldHasData)
-          .toSet(),
-      currency: cur.currency,
-      invoicePrefix: cur.invoicePrefix,
-      nextInvoiceNumber: cur.nextInvoiceNumber,
-      defaultTemplate: cur.defaultTemplate,
-      themeColorHex: cur.themeColorHex,
-      defaultTaxPercent: cur.defaultTaxPercent,
-      showQuantity: cur.showQuantity,
-      itemLabel: cur.itemLabel,
-      paymentMethods: cur.paymentMethods,
-      serviceItems: cur.serviceItems,
+      headerFields: _headerFields.where(_fieldHasData).toSet(),
+      businessType: _businessType,
+      professionTitle: _professionCtrl.text.trim().isEmpty
+          ? null
+          : _professionCtrl.text.trim(),
     ));
     setState(() => _saving = false);
     if (mounted) {
@@ -152,6 +188,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           children: [
             _logoCard(),
             const SizedBox(height: 16),
+            _businessTypeCard(),
+            const SizedBox(height: 16),
+            _professionCard(),
+            const SizedBox(height: 16),
             _card('Business Information', [
               _field(_nameCtrl, 'Business Name', required: true),
               _field(_emailCtrl, 'Email', type: TextInputType.emailAddress),
@@ -185,25 +225,335 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     );
   }
 
-  Widget _logoCard() {
+  // ── Profession / designation quick-pick suggestions per business type ──────
+  static const _professionSuggestions = <BusinessType, List<String>>{
+    BusinessType.professional: [
+      'Chartered Accountant',
+      'CA',
+      'Advocate',
+      'Solicitor',
+      'Auditor',
+      'Company Secretary',
+      'Cost Accountant (CMA)',
+      'Tax Consultant',
+      'Financial Advisor',
+      'Management Consultant',
+      'Business Analyst',
+    ],
+    BusinessType.healthcare: [
+      'Doctor',
+      'Dentist',
+      'Surgeon',
+      'Physiotherapist',
+      'Pharmacist',
+      'Veterinarian',
+      'Dietitian',
+      'Psychologist',
+    ],
+    BusinessType.freelancer: [
+      'Graphic Designer',
+      'Web Developer',
+      'Content Writer',
+      'Photographer',
+      'Videographer',
+      'Social Media Manager',
+      'UI/UX Designer',
+      'Digital Marketer',
+    ],
+    BusinessType.education: [
+      'Tutor',
+      'Trainer',
+      'Coach',
+      'Lecturer',
+      'Professor',
+      'Instructor',
+    ],
+    BusinessType.technology: [
+      'Software Developer',
+      'IT Consultant',
+      'System Architect',
+      'DevOps Engineer',
+      'Cybersecurity Expert',
+    ],
+    BusinessType.construction: [
+      'Architect',
+      'Civil Engineer',
+      'Interior Designer',
+      'Structural Engineer',
+      'Project Manager',
+    ],
+    BusinessType.other: [
+      'Consultant',
+      'Advisor',
+      'Agent',
+      'Broker',
+      'Contractor',
+    ],
+  };
+
+  Widget _professionCard() {
+    final suggestions =
+        _professionSuggestions[_businessType] ?? const <String>[];
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Text(
+                  'Profession / Designation',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onCard(context),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Optional',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppTheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _professionCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Your profession or designation',
+                    hintText: suggestions.isNotEmpty
+                        ? 'e.g., ${suggestions.take(3).join(', ')}'
+                        : 'e.g., Consultant, Director, Partner',
+                    prefixIcon: const Icon(Icons.badge_outlined, size: 20),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _professionCtrl,
+                      builder: (_, v, _) => v.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.close, size: 16),
+                              onPressed: () =>
+                                  setState(() => _professionCtrl.clear()),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (suggestions.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Common options — tap to fill:',
+                    style: TextStyle(
+                        fontSize: 11, color: AppTheme.subtext(context)),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: suggestions.map((s) {
+                      final active = _professionCtrl.text.trim() == s;
+                      return GestureDetector(
+                        onTap: () => setState(() {
+                          _professionCtrl.text = s;
+                          _professionCtrl.selection = TextSelection.fromPosition(
+                            TextPosition(offset: s.length),
+                          );
+                        }),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 150),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: active
+                                ? AppTheme.primary
+                                : AppTheme.primary.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: active
+                                  ? AppTheme.primary
+                                  : AppTheme.primary.withValues(alpha: 0.25),
+                            ),
+                          ),
+                          child: Text(
+                            s,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: active ? Colors.white : AppTheme.primary,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Text(
+                  'Appears below your name on Professional, Letterhead, and Legal Pro invoice PDFs.',
+                  style: TextStyle(
+                      fontSize: 11, color: AppTheme.subtext(context)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _businessTypeCard() {
+    final selected = _businessType;
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showModalBottomSheet<BusinessType>(
+          context: context,
+          isScrollControlled: true,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          builder: (_) => _BusinessTypePickerSheet(selected: _businessType),
+        );
+        // null means "clear selection"; -1 sentinel means user dismissed
+        if (picked != null) setState(() => _businessType = picked);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.card(context),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.outline(context)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+              child: Row(
+                children: [
+                  Text(
+                    'Business Type',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.onCard(context)),
+                  ),
+                  const Spacer(),
+                  if (selected != null)
+                    GestureDetector(
+                      onTap: () => setState(() => _businessType = null),
+                      child: Icon(Icons.close,
+                          size: 16, color: AppTheme.subtext(context)),
+                    ),
+                ],
+              ),
+            ),
+            Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: selected == null
+                  ? Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: AppTheme.outline(context),
+                                style: BorderStyle.solid),
+                          ),
+                          child: Icon(Icons.add_business_outlined,
+                              color: AppTheme.subtext(context), size: 20),
+                        ),
+                        SizedBox(width: 14),
+                        Text(
+                          'Select your business type',
+                          style: TextStyle(
+                              fontSize: 14, color: AppTheme.subtext(context)),
+                        ),
+                        Spacer(),
+                        Icon(Icons.chevron_right,
+                            size: 18, color: AppTheme.subtext(context)),
+                      ],
+                    )
+                  : Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: _btColor(selected).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(_btIcon(selected),
+                              color: _btColor(selected), size: 20),
+                        ),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            selected.displayName,
+                            style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: AppTheme.onCard(context)),
+                          ),
+                        ),
+                        Icon(Icons.edit_outlined,
+                            size: 16, color: AppTheme.subtext(context)),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _logoCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.outline(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Text('Business Logo',
                 style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary)),
+                    color: AppTheme.onCard(context))),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -216,7 +566,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                     decoration: BoxDecoration(
                       color: AppTheme.surface,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.divider),
+                      border: Border.all(color: AppTheme.outline(context)),
                     ),
                     child: _logoBase64 != null
                         ? ClipRRect(
@@ -227,30 +577,30 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.add_photo_alternate_outlined,
-                                  color: AppTheme.textSecondary
+                                  color: AppTheme.subtext(context)
                                       .withValues(alpha: 0.5),
                                   size: 24),
-                              const SizedBox(height: 4),
-                              const Text('Upload Logo',
+                              SizedBox(height: 4),
+                              Text('Upload Logo',
                                   style: TextStyle(
                                       fontSize: 11,
-                                      color: AppTheme.textSecondary)),
+                                      color: AppTheme.subtext(context))),
                             ],
                           ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Appears at the top of your invoices',
+                      Text('Appears at the top of your invoices',
                           style: TextStyle(
-                              fontSize: 13, color: AppTheme.textPrimary)),
-                      const SizedBox(height: 4),
-                      const Text('PNG or JPG · Max 400×200px recommended',
+                              fontSize: 13, color: AppTheme.onCard(context))),
+                      SizedBox(height: 4),
+                      Text('PNG or JPG · Max 400×200px recommended',
                           style: TextStyle(
-                              fontSize: 11, color: AppTheme.textSecondary)),
+                              fontSize: 11, color: AppTheme.subtext(context))),
                       const SizedBox(height: 10),
                       Row(
                         children: [
@@ -301,9 +651,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
   Widget _card(String title, List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.card(context),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.divider),
+        border: Border.all(color: AppTheme.outline(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,10 +661,10 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary)),
+                    color: AppTheme.onCard(context))),
           ),
           const Divider(height: 1),
           Padding(
@@ -383,9 +733,9 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Choose what appears in the invoice header:',
-          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+          style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
         ),
         const SizedBox(height: 8),
         ...items.map((item) {
@@ -396,7 +746,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
               ? AppTheme.textSecondary.withValues(alpha: 0.4)
               : checked
                   ? AppTheme.primary
-                  : AppTheme.textPrimary;
+                  : AppTheme.onCard(context);
 
           return InkWell(
             onTap: !hasData
@@ -419,7 +769,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                           : checked
                               ? AppTheme.primary
                               : AppTheme.textSecondary),
-                  const SizedBox(width: 10),
+                  SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,7 +786,7 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
                           Text(_emptyHint(key),
                               style: TextStyle(
                                 fontSize: 11,
-                                color: AppTheme.textSecondary
+                                color: AppTheme.subtext(context)
                                     .withValues(alpha: 0.5),
                               )),
                       ],
@@ -462,6 +812,101 @@ class _BusinessProfileScreenState extends State<BusinessProfileScreen> {
           );
         }),
       ],
+    );
+  }
+}
+
+// ── Business type picker bottom sheet ─────────────────────────────────────────
+
+class _BusinessTypePickerSheet extends StatelessWidget {
+  final BusinessType? selected;
+  const _BusinessTypePickerSheet({this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    final types = BusinessType.values;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'What type of business do you run?',
+              style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.onCard(context)),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Helps personalise your experience',
+              style: TextStyle(fontSize: 12, color: AppTheme.subtext(context)),
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate:
+                  const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: 1.05,
+              ),
+              itemCount: types.length,
+              itemBuilder: (_, i) {
+                final t = types[i];
+                final isSelected = t == selected;
+                final color = _btColor(t);
+                return GestureDetector(
+                  onTap: () => Navigator.pop(context, t),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? color.withValues(alpha: 0.12)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isSelected ? color : AppTheme.divider,
+                        width: isSelected ? 2 : 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          _btIcon(t),
+                          color: isSelected ? color : AppTheme.textSecondary,
+                          size: 26,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          t.displayName,
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: isSelected
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? color
+                                : AppTheme.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

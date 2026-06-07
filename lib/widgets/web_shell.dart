@@ -57,7 +57,7 @@ class _WebShellState extends State<WebShell> {
     final profile = context.watch<AppProvider>().profile;
 
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      
       body: Row(
         children: [
           _WebSidebar(

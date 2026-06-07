@@ -8,33 +8,23 @@ import '../providers/app_provider.dart';
 import '../models/invoice.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import '../widgets/feature_guide_sheet.dart';
 import '../widgets/paywall_sheet.dart';
+import '../widgets/quotation_status_sheet.dart';
 import '../widgets/status_badge.dart';
 import 'create_invoice_screen.dart';
 import 'import_invoices_screen.dart';
+import 'client_list_screen.dart';
 import '../utils/share_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../l10n/app_localizations.dart';
+import '../models/employee.dart';
+import '../models/recurring_schedule.dart';
 
 enum _Period { all, today, week, month, custom }
 
 enum _CsvAction { export, import }
 
-extension _PeriodLabel on _Period {
-  String get label {
-    switch (this) {
-      case _Period.all:
-        return 'All Time';
-      case _Period.today:
-        return 'Today';
-      case _Period.week:
-        return 'This Week';
-      case _Period.month:
-        return 'This Month';
-      case _Period.custom:
-        return 'Custom';
-    }
-  }
-}
 
 class InvoiceListScreen extends StatefulWidget {
   const InvoiceListScreen({super.key});
@@ -53,10 +43,38 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
   bool _exporting = false;
   Set<String> _paymentMethodFilter = {};
 
+  // Multi-select state
+  final Set<String> _selectedIds = {};
+  bool get _isSelecting => _selectedIds.isNotEmpty;
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 7, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) showFeatureGuide(context, AppGuides.invoices);
+    });
+  }
+
+  String _periodLabel(AppLocalizations l10n, _Period p) {
+    switch (p) {
+      case _Period.all:    return l10n.allTime;
+      case _Period.today:  return l10n.today;
+      case _Period.week:   return l10n.thisWeek;
+      case _Period.month:  return l10n.thisMonth;
+      case _Period.custom: return l10n.custom;
+    }
+  }
+
+  // English-only slug used for CSV filenames — locale-independent by design.
+  String _periodSlug(_Period p) {
+    switch (p) {
+      case _Period.all:    return 'all_time';
+      case _Period.today:  return 'today';
+      case _Period.week:   return 'this_week';
+      case _Period.month:  return 'this_month';
+      case _Period.custom: return 'custom';
+    }
   }
 
   @override
@@ -160,6 +178,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
       _paymentMethodFilter.isNotEmpty;
 
   void _showClientPicker(BuildContext context, List<Client> clients) {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -172,8 +191,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                const Text('Filter by Client',
-                    style: TextStyle(
+                Text(l10n.filterByClient,
+                    style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w600)),
                 const Spacer(),
                 if (_clientFilter != null)
@@ -182,20 +201,20 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                       setState(() => _clientFilter = null);
                       Navigator.pop(ctx);
                     },
-                    child: const Text('Clear'),
+                    child: Text(l10n.cancel),
                   ),
               ],
             ),
           ),
-          const Divider(height: 1),
+          Divider(height: 1),
           Flexible(
             child: ListView(
               shrinkWrap: true,
               children: [
                 ListTile(
-                  leading: const Icon(Icons.people_outline,
-                      color: AppTheme.textSecondary),
-                  title: const Text('All Clients'),
+                  leading: Icon(Icons.people_outline,
+                      color: AppTheme.subtext(context)),
+                  title: Text(l10n.allClients),
                   selected: _clientFilter == null,
                   selectedTileColor: AppTheme.primary.withValues(alpha: 0.08),
                   onTap: () {
@@ -281,7 +300,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
     final tab = tabNames[_tabs.index];
     final period = _period == _Period.custom && _customRange != null
         ? '${_customRange!.start.year}-${_customRange!.start.month.toString().padLeft(2,'0')}-${_customRange!.start.day.toString().padLeft(2,'0')}_to_${_customRange!.end.year}-${_customRange!.end.month.toString().padLeft(2,'0')}-${_customRange!.end.day.toString().padLeft(2,'0')}'
-        : _period.label.toLowerCase().replaceAll(' ', '_');
+        : _periodSlug(_period);
     final client = _clientFilter != null
         ? '_${_clientFilter!.displayName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}'
         : '';
@@ -347,10 +366,10 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
           children: [
             Text('$count invoice${count == 1 ? '' : 's'} exported',
                 style: const TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text('Total: ${Fmt.currencyAmount(total, currency)}',
-                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
-            const SizedBox(height: 12),
+                style: TextStyle(fontSize: 13, color: AppTheme.subtext(context))),
+            SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
@@ -361,11 +380,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                 children: [
                   const Icon(Icons.insert_drive_file_outlined,
                       size: 18, color: AppTheme.primary),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(filename,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppTheme.textPrimary),
+                        style: TextStyle(
+                            fontSize: 11, color: AppTheme.onCard(context)),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis),
                   ),
@@ -403,6 +422,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
 
   void _showPaymentMethodPicker(
       BuildContext context, List<PaymentMethod> methods) {
+    final l10n = AppLocalizations.of(context)!;
     // Work on a local copy so changes only apply on "Apply".
     var selected = Set<String>.from(_paymentMethodFilter);
     showModalBottomSheet(
@@ -419,8 +439,8 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  const Text('Filter by Payment Method',
-                      style: TextStyle(
+                  Text(l10n.paymentMethod,
+                      style: const TextStyle(
                           fontSize: 15, fontWeight: FontWeight.w600)),
                   const Spacer(),
                   if (selected.isNotEmpty)
@@ -428,7 +448,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                       onPressed: () {
                         setModal(() => selected.clear());
                       },
-                      child: const Text('Clear'),
+                      child: Text(l10n.cancel),
                     ),
                 ],
               ),
@@ -512,15 +532,72 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
     }
   }
 
+  Future<void> _sendBulkReminders(BuildContext context) async {
+    final provider = context.read<AppProvider>();
+    final selected = provider.invoices
+        .where((i) => _selectedIds.contains(i.id))
+        .toList();
+
+    int sent = 0;
+    int skipped = 0;
+
+    for (final invoice in selected) {
+      if (invoice.client?.phone.isNotEmpty != true) {
+        skipped++;
+        continue;
+      }
+      try {
+        await ShareService.openWhatsAppDirectly(invoice, provider.profile);
+        sent++;
+        // Small delay between opens to avoid overwhelming WhatsApp
+        await Future.delayed(const Duration(milliseconds: 300));
+      } catch (_) {
+        skipped++;
+      }
+    }
+
+    setState(() => _selectedIds.clear());
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          skipped > 0
+              ? 'Reminders sent to $sent clients. $skipped skipped (no phone).'
+              : 'Reminders sent to $sent clients.',
+        ),
+        backgroundColor: AppTheme.success,
+        duration: const Duration(seconds: 4),
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
+    final canCreate = provider.canDo(AppPermission.createInvoice);
     final clients = provider.clients;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Invoices'),
+        title: _isSelecting
+            ? Text('${_selectedIds.length} selected')
+            : Text(l10n.invoices),
         actions: [
+          if (_isSelecting)
+            TextButton(
+              onPressed: () => setState(() => _selectedIds.clear()),
+              child: const Text('Cancel'),
+            )
+          else ...[
+          IconButton(
+            icon: const Icon(Icons.people_outline),
+            tooltip: l10n.clients,
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ClientListScreen()),
+            ),
+          ),
           if (_exporting)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
@@ -544,25 +621,26 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                   );
                 }
               },
-              itemBuilder: (_) => const [
+              itemBuilder: (_) => [
                 PopupMenuItem(
                   value: _CsvAction.export,
                   child: ListTile(
-                    leading: Icon(Icons.upload_file_outlined),
-                    title: Text('Export to CSV'),
+                    leading: const Icon(Icons.upload_file_outlined),
+                    title: Text(l10n.exportInvoices),
                     contentPadding: EdgeInsets.zero,
                     dense: true,
                   ),
                 ),
-                PopupMenuItem(
-                  value: _CsvAction.import,
-                  child: ListTile(
-                    leading: Icon(Icons.download_outlined),
-                    title: Text('Import from CSV'),
-                    contentPadding: EdgeInsets.zero,
-                    dense: true,
+                if (canCreate)
+                  PopupMenuItem(
+                    value: _CsvAction.import,
+                    child: ListTile(
+                      leading: const Icon(Icons.download_outlined),
+                      title: Text(l10n.importInvoices),
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                    ),
                   ),
-                ),
               ],
             ),
           if (_hasActiveFilter)
@@ -573,8 +651,9 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                 _customRange = null;
                 _paymentMethodFilter = {};
               }),
-              child: const Text('Clear Filters'),
+              child: Text(l10n.clearFilters),
             ),
+          ],
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(144),
@@ -607,22 +686,22 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                       return Padding(
                         padding: const EdgeInsets.only(right: 6),
                         child: ChoiceChip(
-                          label: Text(p.label),
+                          label: Text(_periodLabel(l10n, p)),
                           selected: selected,
                           onSelected: (_) => setState(() => _period = p),
                           selectedColor: AppTheme.primary,
                           labelStyle: TextStyle(
                             color: selected
                                 ? Colors.white
-                                : AppTheme.textPrimary,
+                                : AppTheme.onCard(context),
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
                           side: BorderSide(
                             color:
-                                selected ? AppTheme.primary : AppTheme.divider,
+                                selected ? AppTheme.primary : AppTheme.outline(context),
                           ),
-                          backgroundColor: Colors.white,
+                          backgroundColor: AppTheme.card(context),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 0),
                           visualDensity: VisualDensity.compact,
@@ -643,28 +722,28 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                               style: TextStyle(
                                 color: _period == _Period.custom
                                     ? AppTheme.primary
-                                    : AppTheme.textPrimary,
+                                    : AppTheme.onCard(context),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
-                            const SizedBox(width: 4),
+                            SizedBox(width: 4),
                             Icon(Icons.calendar_month_outlined,
                                 size: 13,
                                 color: _period == _Period.custom
                                     ? AppTheme.primary
-                                    : AppTheme.textSecondary),
+                                    : AppTheme.subtext(context)),
                           ],
                         ),
                         onPressed: _pickCustomRange,
                         side: BorderSide(
                           color: _period == _Period.custom
                               ? AppTheme.primary
-                              : AppTheme.divider,
+                              : AppTheme.outline(context),
                         ),
                         backgroundColor: _period == _Period.custom
                             ? AppTheme.primary.withValues(alpha: 0.08)
-                            : Colors.white,
+                            : AppTheme.card(context),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 4, vertical: 0),
                         visualDensity: VisualDensity.compact,
@@ -689,7 +768,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                             style: TextStyle(
                               color: _clientFilter != null
                                   ? AppTheme.primary
-                                  : AppTheme.textPrimary,
+                                  : AppTheme.onCard(context),
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -698,11 +777,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                           side: BorderSide(
                             color: _clientFilter != null
                                 ? AppTheme.primary
-                                : AppTheme.divider,
+                                : AppTheme.outline(context),
                           ),
                           backgroundColor: _clientFilter != null
                               ? AppTheme.primary.withValues(alpha: 0.08)
-                              : Colors.white,
+                              : AppTheme.card(context),
                           padding: const EdgeInsets.symmetric(
                               horizontal: 4, vertical: 0),
                           visualDensity: VisualDensity.compact,
@@ -741,7 +820,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                           style: TextStyle(
                             color: active
                                 ? AppTheme.primary
-                                : AppTheme.textPrimary,
+                                : AppTheme.onCard(context),
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                           ),
@@ -749,11 +828,11 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                         onPressed: () =>
                             _showPaymentMethodPicker(context, allMethods),
                         side: BorderSide(
-                          color: active ? AppTheme.primary : AppTheme.divider,
+                          color: active ? AppTheme.primary : AppTheme.outline(context),
                         ),
                         backgroundColor: active
                             ? AppTheme.primary.withValues(alpha: 0.08)
-                            : Colors.white,
+                            : AppTheme.card(context),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 4, vertical: 0),
                         visualDensity: VisualDensity.compact,
@@ -768,37 +847,146 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                 controller: _tabs,
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
-                tabs: const [
-                  Tab(text: 'All'),
-                  Tab(text: 'Draft'),
-                  Tab(text: 'Sent'),
-                  Tab(text: 'Paid'),
-                  Tab(text: 'Overdue'),
+                tabs: [
+                  Tab(text: l10n.all),
+                  Tab(text: l10n.draft),
+                  Tab(text: l10n.sent),
+                  Tab(text: l10n.paid),
+                  Tab(text: l10n.overdue),
+                  const Tab(text: 'Quotes'),
+                  const Tab(text: 'Credit Notes'),
                 ],
               ),
             ],
           ),
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
+      body: Stack(
         children: [
-          _InvoiceTab(invoices: _filter(provider.invoices, null)),
-          _InvoiceTab(
-              invoices: _filter(provider.invoices, InvoiceStatus.draft)),
-          _InvoiceTab(
-              invoices: _filter(provider.invoices, InvoiceStatus.sent)),
-          _InvoiceTab(
-              invoices: _filter(provider.invoices, InvoiceStatus.paid)),
-          _InvoiceTab(
-              invoices: _filter(
-                  provider.invoices.where((i) => i.isOverdue).toList(), null)),
+          TabBarView(
+            controller: _tabs,
+            children: [
+              _InvoiceTab(
+                invoices: _filter(provider.invoicesOnly, null),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
+              _InvoiceTab(
+                invoices: _filter(provider.invoicesOnly, InvoiceStatus.draft),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
+              _InvoiceTab(
+                invoices: _filter(provider.invoicesOnly, InvoiceStatus.sent),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
+              _InvoiceTab(
+                invoices: _filter(provider.invoicesOnly, InvoiceStatus.paid),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
+              _InvoiceTab(
+                invoices: _filter(
+                    provider.invoicesOnly.where((i) => i.isOverdue).toList(),
+                    null),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
+              _QuotationsTab(
+                  quotations: provider.quotations,
+                  search: _search),
+              _CreditNotesTab(
+                  creditNotes: provider.creditNotes,
+                  search: _search),
+            ],
+          ),
+          if (_isSelecting)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                decoration: BoxDecoration(
+                  color: AppTheme.card(context),
+                  boxShadow: AppTheme.elevatedShadow,
+                ),
+                child: Row(
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        final all = provider.invoicesOnly;
+                        setState(() {
+                          if (_selectedIds.length == all.length) {
+                            _selectedIds.clear();
+                          } else {
+                            _selectedIds.addAll(all.map((i) => i.id));
+                          }
+                        });
+                      },
+                      child: const Text('Select All'),
+                    ),
+                    const Spacer(),
+                    FilledButton.icon(
+                      onPressed: _selectedIds.isEmpty
+                          ? null
+                          : () => _sendBulkReminders(context),
+                      icon: const Icon(Icons.send_outlined, size: 16),
+                      label: Text('Send Reminders (${_selectedIds.length})'),
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => setState(() => _selectedIds.clear()),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _createInvoice(context),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: canCreate && !_isSelecting
+          ? FloatingActionButton(
+              onPressed: () => _createInvoice(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 
@@ -821,7 +1009,16 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
 
 class _InvoiceTab extends StatefulWidget {
   final List<Invoice> invoices;
-  const _InvoiceTab({required this.invoices});
+  final Set<String> selectedIds;
+  final bool isSelecting;
+  final void Function(String id) onToggle;
+
+  const _InvoiceTab({
+    required this.invoices,
+    required this.selectedIds,
+    required this.isSelecting,
+    required this.onToggle,
+  });
 
   @override
   State<_InvoiceTab> createState() => _InvoiceTabState();
@@ -852,17 +1049,17 @@ class _InvoiceTabState extends State<_InvoiceTab>
       return Center(
         child: FadeTransition(
           opacity: _controller,
-          child: const Column(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.inbox_outlined,
-                  size: 52, color: AppTheme.textSecondary),
+                  size: 52, color: AppTheme.subtext(context)),
               SizedBox(height: 14),
               Text('No invoices here',
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
-                      color: AppTheme.textSecondary)),
+                      color: AppTheme.subtext(context))),
             ],
           ),
         ),
@@ -889,7 +1086,12 @@ class _InvoiceTabState extends State<_InvoiceTab>
               begin: const Offset(0.04, 0),
               end: Offset.zero,
             ).animate(anim),
-            child: _InvoiceCard(invoice: widget.invoices[i]),
+            child: _InvoiceCard(
+              invoice: widget.invoices[i],
+              isSelected: widget.selectedIds.contains(widget.invoices[i].id),
+              isSelecting: widget.isSelecting,
+              onToggle: widget.onToggle,
+            ),
           ),
         );
       },
@@ -899,11 +1101,139 @@ class _InvoiceTabState extends State<_InvoiceTab>
 
 class _InvoiceCard extends StatelessWidget {
   final Invoice invoice;
-  const _InvoiceCard({required this.invoice});
+  final bool isSelected;
+  final bool isSelecting;
+  final void Function(String id) onToggle;
+
+  const _InvoiceCard({
+    required this.invoice,
+    required this.isSelected,
+    required this.isSelecting,
+    required this.onToggle,
+  });
 
   @override
   Widget build(BuildContext context) {
     final provider = context.read<AppProvider>();
+
+    final card = Container(
+      decoration: BoxDecoration(
+        color: isSelected
+            ? AppTheme.primary.withValues(alpha: 0.07)
+            : AppTheme.card(context),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: AppTheme.cardShadow,
+        border: isSelected
+            ? Border.all(color: AppTheme.primary, width: 1.5)
+            : null,
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: isSelecting
+            ? () => onToggle(invoice.id)
+            : () => _showStatusSheet(context, provider),
+        onLongPress: isSelecting ? null : () => onToggle(invoice.id),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isSelecting) ...[
+                Padding(
+                  padding: const EdgeInsets.only(right: 8, top: 2),
+                  child: Checkbox(
+                    value: isSelected,
+                    onChanged: (_) => onToggle(invoice.id),
+                    activeColor: AppTheme.primary,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            invoice.client?.displayName ?? 'No Client',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                                color: AppTheme.onCard(context)),
+                          ),
+                        ),
+                        StatusBadge(status: invoice.status, small: true),
+                      ],
+                    ),
+                    SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          invoice.invoiceNumber,
+                          style: TextStyle(
+                              fontSize: 12, color: AppTheme.subtext(context)),
+                        ),
+                        Spacer(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              Fmt.currencyAmount(invoice.grandTotal, invoice.currency),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                  color: AppTheme.onCard(context)),
+                            ),
+                            if (invoice.payments.isNotEmpty &&
+                                invoice.status != InvoiceStatus.paid)
+                              Text(
+                                '${Fmt.currencyAmount(invoice.amountRemaining, invoice.currency)} due',
+                                style: const TextStyle(
+                                    fontSize: 11, color: AppTheme.error),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 12,
+                          color: invoice.isOverdue
+                              ? AppTheme.error
+                              : AppTheme.textSecondary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Due ${Fmt.date(invoice.dueDate)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: invoice.isOverdue
+                                ? AppTheme.error
+                                : AppTheme.textSecondary,
+                            fontWeight: invoice.isOverdue
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Disable swipe gestures while in selection mode
+    if (isSelecting) return card;
 
     return Dismissible(
       key: Key(invoice.id),
@@ -944,7 +1274,6 @@ class _InvoiceCard extends StatelessWidget {
       ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          // Edit: navigate without dismissing
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -952,7 +1281,6 @@ class _InvoiceCard extends StatelessWidget {
           );
           return false;
         }
-        // Delete: confirm first
         return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -972,101 +1300,18 @@ class _InvoiceCard extends StatelessWidget {
         );
       },
       onDismissed: (_) => provider.deleteInvoice(invoice.id),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: AppTheme.cardShadow,
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(14),
-          onTap: () => _showStatusSheet(context, provider),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        invoice.client?.displayName ?? 'No Client',
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15,
-                            color: AppTheme.textPrimary),
-                      ),
-                    ),
-                    StatusBadge(status: invoice.status, small: true),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Text(
-                      invoice.invoiceNumber,
-                      style: const TextStyle(
-                          fontSize: 12, color: AppTheme.textSecondary),
-                    ),
-                    const Spacer(),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          Fmt.currencyAmount(invoice.grandTotal, invoice.currency),
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                              color: AppTheme.textPrimary),
-                        ),
-                        if (invoice.payments.isNotEmpty &&
-                            invoice.status != InvoiceStatus.paid)
-                          Text(
-                            '${Fmt.currencyAmount(invoice.amountRemaining, invoice.currency)} due',
-                            style: const TextStyle(
-                                fontSize: 11, color: AppTheme.error),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 12,
-                      color: invoice.isOverdue
-                          ? AppTheme.error
-                          : AppTheme.textSecondary,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Due ${Fmt.date(invoice.dueDate)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: invoice.isOverdue
-                            ? AppTheme.error
-                            : AppTheme.textSecondary,
-                        fontWeight: invoice.isOverdue
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      child: card,
     );
   }
 
   void _showStatusSheet(BuildContext context, AppProvider provider) {
     final methods = provider.profile.allPaymentMethods;
     final profile = provider.profile;
-    showModalBottomSheet<InvoiceStatus?>(
+    final canIssueCN = !invoice.isQuotation &&
+        !invoice.isCreditNote &&
+        !provider.hasCreditNote(invoice.id);
+
+    showModalBottomSheet<_SheetResult>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1075,13 +1320,15 @@ class _InvoiceCard extends StatelessWidget {
       builder: (_) => _StatusSheet(
         invoice: invoice,
         methods: methods,
+        canIssueCreditNote: canIssueCN,
+        onIssueCreditNote: () => Navigator.pop(context, _SheetResult.creditNote),
         onStatusChanged: (status, payment) async {
           if (payment != null) {
             final updated = invoice.copy();
             updated.payments.add(payment);
-            final totalPaid =
-                updated.payments.fold(0.0, (s, p) => s + p.amount);
-            updated.status = totalPaid >= updated.grandTotal - 0.01
+            // amountPaid includes TDS credit so the invoice is correctly
+            // settled when cash + TDS covers the grand total.
+            updated.status = updated.amountPaid >= updated.grandTotal - 0.01
                 ? InvoiceStatus.paid
                 : InvoiceStatus.partiallyPaid;
             await provider.saveInvoice(updated);
@@ -1090,13 +1337,107 @@ class _InvoiceCard extends StatelessWidget {
           }
         },
       ),
-    ).then((selected) {
-      if (selected == InvoiceStatus.sent && context.mounted) {
+    ).then((result) {
+      if (!context.mounted) return;
+      if (result == _SheetResult.sent) {
         showShareInvoiceSheet(context, invoice, profile);
+      } else if (result == _SheetResult.creditNote) {
+        _issueCreditNoteFromList(context, provider);
       }
     });
   }
+
+  Future<void> _issueCreditNoteFromList(
+      BuildContext context, AppProvider provider) async {
+    final reasonCtrl = TextEditingController();
+
+    final cn = await showDialog<Invoice>(
+      context: context,
+      builder: (ctx) {
+        String? errorText;
+        bool submitting = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text('Issue Credit Note'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Invoice: ${invoice.invoiceNumber}  ·  '
+                      '${Fmt.currencyAmount(invoice.grandTotal, invoice.currency)}'),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: reasonCtrl,
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      labelText: 'Reason for credit note',
+                      hintText: 'e.g. Goods returned, overcharged',
+                      errorText: errorText,
+                    ),
+                    maxLines: 2,
+                    onChanged: (_) {
+                      if (errorText != null) {
+                        setDialogState(() => errorText = null);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: submitting
+                    ? null
+                    : () async {
+                        if (reasonCtrl.text.trim().isEmpty) {
+                          setDialogState(() => errorText = 'Please enter a reason');
+                          return;
+                        }
+                        setDialogState(() => submitting = true);
+                        try {
+                          final created = await provider.issueCreditNote(
+                            linkedInvoiceId: invoice.id,
+                            reason: reasonCtrl.text.trim(),
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx, created);
+                        } catch (e) {
+                          setDialogState(() {
+                            submitting = false;
+                            errorText = e.toString();
+                          });
+                        }
+                      },
+                child: submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Issue Credit Note'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => reasonCtrl.dispose());
+
+    if (cn == null || !context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => CreateInvoiceScreen(invoice: cn)),
+    );
+  }
 }
+
+enum _SheetResult { sent, creditNote }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1104,11 +1445,15 @@ class _StatusSheet extends StatefulWidget {
   final Invoice invoice;
   final List<PaymentMethod> methods;
   final Future<void> Function(InvoiceStatus, PartialPayment?) onStatusChanged;
+  final bool canIssueCreditNote;
+  final VoidCallback? onIssueCreditNote;
 
   const _StatusSheet({
     required this.invoice,
     required this.methods,
     required this.onStatusChanged,
+    this.canIssueCreditNote = false,
+    this.onIssueCreditNote,
   });
 
   @override
@@ -1117,23 +1462,32 @@ class _StatusSheet extends StatefulWidget {
 
 class _StatusSheetState extends State<_StatusSheet> {
   bool _showPartialForm = false;
+  bool _isFullPayment = false;
   final _amountCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
+  final _tdsCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String _selectedMethodId = '__cash__';
   bool _saving = false;
+  bool _hasTds = false;
 
   @override
   void dispose() {
     _amountCtrl.dispose();
     _notesCtrl.dispose();
+    _tdsCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _applyStatus(InvoiceStatus status) async {
     setState(() => _saving = true);
     await widget.onStatusChanged(status, null);
-    if (mounted) Navigator.pop(context, status);
+    if (mounted) {
+      Navigator.pop(
+        context,
+        status == InvoiceStatus.sent ? _SheetResult.sent : null,
+      );
+    }
   }
 
   Future<void> _submitPartial() async {
@@ -1142,6 +1496,10 @@ class _StatusSheetState extends State<_StatusSheet> {
     final amount = double.parse(_amountCtrl.text);
     final method =
         widget.methods.firstWhere((m) => m.id == _selectedMethodId);
+    final tdsAmt = _hasTds ? (double.tryParse(_tdsCtrl.text) ?? 0) : null;
+    final tdsPercent = (tdsAmt != null && tdsAmt > 0 && amount + tdsAmt > 0)
+        ? tdsAmt / (amount + tdsAmt) * 100
+        : null;
     final payment = PartialPayment(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       date: DateTime.now(),
@@ -1149,6 +1507,8 @@ class _StatusSheetState extends State<_StatusSheet> {
       paymentMethodId: method.id,
       paymentMethodName: method.name,
       notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+      tdsPercent: tdsPercent,
+      tdsAmount: tdsAmt,
     );
     await widget.onStatusChanged(InvoiceStatus.partiallyPaid, payment);
     if (mounted) Navigator.pop(context);
@@ -1186,8 +1546,8 @@ class _StatusSheetState extends State<_StatusSheet> {
                         Text(
                           '$sym${widget.invoice.grandTotal.toStringAsFixed(2)}'
                           '${widget.invoice.payments.isNotEmpty ? '  ·  $sym${remaining.toStringAsFixed(2)} remaining' : ''}',
-                          style: const TextStyle(
-                              fontSize: 12, color: AppTheme.textSecondary),
+                          style: TextStyle(
+                              fontSize: 12, color: AppTheme.subtext(context)),
                         ),
                       ],
                     ),
@@ -1217,13 +1577,42 @@ class _StatusSheetState extends State<_StatusSheet> {
                 label: 'Sent',
                 current: current,
               ),
-              _statusOption(
-                context,
-                status: InvoiceStatus.paid,
-                icon: Icons.check_circle_outline,
-                label: 'Paid in Full',
-                current: current,
-              ),
+              if (current == InvoiceStatus.paid)
+                // Already paid — show as active indicator only
+                _statusOption(
+                  context,
+                  status: InvoiceStatus.paid,
+                  icon: Icons.check_circle_outline,
+                  label: 'Paid in Full',
+                  current: current,
+                )
+              else
+                // Opens payment form pre-filled with full amount — TDS accessible
+                ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppTheme.success.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.check_circle_outline,
+                        size: 18, color: AppTheme.success),
+                  ),
+                  title: const Text('Paid in Full',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                  subtitle: Text(
+                    'Record payment · TDS deduction supported',
+                    style: TextStyle(fontSize: 11, color: AppTheme.subtext(context)),
+                  ),
+                  trailing: Icon(Icons.chevron_right,
+                      size: 18, color: AppTheme.subtext(context)),
+                  onTap: () => setState(() {
+                    _amountCtrl.text = remaining.toStringAsFixed(2);
+                    _isFullPayment = true;
+                    _showPartialForm = true;
+                  }),
+                ),
               if (current != InvoiceStatus.paid)
                 ListTile(
                   leading: Container(
@@ -1239,13 +1628,46 @@ class _StatusSheetState extends State<_StatusSheet> {
                   title: const Text('Record Partial Payment',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                   subtitle: Text(
-                    '$sym${remaining.toStringAsFixed(2)} outstanding',
-                    style: const TextStyle(fontSize: 12),
+                    '$sym${remaining.toStringAsFixed(2)} outstanding · TDS deduction supported',
+                    style: TextStyle(fontSize: 11, color: AppTheme.subtext(context)),
                   ),
-                  trailing: const Icon(Icons.chevron_right,
-                      size: 18, color: AppTheme.textSecondary),
-                  onTap: () => setState(() => _showPartialForm = true),
+                  trailing: Icon(Icons.chevron_right,
+                      size: 18, color: AppTheme.subtext(context)),
+                  onTap: () => setState(() {
+                    _isFullPayment = false;
+                    _showPartialForm = true;
+                  }),
                 ),
+
+              // ── Credit Note ──────────────────────────────────────────────
+              if (widget.canIssueCreditNote) ...[
+                const Divider(indent: 16, endIndent: 16, height: 16),
+                ListTile(
+                  leading: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.credit_card_off_outlined,
+                        size: 18, color: Color(0xFFDC2626)),
+                  ),
+                  title: const Text('Issue Credit Note',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFFDC2626))),
+                  subtitle: const Text(
+                    'Create a credit document against this invoice',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  trailing: Icon(Icons.chevron_right,
+                      size: 18, color: AppTheme.subtext(context)),
+                  onTap: widget.onIssueCreditNote,
+                ),
+              ],
+
               const SizedBox(height: 12),
             ] else ...[
               // Partial payment form
@@ -1259,15 +1681,21 @@ class _StatusSheetState extends State<_StatusSheet> {
                       Row(
                         children: [
                           GestureDetector(
-                            onTap: () =>
-                                setState(() => _showPartialForm = false),
-                            child: const Icon(Icons.arrow_back,
-                                size: 18, color: AppTheme.textSecondary),
+                            onTap: () => setState(() {
+                              _showPartialForm = false;
+                              _isFullPayment = false;
+                            }),
+                            child: Icon(Icons.arrow_back,
+                                size: 18, color: AppTheme.subtext(context)),
                           ),
                           const SizedBox(width: 8),
-                          const Text('Record Partial Payment',
-                              style: TextStyle(
-                                  fontSize: 14, fontWeight: FontWeight.w600)),
+                          Text(
+                            _isFullPayment
+                                ? 'Record Full Payment'
+                                : 'Record Partial Payment',
+                            style: const TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w600),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 16),
@@ -1280,6 +1708,7 @@ class _StatusSheetState extends State<_StatusSheet> {
                           labelText: 'Amount Received',
                           prefixText: sym,
                         ),
+                        onChanged: (_) => setState(() {}),
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) {
                             return 'Enter amount';
@@ -1288,18 +1717,77 @@ class _StatusSheetState extends State<_StatusSheet> {
                           if (n == null || n <= 0) {
                             return 'Enter a valid amount';
                           }
-                          if (n > remaining + 0.01) {
+                          final tdsAmt = _hasTds
+                              ? (double.tryParse(_tdsCtrl.text) ?? 0)
+                              : 0.0;
+                          if (n + tdsAmt > remaining + 0.01) {
                             return 'Exceeds balance due ($sym${remaining.toStringAsFixed(2)})';
                           }
                           return null;
                         },
                       ),
-                      const SizedBox(height: 12),
-                      const Text('Payment Method',
+                      const SizedBox(height: 4),
+                      // TDS toggle
+                      SwitchListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('TDS Deducted by Client',
+                            style: TextStyle(fontSize: 13)),
+                        subtitle: const Text(
+                            'Tax Deducted at Source (194J, 194C, etc.)',
+                            style: TextStyle(fontSize: 10)),
+                        value: _hasTds,
+                        activeThumbColor: AppTheme.primary,
+                        onChanged: (v) => setState(() {
+                          _hasTds = v;
+                          if (!v) _tdsCtrl.clear();
+                        }),
+                      ),
+                      if (_hasTds) ...[
+                        TextFormField(
+                          controller: _tdsCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            labelText: 'TDS Amount',
+                            prefixText: sym,
+                            hintText: '0.00',
+                          ),
+                          validator: (v) {
+                            if (!_hasTds) return null;
+                            final n = double.tryParse(v ?? '');
+                            if (n == null || n < 0) {
+                              return 'Enter a valid TDS amount';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        Builder(builder: (ctx) {
+                          final tdsAmt =
+                              double.tryParse(_tdsCtrl.text) ?? 0;
+                          final cashAmt =
+                              double.tryParse(_amountCtrl.text) ?? 0;
+                          final total = cashAmt + tdsAmt;
+                          if (total <= 0) return const SizedBox.shrink();
+                          final pct =
+                              (tdsAmt / total * 100).toStringAsFixed(1);
+                          return Text(
+                            'TDS = $pct% of total settlement'
+                            ' ($sym${total.toStringAsFixed(2)})',
+                            style: TextStyle(
+                                fontSize: 10,
+                                color: AppTheme.subtext(ctx)),
+                          );
+                        }),
+                      ],
+                      SizedBox(height: 12),
+                      Text('Payment Method',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: AppTheme.textPrimary)),
+                              color: AppTheme.onCard(context))),
                       const SizedBox(height: 4),
                       RadioGroup<String>(
                         groupValue: _selectedMethodId,
@@ -1384,6 +1872,428 @@ class _StatusSheetState extends State<_StatusSheet> {
           ? Icon(Icons.check_circle, size: 18, color: color)
           : const SizedBox(width: 18),
       onTap: isActive || _saving ? null : () => _applyStatus(status),
+    );
+  }
+}
+
+// ─── Quotations tab ───────────────────────────────────────────────────────────
+
+class _QuotationsTab extends StatelessWidget {
+  final List<Invoice> quotations;
+  final String search;
+  const _QuotationsTab({required this.quotations, required this.search});
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = search.isEmpty
+        ? quotations
+        : quotations.where((q) {
+            final q2 = search.toLowerCase();
+            return q.invoiceNumber.toLowerCase().contains(q2) ||
+                (q.client?.displayName.toLowerCase().contains(q2) ?? false);
+          }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.request_quote_outlined,
+                size: 56,
+                color: AppTheme.textSecondary.withValues(alpha: 0.4)),
+            SizedBox(height: 12),
+            Text('No quotations yet',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onCard(context))),
+            SizedBox(height: 6),
+            Text('Create a quotation from an invoice',
+                style: TextStyle(
+                    fontSize: 13, color: AppTheme.subtext(context))),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+      itemCount: filtered.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (ctx, i) {
+        final q = filtered[i];
+        final qs = q.quotationStatus;
+        final statusColor = qs?.color ?? AppTheme.textSecondary;
+        final statusLabel = qs?.label ?? 'Draft';
+        final currency = q.currency;
+        final card = GestureDetector(
+          onTap: () => Navigator.push(
+            ctx,
+            MaterialPageRoute(
+                builder: (_) => CreateInvoiceScreen(invoice: q)),
+          ),
+          child: Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.card(ctx),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: AppTheme.cardShadow,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color:
+                        const Color(0xFF7C3AED).withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.request_quote_outlined,
+                      color: Color(0xFF7C3AED), size: 20),
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        q.client?.displayName ?? 'No Client',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppTheme.onCard(ctx)),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '${q.invoiceNumber} · ${Fmt.date(q.invoiceDate)}',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.subtext(ctx)),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      Fmt.currencyAmount(q.grandTotal, currency),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppTheme.onCard(ctx)),
+                    ),
+                    const SizedBox(height: 4),
+                    GestureDetector(
+                      onTap: () => showQuotationStatusSheet(
+                        ctx,
+                        currentStatus: q.quotationStatus,
+                        onStatusSelected: (s) {
+                          q.quotationStatus = s;
+                          ctx.read<AppProvider>().saveInvoice(q);
+                        },
+                        onConvertToInvoice: () async {
+                          q.quotationStatus = QuotationStatus.approved;
+                          final provider = ctx.read<AppProvider>();
+                          await provider.saveInvoice(q);
+                          if (!ctx.mounted) return;
+                          final inv = await provider
+                              .convertQuotationToInvoice(q.id);
+                          if (ctx.mounted) {
+                            Navigator.push(
+                              ctx,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    CreateInvoiceScreen(invoice: inv),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              statusLabel,
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: statusColor),
+                            ),
+                            Icon(Icons.arrow_drop_down,
+                                size: 14, color: statusColor),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+        return Dismissible(
+          key: Key(q.id),
+          direction: DismissDirection.horizontal,
+          background: Container(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 24),
+            decoration: BoxDecoration(
+              color: AppTheme.primary,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.edit_outlined, color: Colors.white, size: 22),
+                SizedBox(height: 4),
+                Text('Edit', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          secondaryBackground: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 24),
+            decoration: BoxDecoration(
+              color: AppTheme.error,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                SizedBox(height: 4),
+                Text('Delete', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.startToEnd) {
+              Navigator.push(ctx, MaterialPageRoute(
+                  builder: (_) => CreateInvoiceScreen(invoice: q)));
+              return false;
+            }
+            return await showDialog<bool>(
+              context: ctx,
+              builder: (dlg) => AlertDialog(
+                title: const Text('Delete Quotation'),
+                content: Text('Delete ${q.invoiceNumber}? This cannot be undone.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dlg, false),
+                      child: const Text('Cancel')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(dlg, true),
+                      child: const Text('Delete',
+                          style: TextStyle(color: AppTheme.error))),
+                ],
+              ),
+            );
+          },
+          onDismissed: (_) => ctx.read<AppProvider>().deleteInvoice(q.id),
+          child: card,
+        );
+      },
+    );
+  }
+}
+
+// ─── Credit Notes tab ──────────────────────────────────────────────────────────
+
+class _CreditNotesTab extends StatelessWidget {
+  final List<Invoice> creditNotes;
+  final String search;
+  const _CreditNotesTab({required this.creditNotes, required this.search});
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = search.isEmpty
+        ? creditNotes
+        : creditNotes.where((cn) {
+            final q = search.toLowerCase();
+            return cn.invoiceNumber.toLowerCase().contains(q) ||
+                (cn.client?.displayName.toLowerCase().contains(q) ?? false);
+          }).toList();
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.credit_card_off_outlined,
+                size: 56,
+                color: AppTheme.subtext(context).withValues(alpha: 0.4)),
+            SizedBox(height: 12),
+            Text('No credit notes yet',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.onCard(context))),
+            SizedBox(height: 6),
+            Text('Tap "Issue Credit Note" on any sent or paid invoice',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppTheme.subtext(context))),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+      itemCount: filtered.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (ctx, i) {
+        final cn = filtered[i];
+        const cnColor = Color(0xFFDC2626);
+        final card = GestureDetector(
+          onTap: () => Navigator.push(
+            ctx,
+            MaterialPageRoute(
+                builder: (_) => CreateInvoiceScreen(invoice: cn)),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppTheme.card(ctx),
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: AppTheme.cardShadow,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cnColor.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.credit_card_off_outlined,
+                      color: cnColor, size: 20),
+                ),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        cn.client?.displayName ?? 'No Client',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppTheme.onCard(ctx)),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        '${cn.invoiceNumber} · ${Fmt.date(cn.invoiceDate)}',
+                        style: TextStyle(
+                            fontSize: 12, color: AppTheme.subtext(ctx)),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      Fmt.currencyAmount(cn.grandTotal, cn.currency),
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          color: AppTheme.onCard(ctx)),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: cnColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        'CREDIT NOTE',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: cnColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+        return Dismissible(
+          key: Key(cn.id),
+          direction: DismissDirection.horizontal,
+          background: Container(
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.only(left: 24),
+            decoration: BoxDecoration(
+              color: AppTheme.primary,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.edit_outlined, color: Colors.white, size: 22),
+                SizedBox(height: 4),
+                Text('Edit', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          secondaryBackground: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 24),
+            decoration: BoxDecoration(
+              color: AppTheme.error,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.delete_outline, color: Colors.white, size: 22),
+                SizedBox(height: 4),
+                Text('Delete', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          confirmDismiss: (direction) async {
+            if (direction == DismissDirection.startToEnd) {
+              Navigator.push(ctx, MaterialPageRoute(
+                  builder: (_) => CreateInvoiceScreen(invoice: cn)));
+              return false;
+            }
+            return await showDialog<bool>(
+              context: ctx,
+              builder: (dlg) => AlertDialog(
+                title: const Text('Delete Credit Note'),
+                content: Text('Delete ${cn.invoiceNumber}? This cannot be undone.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(dlg, false),
+                      child: const Text('Cancel')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(dlg, true),
+                      child: const Text('Delete',
+                          style: TextStyle(color: AppTheme.error))),
+                ],
+              ),
+            );
+          },
+          onDismissed: (_) => ctx.read<AppProvider>().deleteInvoice(cn.id),
+          child: card,
+        );
+      },
     );
   }
 }
