@@ -14,6 +14,79 @@ import 'gst_utils.dart';
 // Shown on every PDF when the business is not yet verified.
 // ─────────────────────────────────────────────────────────────
 
+/// A single row in a client ledger statement PDF.
+class LedgerPdfRow {
+  final DateTime date;
+  final String description;
+  final double debit;
+  final double credit;
+  final double balance;
+  const LedgerPdfRow({
+    required this.date,
+    required this.description,
+    required this.debit,
+    required this.credit,
+    required this.balance,
+  });
+}
+
+/// One invoice row for the statement's invoice summary table.
+class StatementInvoiceRow {
+  final String invoiceNumber;
+  final DateTime invoiceDate;
+  final DateTime dueDate;
+  final double grandTotal;
+  final double amountPaid;
+  final double amountRemaining;
+  /// "Current" | "1–30 Days" | "31–60 Days" | "60+ Days" | "Paid"
+  final String agingBucket;
+  const StatementInvoiceRow({
+    required this.invoiceNumber,
+    required this.invoiceDate,
+    required this.dueDate,
+    required this.grandTotal,
+    required this.amountPaid,
+    required this.amountRemaining,
+    required this.agingBucket,
+  });
+}
+
+/// Aging summary buckets passed to the statement PDF.
+class StatementAging {
+  final double current;
+  final double days30;
+  final double days60;
+  final double days90plus;
+  const StatementAging({
+    required this.current,
+    required this.days30,
+    required this.days60,
+    required this.days90plus,
+  });
+  double get total => current + days30 + days60 + days90plus;
+}
+
+/// One line in a purchase order PDF.
+class PurchaseOrderLine {
+  final String itemName;
+  final String? unit;
+  final double currentStock;
+  final double avgDailyUsage;
+  final double? daysRemaining;
+  final double orderQty;
+  final double? costPrice;
+  const PurchaseOrderLine({
+    required this.itemName,
+    this.unit,
+    required this.currentStock,
+    required this.avgDailyUsage,
+    this.daysRemaining,
+    required this.orderQty,
+    this.costPrice,
+  });
+  double get lineTotal => orderQty * (costPrice ?? 0);
+}
+
 class PdfGenerator {
   static pw.Font? _cachedRegular;
   static pw.Font? _cachedBold;
@@ -77,7 +150,6 @@ class PdfGenerator {
       nextInvoiceNumber: 1,
       defaultTemplate: template,
       paymentMethods: [],
-      serviceItems: [],
     );
 
     final client = Client(
@@ -4734,12 +4806,16 @@ class PdfGenerator {
   // CLIENT STATEMENT PDF
   // A4 · lists all invoices for a client in a date range
   // ─────────────────────────────────────────────────────────────
-  static Future<Uint8List> generateClientStatementPdf({
-    required List<Invoice> invoices,
+  static Future<Uint8List> generateLedgerPdf({
+    required List<LedgerPdfRow> rows,
     required Client client,
     required BusinessProfile profile,
     required DateTime rangeStart,
     required DateTime rangeEnd,
+    required double openingBalance,
+    required double closingBalance,
+    List<StatementInvoiceRow>? invoiceRows,
+    StatementAging? aging,
   }) async {
     _cachedRegular ??= await _loadFont('assets/fonts/NotoSans-Regular.ttf');
     _cachedBold    ??= await _loadFont('assets/fonts/NotoSans-Bold.ttf');
@@ -4752,24 +4828,19 @@ class PdfGenerator {
     final primary = _colorFromHex(
         profile.themeColorHex, const PdfColor(0.08, 0.40, 0.75));
 
-    final totalBilled =
-        invoices.fold(0.0, (s, inv) => s + inv.grandTotal);
-    final totalPaid =
-        invoices.fold(0.0, (s, inv) => s + inv.amountPaid);
-    final balanceDue =
-        invoices.fold(0.0, (s, inv) => s + inv.amountRemaining);
+    final totalDebit = rows.fold(0.0, (s, r) => s + r.debit);
+    final totalCredit = rows.fold(0.0, (s, r) => s + r.credit);
 
-    // ── Column widths (pts) for the statement table ──────────────
-    const Map<int, pw.TableColumnWidth> stColWidths = {
-      0: pw.FixedColumnWidth(64),   // Date
-      1: pw.FlexColumnWidth(2.5),   // Invoice #
-      2: pw.FixedColumnWidth(52),   // Status
-      3: pw.FixedColumnWidth(72),   // Amount
-      4: pw.FixedColumnWidth(72),   // Paid
-      5: pw.FixedColumnWidth(72),   // Balance
+    // ── Column widths (pts) for the ledger table ──────────────────
+    const Map<int, pw.TableColumnWidth> ldgColWidths = {
+      0: pw.FixedColumnWidth(60),   // Date
+      1: pw.FlexColumnWidth(3),     // Description
+      2: pw.FixedColumnWidth(70),   // Debit
+      3: pw.FixedColumnWidth(70),   // Credit
+      4: pw.FixedColumnWidth(78),   // Balance
     };
 
-    pw.Widget stCell(String text,
+    pw.Widget ldgCell(String text,
         {pw.TextAlign align = pw.TextAlign.left,
         pw.TextStyle? style,
         PdfColor? color}) {
@@ -4788,7 +4859,7 @@ class PdfGenerator {
       );
     }
 
-    pw.TableRow stHeaderRow() {
+    pw.TableRow ldgHeaderRow() {
       final s = pw.TextStyle(
           fontSize: 9,
           fontWeight: pw.FontWeight.bold,
@@ -4796,35 +4867,18 @@ class PdfGenerator {
       return pw.TableRow(
         decoration: pw.BoxDecoration(color: primary),
         children: [
-          stCell('Date',      style: s),
-          stCell('Invoice #', style: s),
-          stCell('Status',    style: s),
-          stCell('Amount',    style: s, align: pw.TextAlign.right),
-          stCell('Paid',      style: s, align: pw.TextAlign.right),
-          stCell('Balance',   style: s, align: pw.TextAlign.right),
+          ldgCell('Date',        style: s),
+          ldgCell('Description', style: s),
+          ldgCell('Debit',       style: s, align: pw.TextAlign.right),
+          ldgCell('Credit',      style: s, align: pw.TextAlign.right),
+          ldgCell('Balance',     style: s, align: pw.TextAlign.right),
         ],
       );
     }
 
-    String statusLabel(InvoiceStatus st) {
-      switch (st) {
-        case InvoiceStatus.paid:          return 'Paid';
-        case InvoiceStatus.sent:          return 'Sent';
-        case InvoiceStatus.overdue:       return 'Overdue';
-        case InvoiceStatus.partiallyPaid: return 'Partial';
-        case InvoiceStatus.draft:         return 'Draft';
-        case InvoiceStatus.cancelled:     return 'Cancelled';
-      }
-    }
-
-    PdfColor statusColor(InvoiceStatus st) {
-      switch (st) {
-        case InvoiceStatus.paid:          return const PdfColor(0.09, 0.56, 0.24);
-        case InvoiceStatus.overdue:       return const PdfColor(0.78, 0.10, 0.10);
-        case InvoiceStatus.partiallyPaid: return const PdfColor(0.90, 0.50, 0.00);
-        default:                          return PdfColors.grey700;
-      }
-    }
+    PdfColor balColor(double v) => v > 0.01
+        ? const PdfColor(0.78, 0.10, 0.10)
+        : const PdfColor(0.09, 0.56, 0.24);
 
     pdf.addPage(pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
@@ -4911,8 +4965,133 @@ class PdfGenerator {
         ),
         pw.SizedBox(height: 16),
 
-        // ── Transactions table ────────────────────────────────────
-        pw.Text('TRANSACTIONS',
+        // ── Invoice summary table ──────────────────────────────────
+        if (invoiceRows != null && invoiceRows.isNotEmpty) ...[
+          pw.Text('INVOICES',
+              style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: PdfColors.grey500)),
+          pw.SizedBox(height: 6),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+            columnWidths: const {
+              0: pw.FixedColumnWidth(58),
+              1: pw.FixedColumnWidth(52),
+              2: pw.FixedColumnWidth(52),
+              3: pw.FlexColumnWidth(1),
+              4: pw.FixedColumnWidth(64),
+              5: pw.FixedColumnWidth(64),
+              6: pw.FixedColumnWidth(68),
+            },
+            children: [
+              pw.TableRow(
+                decoration: pw.BoxDecoration(color: primary),
+                children: [
+                  for (final h in ['INV #', 'INV DATE', 'DUE DATE', 'STATUS', 'TOTAL', 'PAID', 'OUTSTANDING'])
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(h,
+                          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white)),
+                    ),
+                ],
+              ),
+              ...invoiceRows.asMap().entries.map((e) {
+                final r = e.value;
+                final bg = e.key.isEven ? PdfColors.white : PdfColors.grey50;
+                PdfColor agBucketColor(String b) => switch (b) {
+                  '1–30 Days'  => const PdfColor(0.85, 0.53, 0.10),
+                  '31–60 Days' => const PdfColor(0.78, 0.25, 0.10),
+                  '60+ Days'   => const PdfColor(0.70, 0.05, 0.05),
+                  'Paid'       => const PdfColor(0.09, 0.56, 0.24),
+                  _            => PdfColors.grey700,
+                };
+                return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: [
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(r.invoiceNumber,
+                          style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(Fmt.shortDate(r.invoiceDate),
+                          style: const pw.TextStyle(fontSize: 8)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(Fmt.shortDate(r.dueDate),
+                          style: const pw.TextStyle(fontSize: 8)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(r.agingBucket,
+                          style: pw.TextStyle(fontSize: 8, color: agBucketColor(r.agingBucket), fontWeight: pw.FontWeight.bold)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text('$sym${r.grandTotal.toStringAsFixed(2)}',
+                          textAlign: pw.TextAlign.right,
+                          style: const pw.TextStyle(fontSize: 8)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(
+                          r.amountPaid > 0 ? '$sym${r.amountPaid.toStringAsFixed(2)}' : '—',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              fontSize: 8,
+                              color: r.amountPaid > 0 ? const PdfColor(0.09, 0.56, 0.24) : PdfColors.grey400)),
+                    ),
+                    pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(
+                          r.amountRemaining > 0.01 ? '$sym${r.amountRemaining.toStringAsFixed(2)}' : '—',
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                              fontSize: 8,
+                              fontWeight: pw.FontWeight.bold,
+                              color: r.amountRemaining > 0.01
+                                  ? const PdfColor(0.78, 0.10, 0.10)
+                                  : PdfColors.grey400)),
+                    ),
+                  ],
+                );
+              }),
+            ],
+          ),
+          pw.SizedBox(height: 16),
+        ],
+
+        // ── Aging analysis ─────────────────────────────────────────
+        if (aging != null && aging.total > 0.01) ...[
+          pw.Text('AGING ANALYSIS',
+              style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: PdfColors.grey500)),
+          pw.SizedBox(height: 6),
+          pw.Row(
+            children: [
+              _agingBox('Current',    '$sym${aging.current.toStringAsFixed(2)}',     PdfColors.grey700),
+              pw.SizedBox(width: 8),
+              _agingBox('1–30 Days',  '$sym${aging.days30.toStringAsFixed(2)}',      const PdfColor(0.85, 0.53, 0.10)),
+              pw.SizedBox(width: 8),
+              _agingBox('31–60 Days', '$sym${aging.days60.toStringAsFixed(2)}',      const PdfColor(0.78, 0.25, 0.10)),
+              pw.SizedBox(width: 8),
+              _agingBox('60+ Days',   '$sym${aging.days90plus.toStringAsFixed(2)}',  const PdfColor(0.70, 0.05, 0.05)),
+              pw.SizedBox(width: 8),
+              _agingBox('Total Due',  '$sym${aging.total.toStringAsFixed(2)}',       primary, bold: true),
+            ],
+          ),
+          pw.SizedBox(height: 16),
+        ],
+
+        // ── Ledger table ───────────────────────────────────────────
+        pw.Text('LEDGER',
             style: pw.TextStyle(
                 fontSize: 8,
                 fontWeight: pw.FontWeight.bold,
@@ -4922,107 +5101,92 @@ class PdfGenerator {
         pw.Table(
           border: pw.TableBorder.all(
               color: PdfColors.grey300, width: 0.5),
-          columnWidths: stColWidths,
+          columnWidths: ldgColWidths,
           children: [
-            stHeaderRow(),
-            ...invoices.asMap().entries.map((e) {
-              final inv = e.value;
-              final bg = e.key.isEven
-                  ? PdfColors.white
-                  : PdfColors.grey50;
-              final balance = inv.amountRemaining;
-              final balColor = balance > 0.01
-                  ? const PdfColor(0.78, 0.10, 0.10)
-                  : const PdfColor(0.09, 0.56, 0.24);
-              return pw.TableRow(
-                decoration: pw.BoxDecoration(color: bg),
-                children: [
-                  stCell(Fmt.shortDate(inv.invoiceDate)),
-                  stCell(inv.invoiceNumber),
-                  stCell(
-                    statusLabel(inv.status),
-                    style: pw.TextStyle(
-                        fontSize: 9,
-                        fontWeight: pw.FontWeight.bold,
-                        color: statusColor(inv.status)),
-                  ),
-                  stCell(
-                    '$sym${inv.grandTotal.toStringAsFixed(2)}',
-                    align: pw.TextAlign.right,
-                  ),
-                  stCell(
-                    '$sym${inv.amountPaid.toStringAsFixed(2)}',
-                    align: pw.TextAlign.right,
-                    style: pw.TextStyle(
-                        fontSize: 9,
-                        color: const PdfColor(0.09, 0.56, 0.24)),
-                  ),
-                  stCell(
-                    '$sym${balance.toStringAsFixed(2)}',
-                    align: pw.TextAlign.right,
-                    style: pw.TextStyle(
-                        fontSize: 9,
-                        fontWeight: pw.FontWeight.bold,
-                        color: balColor),
-                  ),
-                ],
-              );
-            }),
-            // Totals footer row
+            ldgHeaderRow(),
+            // Opening balance row
             pw.TableRow(
               decoration:
                   const pw.BoxDecoration(color: PdfColors.grey100),
               children: [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 6),
-                  child: pw.Text('TOTALS',
-                      style: pw.TextStyle(
-                          fontSize: 9,
-                          fontWeight: pw.FontWeight.bold),
-                      maxLines: 1),
-                ),
-                pw.SizedBox(),
-                pw.SizedBox(),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 6),
-                  child: pw.Text(
-                    '$sym${totalBilled.toStringAsFixed(2)}',
-                    textAlign: pw.TextAlign.right,
+                ldgCell(Fmt.shortDate(rangeStart)),
+                ldgCell('Opening Balance',
                     style: pw.TextStyle(
-                        fontSize: 9,
-                        fontWeight: pw.FontWeight.bold),
-                    maxLines: 1,
+                        fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                ldgCell(''),
+                ldgCell(''),
+                ldgCell(
+                  '$sym${openingBalance.toStringAsFixed(2)}',
+                  align: pw.TextAlign.right,
+                  style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                      color: balColor(openingBalance)),
+                ),
+              ],
+            ),
+            ...rows.asMap().entries.map((e) {
+              final r = e.value;
+              final bg = e.key.isEven
+                  ? PdfColors.white
+                  : PdfColors.grey50;
+              return pw.TableRow(
+                decoration: pw.BoxDecoration(color: bg),
+                children: [
+                  ldgCell(Fmt.shortDate(r.date)),
+                  ldgCell(r.description),
+                  ldgCell(
+                    r.debit > 0 ? '$sym${r.debit.toStringAsFixed(2)}' : '',
+                    align: pw.TextAlign.right,
                   ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 6),
-                  child: pw.Text(
-                    '$sym${totalPaid.toStringAsFixed(2)}',
-                    textAlign: pw.TextAlign.right,
+                  ldgCell(
+                    r.credit > 0 ? '$sym${r.credit.toStringAsFixed(2)}' : '',
+                    align: pw.TextAlign.right,
                     style: pw.TextStyle(
                         fontSize: 9,
-                        fontWeight: pw.FontWeight.bold,
                         color: const PdfColor(0.09, 0.56, 0.24)),
-                    maxLines: 1,
                   ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 6),
-                  child: pw.Text(
-                    '$sym${balanceDue.toStringAsFixed(2)}',
-                    textAlign: pw.TextAlign.right,
+                  ldgCell(
+                    '$sym${r.balance.toStringAsFixed(2)}',
+                    align: pw.TextAlign.right,
                     style: pw.TextStyle(
                         fontSize: 9,
                         fontWeight: pw.FontWeight.bold,
-                        color: balanceDue > 0.01
-                            ? const PdfColor(0.78, 0.10, 0.10)
-                            : const PdfColor(0.09, 0.56, 0.24)),
-                    maxLines: 1,
+                        color: balColor(r.balance)),
                   ),
+                ],
+              );
+            }),
+            // Closing balance footer row
+            pw.TableRow(
+              decoration:
+                  const pw.BoxDecoration(color: PdfColors.grey100),
+              children: [
+                pw.SizedBox(),
+                ldgCell('Closing Balance',
+                    style: pw.TextStyle(
+                        fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                ldgCell(
+                  '$sym${totalDebit.toStringAsFixed(2)}',
+                  align: pw.TextAlign.right,
+                  style: pw.TextStyle(
+                      fontSize: 9, fontWeight: pw.FontWeight.bold),
+                ),
+                ldgCell(
+                  '$sym${totalCredit.toStringAsFixed(2)}',
+                  align: pw.TextAlign.right,
+                  style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                      color: const PdfColor(0.09, 0.56, 0.24)),
+                ),
+                ldgCell(
+                  '$sym${closingBalance.toStringAsFixed(2)}',
+                  align: pw.TextAlign.right,
+                  style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                      color: balColor(closingBalance)),
                 ),
               ],
             ),
@@ -5034,20 +5198,22 @@ class PdfGenerator {
         // ── Summary boxes ────────────────────────────────────────
         pw.Row(
           children: [
+            _stSummaryBox('Opening Balance',
+                '$sym${openingBalance.toStringAsFixed(2)}',
+                PdfColors.grey700),
+            pw.SizedBox(width: 12),
             _stSummaryBox('Total Billed',
-                '$sym${totalBilled.toStringAsFixed(2)}',
+                '$sym${totalDebit.toStringAsFixed(2)}',
                 primary),
             pw.SizedBox(width: 12),
-            _stSummaryBox('Total Paid',
-                '$sym${totalPaid.toStringAsFixed(2)}',
+            _stSummaryBox('Total Received',
+                '$sym${totalCredit.toStringAsFixed(2)}',
                 const PdfColor(0.09, 0.56, 0.24)),
             pw.SizedBox(width: 12),
             _stSummaryBox(
-              'Balance Due',
-              '$sym${balanceDue.toStringAsFixed(2)}',
-              balanceDue > 0.01
-                  ? const PdfColor(0.78, 0.10, 0.10)
-                  : const PdfColor(0.09, 0.56, 0.24),
+              'Closing Balance',
+              '$sym${closingBalance.toStringAsFixed(2)}',
+              balColor(closingBalance),
             ),
           ],
         ),
@@ -5089,5 +5255,361 @@ class PdfGenerator {
         ),
       ),
     );
+  }
+
+  static pw.Widget _agingBox(String label, String value, PdfColor color,
+      {bool bold = false}) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: pw.BoxDecoration(
+          color: bold ? color : PdfColors.white,
+          border: pw.Border.all(color: color, width: bold ? 0 : 0.8),
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(label,
+                style: pw.TextStyle(
+                    fontSize: 7,
+                    color: bold ? PdfColors.white : PdfColors.grey600,
+                    fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 3),
+            pw.Text(value,
+                style: pw.TextStyle(
+                    fontSize: 11,
+                    fontWeight: pw.FontWeight.bold,
+                    color: bold ? PdfColors.white : color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Purchase Order PDF ───────────────────────────────────────────────────────
+
+  static Future<Uint8List> generatePurchaseOrderPdf({
+    required BusinessProfile profile,
+    required List<PurchaseOrderLine> lines,
+    String? vendorName,
+    required String poNumber,
+    DateTime? deliveryDate,
+    String? notes,
+    int windowDays = 30,
+  }) async {
+    _cachedRegular ??= await _loadFont('assets/fonts/NotoSans-Regular.ttf');
+    _cachedBold    ??= await _loadFont('assets/fonts/NotoSans-Bold.ttf');
+    final theme = pw.ThemeData.withFont(
+        base: _cachedRegular!, bold: _cachedBold!);
+
+    final pdf     = pw.Document();
+    final logo    = _decodeLogo(profile.logoBase64);
+    final sym     = Fmt.currencySymbol(profile.currency);
+    final primary = _colorFromHex(
+        profile.themeColorHex, const PdfColor(0.08, 0.40, 0.75));
+
+    final hasPrice  = lines.any((l) => (l.costPrice ?? 0) > 0);
+    final totalCost = lines.fold(0.0, (s, l) => s + l.lineTotal);
+
+    // Column widths: Item | Current Stock | Velocity | Days Left | Qty | [Unit Cost] [Total]
+    final Map<int, pw.TableColumnWidth> colWidths = hasPrice
+        ? {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FixedColumnWidth(55),
+            2: const pw.FixedColumnWidth(55),
+            3: const pw.FixedColumnWidth(55),
+            4: const pw.FixedColumnWidth(42),
+            5: const pw.FixedColumnWidth(58),
+            6: const pw.FixedColumnWidth(62),
+          }
+        : {
+            0: const pw.FlexColumnWidth(3),
+            1: const pw.FixedColumnWidth(62),
+            2: const pw.FixedColumnWidth(62),
+            3: const pw.FixedColumnWidth(62),
+            4: const pw.FixedColumnWidth(50),
+          };
+
+    pw.Widget cell(String text,
+        {pw.TextAlign align = pw.TextAlign.left,
+        pw.TextStyle? style,
+        PdfColor? color}) {
+      return pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        child: pw.Text(
+          text,
+          textAlign: align,
+          style: style ?? pw.TextStyle(fontSize: 8, color: color ?? PdfColors.black),
+          maxLines: 2,
+        ),
+      );
+    }
+
+    pw.TableRow headerRow() {
+      final s = pw.TextStyle(
+          fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.white);
+      final headers = hasPrice
+          ? ['ITEM', 'IN STOCK', 'SALES/DAY', 'DAYS LEFT', 'ORDER QTY', 'UNIT COST', 'TOTAL']
+          : ['ITEM', 'IN STOCK', 'SALES/DAY', 'DAYS LEFT', 'ORDER QTY'];
+      return pw.TableRow(
+        decoration: pw.BoxDecoration(color: primary),
+        children: headers
+            .map((h) => cell(h,
+                align: h == 'ITEM'
+                    ? pw.TextAlign.left
+                    : pw.TextAlign.right,
+                style: s))
+            .toList(),
+      );
+    }
+
+    String fmtQty(double v) =>
+        v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
+
+    String fmtDays(double? d, double daily) {
+      if (daily <= 0) return 'No data';
+      if (d == null) return '—';
+      if (d <= 0) return 'OUT';
+      if (d < 1) return '< 1 day';
+      return '${d.toStringAsFixed(1)}d';
+    }
+
+    PdfColor daysColor(double? d, double daily) {
+      if (daily <= 0 || d == null) return PdfColors.grey500;
+      if (d <= 1) return const PdfColor(0.78, 0.10, 0.10);
+      if (d <= 2) return const PdfColor(0.85, 0.35, 0.05);
+      return const PdfColor(0.80, 0.53, 0.05);
+    }
+
+    pdf.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(40),
+      theme: theme,
+      build: (ctx) => [
+        // ── Header ──────────────────────────────────────────────────────
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            // Business block
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                if (logo != null &&
+                    profile.headerFields.contains(kHeaderLogo))
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 6),
+                    child: pw.Image(logo,
+                        width: 80, height: 40,
+                        fit: pw.BoxFit.contain),
+                  ),
+                if (profile.headerFields.contains(kHeaderName))
+                  pw.Text(
+                    profile.name.isNotEmpty ? profile.name : 'Your Business',
+                    style: pw.TextStyle(
+                        fontSize: 14, fontWeight: pw.FontWeight.bold),
+                  ),
+                ..._profileAddressLines(profile),
+              ],
+            ),
+            // PO title block
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 6),
+                  decoration: pw.BoxDecoration(
+                      color: primary,
+                      borderRadius: pw.BorderRadius.circular(4)),
+                  child: pw.Text('PURCHASE ORDER',
+                      style: pw.TextStyle(
+                          fontSize: 15,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.white)),
+                ),
+                pw.SizedBox(height: 8),
+                _kv('PO Number', poNumber),
+                _kv('Date', Fmt.date(DateTime.now())),
+                if (deliveryDate != null)
+                  _kv('Expected Delivery', Fmt.date(deliveryDate)),
+              ],
+            ),
+          ],
+        ),
+        pw.SizedBox(height: 14),
+        pw.Divider(color: PdfColors.grey300),
+        pw.SizedBox(height: 10),
+
+        // ── Vendor block ─────────────────────────────────────────────────
+        if (vendorName != null && vendorName.isNotEmpty) ...[
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey100,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text('VENDOR',
+                    style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        letterSpacing: 1.5,
+                        color: PdfColors.grey500)),
+                pw.SizedBox(height: 4),
+                pw.Text(vendorName,
+                    style: pw.TextStyle(
+                        fontSize: 11, fontWeight: pw.FontWeight.bold)),
+              ],
+            ),
+          ),
+          pw.SizedBox(height: 14),
+        ],
+
+        // ── Velocity note ────────────────────────────────────────────────
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey100,
+            borderRadius: pw.BorderRadius.circular(4),
+          ),
+          child: pw.Text(
+            'Quantities suggested based on $windowDays-day average sales velocity. '
+            'Items running out within 3 days or below threshold are included.',
+            style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          ),
+        ),
+        pw.SizedBox(height: 14),
+
+        // ── Items table ──────────────────────────────────────────────────
+        pw.Text('ORDER ITEMS',
+            style: pw.TextStyle(
+                fontSize: 8,
+                fontWeight: pw.FontWeight.bold,
+                letterSpacing: 1.5,
+                color: PdfColors.grey500)),
+        pw.SizedBox(height: 6),
+        pw.Table(
+          border: pw.TableBorder.all(
+              color: PdfColors.grey300, width: 0.5),
+          columnWidths: colWidths,
+          children: [
+            headerRow(),
+            ...lines.asMap().entries.map((e) {
+              final l   = e.value;
+              final bg  = e.key.isEven ? PdfColors.white : PdfColors.grey50;
+              final dc  = daysColor(l.daysRemaining, l.avgDailyUsage);
+              final unitLabel = l.unit != null ? ' ${l.unit}' : '';
+              final cells = <pw.Widget>[
+                cell(l.itemName,
+                    style: pw.TextStyle(
+                        fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                cell('${fmtQty(l.currentStock)}$unitLabel',
+                    align: pw.TextAlign.right),
+                cell(l.avgDailyUsage > 0
+                    ? '${l.avgDailyUsage.toStringAsFixed(1)}/day'
+                    : '—',
+                    align: pw.TextAlign.right,
+                    color: l.avgDailyUsage > 0
+                        ? primary
+                        : PdfColors.grey500),
+                cell(fmtDays(l.daysRemaining, l.avgDailyUsage),
+                    align: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 8,
+                        fontWeight: pw.FontWeight.bold,
+                        color: dc)),
+                cell(fmtQty(l.orderQty),
+                    align: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                if (hasPrice)
+                  cell(
+                    (l.costPrice ?? 0) > 0
+                        ? '$sym${l.costPrice!.toStringAsFixed(2)}'
+                        : '—',
+                    align: pw.TextAlign.right,
+                    color: PdfColors.grey600,
+                  ),
+                if (hasPrice)
+                  cell(
+                    l.lineTotal > 0
+                        ? '$sym${l.lineTotal.toStringAsFixed(2)}'
+                        : '—',
+                    align: pw.TextAlign.right,
+                    style: pw.TextStyle(
+                        fontSize: 8, fontWeight: pw.FontWeight.bold),
+                  ),
+              ];
+              return pw.TableRow(
+                  decoration: pw.BoxDecoration(color: bg),
+                  children: cells);
+            }),
+          ],
+        ),
+
+        // ── Total ────────────────────────────────────────────────────────
+        if (hasPrice && totalCost > 0) ...[
+          pw.SizedBox(height: 10),
+          pw.Row(
+            mainAxisAlignment: pw.MainAxisAlignment.end,
+            children: [
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                decoration: pw.BoxDecoration(
+                  color: primary,
+                  borderRadius: pw.BorderRadius.circular(4),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Text('ESTIMATED TOTAL  ',
+                        style: const pw.TextStyle(
+                            fontSize: 9, color: PdfColors.white)),
+                    pw.Text('$sym${totalCost.toStringAsFixed(2)}',
+                        style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.white)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+
+        // ── Notes ────────────────────────────────────────────────────────
+        if (notes != null && notes.isNotEmpty) ...[
+          pw.SizedBox(height: 16),
+          pw.Text('NOTES',
+              style: pw.TextStyle(
+                  fontSize: 8,
+                  fontWeight: pw.FontWeight.bold,
+                  letterSpacing: 1.5,
+                  color: PdfColors.grey500)),
+          pw.SizedBox(height: 4),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey100,
+              borderRadius: pw.BorderRadius.circular(4),
+            ),
+            child: pw.Text(notes,
+                style: const pw.TextStyle(
+                    fontSize: 9, color: PdfColors.grey700)),
+          ),
+        ],
+
+        pw.SizedBox(height: 24),
+        pw.Divider(color: PdfColors.grey300),
+        pw.SizedBox(height: 6),
+        _brandingFooter(),
+      ],
+    ));
+
+    return pdf.save();
   }
 }

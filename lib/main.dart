@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -18,7 +20,6 @@ import 'services/ad_service.dart';
 import 'services/reminder_service.dart';
 import 'services/billing_service.dart';
 import 'utils/app_theme.dart';
-import 'screens/landing_screen.dart';
 import 'widgets/web_shell.dart';
 import 'widgets/keyboard_dismisser.dart';
 
@@ -28,7 +29,8 @@ void main() async {
 
   final authService = AuthService();
   final enc = EncryptionService();
-  final appProvider = AppProvider(enc);
+  final db = await AppProvider.openInitialDatabase();
+  final appProvider = AppProvider(enc, db);
   final localeProvider = LocaleProvider();
   final themeProvider = ThemeProvider();
   await localeProvider.init();
@@ -117,20 +119,52 @@ class _AuthGate extends StatefulWidget {
 class _AuthGateState extends State<_AuthGate> {
   bool _drivePending = false;
   // Set to true once an attach attempt completes (success or failure).
-  // On web we must not check needsOnboarding until after the first attempt
-  // because local SharedPreferences is empty and would falsely trigger onboarding.
+  // Prevents the retry loop: when Drive is offline, attachDriveAndSync sets
+  // _drive=null which would otherwise trigger another attach on every rebuild.
   bool _driveAttachAttempted = false;
   // True when requestDriveScope() popup was blocked / denied by the browser.
   bool _driveGrantNeeded = false;
+  // True when a connectivity check confirmed we are offline at attach time.
+  bool _syncOffline = false;
+
+  /// Returns false when there is no working internet connection.
+  /// Uses a 4-second DNS lookup — no extra package needed.
+  Future<bool> _isOnline() async {
+    if (kIsWeb) return true; // can't use dart:io on web; assume online
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 4));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
 
   Future<void> _attachDrive() async {
     if (_drivePending || !mounted) return;
+
+    // Capture context-dependent services before any async gap.
+    final auth = context.read<AuthService>();
+    final appProvider = context.read<AppProvider>();
+
+    // ── Connectivity gate ────────────────────────────────────────────────────
+    // Check internet BEFORE doing any Drive/OAuth work.  Without this guard,
+    // attachDriveAndSync fails → _drive = null → rebuild → retry → blinks.
+    if (!await _isOnline()) {
+      if (mounted) {
+        setState(() {
+          _driveAttachAttempted = true;
+          _syncOffline = true;
+        });
+      }
+      return;
+    }
+
     setState(() {
       _drivePending = true;
       _driveGrantNeeded = false;
+      _syncOffline = false;
     });
-    final auth = context.read<AuthService>();
-    final appProvider = context.read<AppProvider>();
 
     if (kIsWeb) {
       final granted = await auth.requestDriveScope();
@@ -176,28 +210,73 @@ class _AuthGateState extends State<_AuthGate> {
     }
   }
 
+  /// Resets attach state so the next build triggers a fresh attempt.
+  void _retrySync() {
+    setState(() {
+      _driveAttachAttempted = false;
+      _syncOffline = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final appProvider = context.watch<AppProvider>();
 
     if (auth.initializing) {
-      // On web, show the landing page immediately while auth checks silently
-      // in the background — no blank screen or spinner for first-time visitors.
+      // On web, show the sign-in screen while auth checks silently — the HTML
+      // landing page already handles marketing, so no need for LandingScreen.
       // On mobile, auth resolves from local storage, so a brief spinner is fine.
       return kIsWeb
-          ? const LandingScreen()
+          ? const LoginScreen()
           : const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (!auth.isSignedIn) {
+      // If the user was previously signed in and has local data, allow offline
+      // access instead of forcing them to the login screen.
+      if (auth.isOfflineMode && !appProvider.needsOnboarding) {
+        if (!_driveAttachAttempted) _driveAttachAttempted = true;
+        return _AppShellWithBanner(
+          shell: MediaQuery.sizeOf(context).width >= 720
+              ? const WebShell()
+              : const DashboardScreen(),
+          message: 'No internet · Showing local data',
+          // No retry — auth itself failed; user must reconnect to sign in again.
+        );
+      }
       // Reset drive state so the next sign-in triggers a fresh sync.
       _driveAttachAttempted = false;
       _driveGrantNeeded = false;
       _drivePending = false;
-      return kIsWeb ? const LandingScreen() : const LoginScreen();
+      _syncOffline = false;
+      return const LoginScreen();
     }
 
-    final appProvider = context.watch<AppProvider>();
+    // ── Employee access revocation dialog ────────────────────────────────────
+    final revokeMsg = appProvider.revocationMessage;
+    if (revokeMsg != null) {
+      appProvider.clearRevocationMessage();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            icon: const Icon(Icons.block_outlined,
+                color: Colors.red, size: 40),
+            title: const Text('Access removed'),
+            content: Text(revokeMsg),
+            actions: [
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      });
+    }
 
     // ── Web-specific Drive sync gate ─────────────────────────────────────────
     // On web, localStorage may be empty for a returning user (different browser,
@@ -243,8 +322,13 @@ class _AuthGateState extends State<_AuthGate> {
         );
       }
 
-      // Show a loading screen until the first attach attempt finishes.
+      // Show spinner only until first attach attempt completes.
+      // _syncOffline is set quickly when offline so the spinner never hangs.
       if (!_driveAttachAttempted || _drivePending || appProvider.syncing) {
+        // If we went offline before the first attach, show no-internet screen.
+        if (_syncOffline && appProvider.needsOnboarding) {
+          return _noInternetFullScreen();
+        }
         return Scaffold(
           body: Center(
             child: Column(
@@ -263,11 +347,18 @@ class _AuthGateState extends State<_AuthGate> {
         );
       }
     } else {
-      // Mobile: attach Drive in the background if not yet connected.
-      if (!appProvider.hasDrive && !appProvider.syncing && !_drivePending) {
+      // ── Mobile Drive attach ─────────────────────────────────────────────────
+      // _driveAttachAttempted prevents the retry loop:
+      //   attachDriveAndSync (offline) → key load fails → _drive=null
+      //   → hasDrive=false → without this guard: triggers _attachDrive again → blinks
+      if (!appProvider.hasDrive && !appProvider.syncing &&
+          !_drivePending && !_driveAttachAttempted) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _attachDrive());
       }
-      if (appProvider.syncing || _drivePending) {
+      // Show full-screen spinner only on the very first sync when there is
+      // no local data yet.  If cached data exists the app loads immediately
+      // and syncs silently in the background.
+      if ((appProvider.syncing || _drivePending) && appProvider.needsOnboarding) {
         return Scaffold(
           body: Center(
             child: Column(
@@ -343,8 +434,146 @@ class _AuthGateState extends State<_AuthGate> {
       return const OnboardingScreen();
     }
 
-    // On web always show WebShell (sidebar navigation is always available).
-    // Premium gating is handled inside individual screens, not at shell level.
-    return kIsWeb ? const WebShell() : const DashboardScreen();
+    // On web always show WebShell. On native, use it for tablets/iPads (≥ 720 px)
+    // where the sidebar layout fits; phones get DashboardScreen.
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final shell = (kIsWeb || screenWidth >= 720)
+        ? const WebShell()
+        : const DashboardScreen();
+
+    // Show a non-blocking banner when sync failed due to network.
+    // decryption/parse errors are handled above with a hard block.
+    final syncErr = appProvider.lastSyncError;
+    final hasNetworkSyncError = syncErr != null &&
+        syncErr != 'decryption_failed' &&
+        syncErr != 'parse_failed';
+    if (_syncOffline || hasNetworkSyncError) {
+      return _AppShellWithBanner(
+        message: 'No internet · Showing local data',
+        onRetry: _retrySync,
+        shell: shell,
+      );
+    }
+
+    return shell;
+  }
+
+  Widget _noInternetFullScreen() {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.wifi_off_rounded,
+                  size: 64, color: AppTheme.textSecondary),
+              const SizedBox(height: 24),
+              const Text(
+                'No internet connection',
+                style:
+                    TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'BillBook needs internet the first time you open it\nto load your data from Google Drive.',
+                style: TextStyle(
+                    color: AppTheme.textSecondary,
+                    fontSize: 14,
+                    height: 1.6),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton.icon(
+                onPressed: _retrySync,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try again'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Wraps the app shell with an amber banner at the top.
+/// Used for offline/sync-failed states where local data is still usable.
+class _AppShellWithBanner extends StatelessWidget {
+  final Widget shell;
+  final String message;
+  final VoidCallback? onRetry;
+
+  const _AppShellWithBanner({
+    required this.shell,
+    required this.message,
+    this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        shell,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
+            child: Material(
+              color: Colors.transparent,
+              child: Container(
+                color: const Color(0xFFF59E0B),
+                padding:
+                    const EdgeInsets.symmetric(vertical: 7, horizontal: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.wifi_off_rounded,
+                        color: Colors.white, size: 14),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        message,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (onRetry != null) ...[
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: onRetry,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.25),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Text(
+                            'Retry',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

@@ -199,7 +199,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       showQuantity: cur.showQuantity,
       itemLabel: cur.itemLabel,
       paymentMethods: cur.paymentMethods,
-      serviceItems: cur.serviceItems,
       verificationStatus: cur.verificationStatus,
       verificationNotes: cur.verificationNotes,
       verificationSubmittedAt: cur.verificationSubmittedAt,
@@ -231,7 +230,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       defaultTemplate: cur.defaultTemplate, themeColorHex: cur.themeColorHex,
       defaultTaxPercent: cur.defaultTaxPercent, showQuantity: cur.showQuantity,
       itemLabel: cur.itemLabel, paymentMethods: cur.paymentMethods,
-      serviceItems: cur.serviceItems, verificationStatus: cur.verificationStatus,
+      verificationStatus: cur.verificationStatus,
       verificationNotes: cur.verificationNotes,
       verificationSubmittedAt: cur.verificationSubmittedAt,
       subscriptionTier: SubscriptionTier.free, // forced until IAP launches
@@ -258,7 +257,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       defaultTemplate: cur.defaultTemplate, themeColorHex: cur.themeColorHex,
       defaultTaxPercent: _taxRate,
       showQuantity: cur.showQuantity, itemLabel: cur.itemLabel,
-      paymentMethods: cur.paymentMethods, serviceItems: cur.serviceItems,
+      paymentMethods: cur.paymentMethods,
       verificationStatus: cur.verificationStatus,
       verificationNotes: cur.verificationNotes,
       verificationSubmittedAt: cur.verificationSubmittedAt,
@@ -288,7 +287,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       themeColorHex: cur.themeColorHex,
       defaultTaxPercent: cur.defaultTaxPercent,
       showQuantity: cur.showQuantity, itemLabel: cur.itemLabel,
-      paymentMethods: cur.paymentMethods, serviceItems: cur.serviceItems,
+      paymentMethods: cur.paymentMethods,
       verificationStatus: cur.verificationStatus,
       verificationNotes: cur.verificationNotes,
       verificationSubmittedAt: cur.verificationSubmittedAt,
@@ -1204,7 +1203,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   // ── STEP 4: Items & Services ──────────────────────────────────────
 
   Widget _buildServicesStep() {
-    final count = context.watch<AppProvider>().profile.serviceItems.length;
+    final count = context.watch<AppProvider>().serviceItems.length;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       child: Column(

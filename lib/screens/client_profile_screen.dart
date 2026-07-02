@@ -8,7 +8,7 @@ import '../utils/formatters.dart';
 import '../widgets/status_badge.dart';
 import 'create_client_screen.dart';
 import 'create_invoice_screen.dart';
-import 'client_statement_screen.dart';
+import 'ledger_screen.dart';
 
 // ── Payment behaviour score ───────────────────────────────────────────────────
 
@@ -143,6 +143,9 @@ class ClientProfileScreen extends StatelessWidget {
 
     final score = PaymentScore.compute(client.id, provider.invoices);
     final gradeColor = score.gradeColor(context);
+    final outstanding = provider.clientOutstanding(client.id);
+    final creditLimit = provider.effectiveCreditLimit(client);
+    final isDefaultLimit = creditLimit != null && client.creditLimit == null;
 
     return Scaffold(
       backgroundColor: AppTheme.bg(context),
@@ -238,8 +241,7 @@ class ClientProfileScreen extends StatelessWidget {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) =>
-                              const ClientStatementScreen(),
+                          builder: (_) => ClientLedgerScreen(client: client),
                         ),
                       ),
                     ),
@@ -258,6 +260,23 @@ class ClientProfileScreen extends StatelessWidget {
                 // ── Payment behaviour score ─────────────────────────────
                 _ScoreCard(score: score, sym: sym, gradeColor: gradeColor),
                 const SizedBox(height: 16),
+
+                // ── Credit limit ────────────────────────────────────────
+                if (creditLimit != null) ...[
+                  _CreditLimitCard(
+                    outstanding: outstanding,
+                    creditLimit: creditLimit,
+                    isDefault: isDefaultLimit,
+                    sym: sym,
+                    onEdit: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CreateClientScreen(client: client),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // ── Contact details ─────────────────────────────────────
                 _SectionCard(title: 'Contact Details', children: [
@@ -596,6 +615,178 @@ class _ActionBtn extends StatelessWidget {
             ),
           ),
         ),
+      );
+}
+
+// ── Credit limit card ─────────────────────────────────────────────────────────
+
+class _CreditLimitCard extends StatelessWidget {
+  final double outstanding;
+  final double creditLimit;
+  final bool isDefault;
+  final String sym;
+  final VoidCallback onEdit;
+
+  const _CreditLimitCard({
+    required this.outstanding,
+    required this.creditLimit,
+    required this.isDefault,
+    required this.sym,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = creditLimit > 0
+        ? (outstanding / creditLimit).clamp(0.0, 1.0)
+        : 0.0;
+    final used = outstanding;
+    final available = (creditLimit - outstanding).clamp(0.0, double.infinity);
+    final isOver = outstanding > creditLimit;
+    final isNear = !isOver && ratio >= 0.8;
+
+    final Color barColor = isOver
+        ? AppTheme.error
+        : isNear
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFF059669);
+
+    final String statusLabel = isOver
+        ? 'Over Limit'
+        : isNear
+            ? 'Near Limit'
+            : 'Within Limit';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isOver
+              ? AppTheme.error.withValues(alpha: 0.4)
+              : AppTheme.outline(context),
+        ),
+        boxShadow: AppTheme.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_wallet_outlined,
+                  size: 15, color: AppTheme.subtext(context)),
+              const SizedBox(width: 6),
+              Text('Credit Limit',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.onCard(context))),
+              if (isDefault) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppTheme.subtext(context).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('default',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: AppTheme.subtext(context))),
+                ),
+              ],
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: barColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: barColor.withValues(alpha: 0.35)),
+                ),
+                child: Text(statusLabel,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: barColor)),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: onEdit,
+                child: Icon(Icons.edit_outlined,
+                    size: 15, color: AppTheme.subtext(context)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 8,
+              backgroundColor: AppTheme.outline(context),
+              valueColor: AlwaysStoppedAnimation<Color>(barColor),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _CreditStat(
+                  label: 'Used',
+                  value: '$sym${Fmt.compact(used)}',
+                  color: isOver ? AppTheme.error : AppTheme.onCard(context),
+                ),
+              ),
+              Expanded(
+                child: _CreditStat(
+                  label: 'Limit',
+                  value: '$sym${Fmt.compact(creditLimit)}',
+                  color: AppTheme.onCard(context),
+                ),
+              ),
+              Expanded(
+                child: _CreditStat(
+                  label: isOver ? 'Exceeded by' : 'Available',
+                  value: isOver
+                      ? '$sym${Fmt.compact(outstanding - creditLimit)}'
+                      : '$sym${Fmt.compact(available)}',
+                  color: isOver
+                      ? AppTheme.error
+                      : const Color(0xFF059669),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CreditStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  const _CreditStat(
+      {required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10, color: AppTheme.subtext(context))),
+          const SizedBox(height: 2),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: color)),
+        ],
       );
 }
 

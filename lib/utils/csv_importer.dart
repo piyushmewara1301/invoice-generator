@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import '../models/client.dart';
 import '../models/invoice.dart';
 import '../models/line_item.dart';
+import '../models/service_item.dart';
 
 // ── Column indexes ────────────────────────────────────────────────────────────
 // Matches the sample template header row exactly.
@@ -401,4 +402,503 @@ class _InvoiceAccumulator {
 
 extension on String {
   String? nullIfEmpty() => isEmpty ? null : this;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulk Generate — simple format for creating new invoices in batch
+// ─────────────────────────────────────────────────────────────────────────────
+// CSV columns: Client Name | Client Email | Client Phone |
+//              Item Description | Amount | Tax % | Notes
+// One row = one new invoice (invoice number auto-assigned by the provider).
+
+const _bColClientName = 0;
+const _bColEmail = 1;
+const _bColPhone = 2;
+const _bColDesc = 3;
+const _bColAmount = 4;
+const _bColTax = 5;
+const _bColNotes = 6;
+const _bMinCols = 5; // at least through Amount
+
+/// Spec for a single auto-generated invoice — no invoice number (provider assigns).
+class BulkInvoiceSpec {
+  final String clientName;
+  final String clientEmail;
+  final String clientPhone;
+  final String itemDescription;
+  final double amount;
+  final double taxPercent;
+  final String? notes;
+
+  const BulkInvoiceSpec({
+    required this.clientName,
+    required this.clientEmail,
+    required this.clientPhone,
+    required this.itemDescription,
+    required this.amount,
+    this.taxPercent = 0,
+    this.notes,
+  });
+
+  double get lineTotal => amount * (1 + taxPercent / 100);
+}
+
+class BulkGenerateRow {
+  final int rowNumber;
+  final bool isValid;
+  final String? errorMessage;
+  final BulkInvoiceSpec? spec;
+
+  const BulkGenerateRow({
+    required this.rowNumber,
+    required this.isValid,
+    this.errorMessage,
+    this.spec,
+  });
+}
+
+class BulkGeneratePreview {
+  final List<BulkGenerateRow> rows;
+  final List<BulkInvoiceSpec> validSpecs;
+  final int errorCount;
+
+  const BulkGeneratePreview({
+    required this.rows,
+    required this.validSpecs,
+    required this.errorCount,
+  });
+
+  bool get hasErrors => errorCount > 0;
+  int get validCount => validSpecs.length;
+}
+
+/// Returns the CSV content of the bulk-generate template.
+String buildBulkTemplate() {
+  const header =
+      'Client Name,Client Email,Client Phone,Item Description,Amount,Tax %,Notes';
+  const rows = [
+    'Rahul Sharma,rahul@acme.com,9876543210,Monthly Tuition – October 2024,5000,0,',
+    'Priya Gupta,priya@email.com,8765432109,Monthly Tuition – October 2024,5000,18,Including 18% GST',
+    'Tech Solutions Pvt Ltd,billing@techsol.com,9123456789,Annual Maintenance Contract,24000,18,Q4 billing',
+  ];
+  return '$header\n${rows.join('\n')}';
+}
+
+/// Parses a bulk-generate CSV. Returns a [BulkGeneratePreview] with validated rows.
+BulkGeneratePreview parseBulkCsv(String csvContent) {
+  final raw =
+      csvContent.startsWith('﻿') ? csvContent.substring(1) : csvContent;
+  final rows = const CsvToListConverter(eol: '\n')
+      .convert(raw.replaceAll('\r\n', '\n').replaceAll('\r', '\n'));
+
+  if (rows.isEmpty) {
+    return const BulkGeneratePreview(rows: [], validSpecs: [], errorCount: 0);
+  }
+
+  // Skip header row
+  final startIdx = _isBulkHeader(rows.first) ? 1 : 0;
+  final dataRows = rows.sublist(startIdx);
+
+  final previewRows = <BulkGenerateRow>[];
+  final validSpecs = <BulkInvoiceSpec>[];
+
+  for (int i = 0; i < dataRows.length; i++) {
+    final rowNum = i + 1;
+    final row = dataRows[i];
+
+    if (row.every((c) => c.toString().trim().isEmpty)) continue;
+
+    String cell(int col) =>
+        col < row.length ? row[col].toString().trim() : '';
+
+    BulkGenerateRow err(String msg) => BulkGenerateRow(
+          rowNumber: rowNum,
+          isValid: false,
+          errorMessage: msg,
+        );
+
+    if (row.length < _bMinCols) {
+      previewRows.add(err('Too few columns (need at least $_bMinCols)'));
+      continue;
+    }
+
+    final clientName = cell(_bColClientName);
+    if (clientName.isEmpty) {
+      previewRows.add(err('Client Name is required'));
+      continue;
+    }
+
+    final desc = cell(_bColDesc);
+    if (desc.isEmpty) {
+      previewRows.add(err('Item Description is required'));
+      continue;
+    }
+
+    final amount = _parseDouble(cell(_bColAmount));
+    if (amount == null || amount <= 0) {
+      previewRows.add(err('Amount must be a positive number'));
+      continue;
+    }
+
+    final tax = _parseDouble(cell(_bColTax)) ?? 0;
+    final notes = cell(_bColNotes).nullIfEmpty();
+
+    final spec = BulkInvoiceSpec(
+      clientName: clientName,
+      clientEmail: cell(_bColEmail),
+      clientPhone: cell(_bColPhone),
+      itemDescription: desc,
+      amount: amount,
+      taxPercent: tax,
+      notes: notes,
+    );
+
+    previewRows.add(BulkGenerateRow(
+      rowNumber: rowNum,
+      isValid: true,
+      spec: spec,
+    ));
+    validSpecs.add(spec);
+  }
+
+  final errorCount = previewRows.where((r) => !r.isValid).length;
+  return BulkGeneratePreview(
+    rows: previewRows,
+    validSpecs: validSpecs,
+    errorCount: errorCount,
+  );
+}
+
+bool _isBulkHeader(List row) {
+  if (row.isEmpty) return false;
+  final first = row.first.toString().toLowerCase();
+  return first.contains('client') || first.contains('name');
+}
+
+// ── Inventory import ──────────────────────────────────────────────────────────
+
+// CSV columns for inventory import
+const _invColName = 0;
+const _invColCategory = 1;
+const _invColDescription = 2;
+const _invColRate = 3;
+const _invColTax = 4;
+const _invColUnit = 5;
+const _invColHsn = 6;
+const _invColBarcode = 7;
+const _invColTrackStock = 8;
+const _invColOpeningStock = 9;
+const _invColLowStock = 10;
+const _invColVariantName = 11;
+const _invColVariantRate = 12;
+const _invColCostPrice = 13;
+
+class InventoryImportRow {
+  final int rowNumber;
+  final String name;
+  final bool isValid;
+  final String? errorMessage;
+  final bool isVariantRow;
+  final String? variantName;
+
+  const InventoryImportRow({
+    required this.rowNumber,
+    required this.name,
+    required this.isValid,
+    this.errorMessage,
+    this.isVariantRow = false,
+    this.variantName,
+  });
+}
+
+class InventoryImportPreview {
+  final List<InventoryImportRow> rows;
+  final int newCount;
+  final int updateCount;
+  final int errorCount;
+  final List<ServiceItem> items;
+
+  const InventoryImportPreview({
+    required this.rows,
+    required this.newCount,
+    required this.updateCount,
+    required this.errorCount,
+    required this.items,
+  });
+
+  bool get hasErrors => errorCount > 0;
+  int get totalCount => newCount + updateCount;
+}
+
+String buildInventoryTemplate() {
+  final rows = <List<dynamic>>[
+    [
+      'Name',
+      'Category',
+      'Description',
+      'Selling Price',
+      'Tax%',
+      'Unit',
+      'HSN/SAC',
+      'Barcode',
+      'Track Stock (yes/no)',
+      'Opening Stock',
+      'Low Stock Alert',
+      'Variant Name',
+      'Variant Rate',
+      'Cost Price',
+    ],
+    // Flat item example
+    ['T-Shirt', 'Apparel', 'Cotton crew-neck', '499', '5', 'pcs', '', '', 'yes', '50', '10', '', '', '280'],
+    // Variant item example (3 rows for same product)
+    ['Denim Jeans', 'Apparel', 'Slim-fit denim', '', '12', 'pcs', '', '', 'yes', '', '', 'S / Blue', '799', '450'],
+    ['Denim Jeans', 'Apparel', 'Slim-fit denim', '', '12', 'pcs', '', '', 'yes', '', '', 'M / Blue', '799', '450'],
+    ['Denim Jeans', 'Apparel', 'Slim-fit denim', '', '12', 'pcs', '', '', 'yes', '', '', 'L / Blue', '849', '480'],
+  ];
+  return const ListToCsvConverter().convert(rows);
+}
+
+InventoryImportPreview parseInventoryCsv(
+  String content, {
+  List<ServiceItem> existingItems = const [],
+  required String shopId,
+}) {
+  const uuid = Uuid();
+  final allRows = const CsvToListConverter(eol: '\n').convert(content);
+
+  final previewRows = <InventoryImportRow>[];
+  final itemMap = <String, ServiceItem>{}; // keyed by lowercase name
+  final isNew = <String, bool>{};
+
+  // Pre-populate with existing items so we can update them
+  for (final item in existingItems) {
+    itemMap[item.name.toLowerCase()] = item;
+    isNew[item.name.toLowerCase()] = false;
+  }
+
+  int rowNum = 0;
+  for (final raw in allRows) {
+    rowNum++;
+    if (raw.isEmpty) continue;
+
+    // Skip header row
+    final first = raw.first.toString().trim();
+    if (first.toLowerCase() == 'name') continue;
+    if (first.isEmpty) continue;
+
+    String cell(int col) => col < raw.length ? raw[col].toString().trim() : '';
+
+    final name = cell(_invColName);
+    if (name.isEmpty) {
+      previewRows.add(InventoryImportRow(
+        rowNumber: rowNum,
+        name: '(empty)',
+        isValid: false,
+        errorMessage: 'Name is required',
+      ));
+      continue;
+    }
+
+    final rateStr = cell(_invColRate);
+    final variantName = cell(_invColVariantName);
+    final variantRateStr = cell(_invColVariantRate);
+    final isVariantRow = variantName.isNotEmpty;
+
+    // Validate rate: either item rate or variant rate must be present
+    double? rate;
+    double? variantRate;
+    if (!isVariantRow) {
+      if (rateStr.isEmpty) {
+        previewRows.add(InventoryImportRow(
+          rowNumber: rowNum,
+          name: name,
+          isValid: false,
+          errorMessage: 'Rate is required for non-variant items',
+        ));
+        continue;
+      }
+      rate = double.tryParse(rateStr);
+      if (rate == null) {
+        previewRows.add(InventoryImportRow(
+          rowNumber: rowNum,
+          name: name,
+          isValid: false,
+          errorMessage: 'Invalid rate: $rateStr',
+        ));
+        continue;
+      }
+    } else {
+      rate = double.tryParse(rateStr); // may be null for variant items — that's ok
+      if (variantRateStr.isNotEmpty) {
+        variantRate = double.tryParse(variantRateStr);
+        if (variantRate == null) {
+          previewRows.add(InventoryImportRow(
+            rowNumber: rowNum,
+            name: name,
+            isValid: false,
+            errorMessage: 'Invalid variant rate: $variantRateStr',
+            isVariantRow: true,
+            variantName: variantName,
+          ));
+          continue;
+        }
+      }
+    }
+
+    final taxStr = cell(_invColTax);
+    final tax = double.tryParse(taxStr) ?? 0.0;
+    final openingStockStr = cell(_invColOpeningStock);
+    final openingStock = double.tryParse(openingStockStr) ?? 0.0;
+    final lowStockStr = cell(_invColLowStock);
+    final lowStock = double.tryParse(lowStockStr) ?? 0.0;
+    final trackStock = cell(_invColTrackStock).toLowerCase() == 'yes';
+    final category = cell(_invColCategory);
+    final description = cell(_invColDescription);
+    final unit = cell(_invColUnit);
+    final hsn = cell(_invColHsn);
+    final barcode = cell(_invColBarcode);
+    final costPrice = double.tryParse(cell(_invColCostPrice));
+
+    final key = name.toLowerCase();
+    final existing = itemMap[key];
+
+    if (isVariantRow) {
+      final newVariant = ProductVariant(
+        id: uuid.v4(),
+        name: variantName,
+        rate: variantRate ?? (rate ?? 0.0),
+        costPrice: costPrice,
+        barcode: barcode.isEmpty ? null : barcode,
+        trackStock: trackStock,
+        stockByShop: trackStock ? {shopId: openingStock} : {},
+        lowStockThreshold: trackStock ? lowStock : 0,
+      );
+
+      if (existing != null) {
+        // Add variant to existing item (avoid duplicates by variant name)
+        final updatedVariants = List<ProductVariant>.from(existing.variants);
+        final dupIdx = updatedVariants.indexWhere(
+            (v) => v.name.toLowerCase() == variantName.toLowerCase());
+        if (dupIdx >= 0) {
+          final oldVariant = updatedVariants[dupIdx];
+          updatedVariants[dupIdx] = ProductVariant(
+            id: oldVariant.id,
+            name: newVariant.name,
+            rate: newVariant.rate,
+            costPrice: costPrice ?? oldVariant.costPrice,
+            barcode: barcode.isNotEmpty ? barcode : oldVariant.barcode,
+            trackStock: trackStock || oldVariant.trackStock,
+            stockByShop: trackStock
+                ? {...oldVariant.stockByShop, shopId: openingStock}
+                : oldVariant.stockByShop,
+            lowStockThreshold:
+                trackStock ? lowStock : oldVariant.lowStockThreshold,
+          );
+        } else {
+          updatedVariants.add(newVariant);
+        }
+        itemMap[key] = ServiceItem(
+          id: existing.id,
+          name: existing.name,
+          description: description.isNotEmpty ? description : existing.description,
+          rate: existing.rate,
+          taxPercent: tax > 0 ? tax : existing.taxPercent,
+          unit: unit.isNotEmpty ? unit : existing.unit,
+          hsnSac: hsn.isNotEmpty ? hsn : existing.hsnSac,
+          category: category.isNotEmpty ? category : existing.category,
+          barcode: existing.barcode,
+          trackStock: existing.trackStock,
+          stockByShop: existing.stockByShop,
+          lowStockThreshold: existing.lowStockThreshold,
+          variants: updatedVariants,
+        );
+      } else {
+        // Create new item with this first variant
+        itemMap[key] = ServiceItem(
+          id: uuid.v4(),
+          name: name,
+          description: description,
+          rate: rate ?? 0.0,
+          taxPercent: tax,
+          unit: unit,
+          hsnSac: hsn.isEmpty ? null : hsn,
+          category: category,
+          barcode: null,
+          variants: [newVariant],
+          // costPrice lives on each variant for variant items
+        );
+        isNew[key] = true;
+      }
+    } else {
+      // Flat item
+      if (existing != null) {
+        itemMap[key] = ServiceItem(
+          id: existing.id,
+          name: existing.name,
+          description: description.isNotEmpty ? description : existing.description,
+          rate: rate ?? existing.rate,
+          costPrice: costPrice ?? existing.costPrice,
+          taxPercent: tax > 0 ? tax : existing.taxPercent,
+          unit: unit.isNotEmpty ? unit : existing.unit,
+          hsnSac: hsn.isNotEmpty ? hsn : existing.hsnSac,
+          category: category.isNotEmpty ? category : existing.category,
+          barcode: barcode.isNotEmpty ? barcode : existing.barcode,
+          trackStock: trackStock || existing.trackStock,
+          stockByShop: trackStock
+              ? {...existing.stockByShop, shopId: openingStock}
+              : existing.stockByShop,
+          lowStockThreshold: trackStock ? lowStock : existing.lowStockThreshold,
+          variants: existing.variants,
+        );
+      } else {
+        itemMap[key] = ServiceItem(
+          id: uuid.v4(),
+          name: name,
+          description: description,
+          rate: rate!,
+          costPrice: costPrice,
+          taxPercent: tax,
+          unit: unit,
+          hsnSac: hsn.isEmpty ? null : hsn,
+          category: category,
+          barcode: barcode.isEmpty ? null : barcode,
+          trackStock: trackStock,
+          stockByShop: trackStock ? {shopId: openingStock} : {},
+          lowStockThreshold: trackStock ? lowStock : 0,
+          variants: const [],
+        );
+        isNew[key] = true;
+      }
+    }
+
+    previewRows.add(InventoryImportRow(
+      rowNumber: rowNum,
+      name: name,
+      isValid: true,
+      isVariantRow: isVariantRow,
+      variantName: isVariantRow ? variantName : null,
+    ));
+  }
+
+  int newCount = 0, updateCount = 0;
+  for (final entry in isNew.entries) {
+    if (entry.value) {
+      newCount++;
+    } else {
+      // Only count as update if we actually processed it in this CSV
+      final processedInCsv = previewRows.any(
+          (r) => r.isValid && r.name.toLowerCase() == entry.key);
+      if (processedInCsv) updateCount++;
+    }
+  }
+
+  final errorCount = previewRows.where((r) => !r.isValid).length;
+
+  return InventoryImportPreview(
+    rows: previewRows,
+    newCount: newCount,
+    updateCount: updateCount,
+    errorCount: errorCount,
+    items: itemMap.values.toList(),
+  );
 }

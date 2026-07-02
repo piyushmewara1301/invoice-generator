@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
@@ -28,17 +31,28 @@ class _ImportInvoicesScreenState extends State<ImportInvoicesScreen> {
     setState(() => _downloading = true);
     try {
       final csv = buildTemplate();
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/billbook_import_template.csv');
-      await file.writeAsString(csv);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/csv')],
-        subject: 'BillBook Import Template',
-        text: 'Fill in your old invoices and import them into BillBook.\n'
-            '• One row per line item — repeat the Invoice No for multi-item invoices.\n'
-            '• Date format: DD/MM/YYYY\n'
-            '• Status: Draft / Sent / Paid',
-      );
+      const name = 'billbook_import_template.csv';
+      const text = 'Fill in your old invoices and import them into BillBook.\n'
+          '• One row per line item — repeat the Invoice No for multi-item invoices.\n'
+          '• Date format: DD/MM/YYYY\n'
+          '• Status: Draft / Sent / Paid';
+      if (kIsWeb) {
+        final bytes = Uint8List.fromList(utf8.encode(csv));
+        await Share.shareXFiles(
+          [XFile.fromData(bytes, name: name, mimeType: 'text/csv')],
+          subject: 'BillBook Import Template',
+          text: text,
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$name');
+        await file.writeAsString(csv);
+        await Share.shareXFiles(
+          [XFile(file.path, mimeType: 'text/csv')],
+          subject: 'BillBook Import Template',
+          text: text,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -59,30 +73,31 @@ class _ImportInvoicesScreenState extends State<ImportInvoicesScreen> {
     });
     try {
       final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'CSV', 'txt', 'TXT'],
         allowMultiple: false,
+        withData: true, // required for web
       );
       if (result == null || result.files.isEmpty) {
         setState(() => _picking = false);
         return;
       }
       final file = result.files.first;
-      final path = file.path;
-      if (path == null) {
+
+      // Decode file content: bytes path works on both web and mobile.
+      final String content;
+      if (file.bytes != null) {
+        content = utf8.decode(file.bytes!, allowMalformed: true);
+      } else if (!kIsWeb && file.path != null) {
+        content = await File(file.path!).readAsString();
+      } else {
         setState(() {
           _picking = false;
-          _pickError = 'Could not read the file path.';
+          _pickError = 'Could not read the file contents.';
         });
         return;
       }
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        setState(() {
-          _picking = false;
-          _pickError = 'Please select a .csv file.';
-        });
-        return;
-      }
-      final content = await File(path).readAsString();
+
       if (!mounted) return;
       final provider = context.read<AppProvider>();
       final existingNos =

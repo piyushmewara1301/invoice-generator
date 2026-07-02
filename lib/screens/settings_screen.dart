@@ -5,19 +5,24 @@ import '../providers/app_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/auth_service.dart';
 import '../utils/app_theme.dart';
+import '../utils/formatters.dart';
+import '../widgets/sync_status_badge.dart';
 import '../models/business_profile.dart';
 import '../models/subscription_limits.dart';
 import 'settings/business_profile_screen.dart';
 import 'settings/invoice_settings_screen.dart';
 import 'settings/payment_methods_screen.dart';
+import 'settings/printer_settings_screen.dart';
 import 'settings/services_screen.dart';
 import 'settings/message_templates_screen.dart';
 import 'settings/gst_setup_screen.dart';
 import 'settings/reminder_settings_screen.dart';
+import 'approval_inbox_screen.dart';
+import 'late_fee_settings_screen.dart';
 import 'gst_report_screen.dart';
 import 'pl_report_screen.dart';
 import 'agewise_report_screen.dart';
-import 'client_statement_screen.dart';
+import 'data_health_screen.dart';
 import 'recurring_invoices_screen.dart';
 import 'settings/verification_screen.dart';
 import 'employees/employees_screen.dart';
@@ -27,6 +32,12 @@ import '../providers/locale_provider.dart';
 import '../widgets/paywall_sheet.dart';
 import '../l10n/app_localizations.dart';
 import 'inventory_screen.dart';
+import 'cash_book_screen.dart';
+import 'bank_reconciliation_screen.dart';
+import 'purchase_bill_list_screen.dart';
+import 'stock_transfer_screen.dart';
+import 'ledger_screen.dart';
+import 'shop_management_screen.dart';
 import 'delivery_challan_screen.dart';
 import 'einvoice_screen.dart';
 import 'eway_bill_screen.dart';
@@ -76,6 +87,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final profile = appProvider.profile;
     final activePairing = appProvider.activePairing;
     final ownerEmail = appProvider.employeeOwnerEmail;
+    final isInvoiceMode = profile.businessMode == BusinessMode.invoiceBased;
+    final isStockMode = profile.businessMode == BusinessMode.stockBased;
 
     return Scaffold(
       appBar: AppBar(title: Text(AppLocalizations.of(context)!.settings)),
@@ -89,6 +102,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           _subscriptionBanner(context, profile.subscriptionTier),
           const SizedBox(height: 16),
+
+          // ── Business Mode selector ────────────────────────────────────────
+          // Employees see a locked read-only indicator; only the owner can change mode.
+          _BusinessModeCard(
+            current: profile.businessMode,
+            locked: appProvider.isEmployeeMode,
+            onChanged: appProvider.isEmployeeMode
+                ? null
+                : (mode) async {
+                    await appProvider.updateProfile(
+                        profile.copyWith(businessMode: mode));
+                  },
+          ),
+          const SizedBox(height: 16),
+
+          // ── Daily tools moved off the bottom bar ───────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: Text(
+              'Daily Tools',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.subtext(context),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          _navGroup([
+            _NavItem(
+              icon: Icons.menu_book_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Cash Book',
+              subtitle: 'Daily cash in/out & running balance',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const CashBookScreen())),
+            ),
+            _NavItem(
+              icon: Icons.account_balance_outlined,
+              color: const Color(0xFF0369A1),
+              title: 'Bank Reconciliation',
+              subtitle: 'Match your bank statement with your records',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const BankReconciliationScreen()),
+              ),
+            ),
+            if (isInvoiceMode && profile.purchaseBillEnabled)
+            _NavItem(
+              icon: Icons.receipt_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'View Purchase Bills',
+              subtitle: 'Vendor bills & input tax credit',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const PurchaseBillListScreen()),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
           _navGroup([
             if (appProvider.canDo(AppPermission.editBusinessProfile))
             _NavItem(
@@ -104,7 +180,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const BusinessProfileScreen()),
               ),
             ),
-            if (appProvider.canDo(AppPermission.editBusinessProfile))
+            if (appProvider.canDo(AppPermission.editBusinessProfile) &&
+                isInvoiceMode)
             _NavItem(
               icon: Icons.receipt_long_outlined,
               color: const Color(0xFF00897B),
@@ -116,7 +193,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     builder: (_) => const InvoiceSettingsScreen()),
               ),
             ),
-            if (appProvider.canDo(AppPermission.editBusinessProfile))
+            if (appProvider.canDo(AppPermission.editBusinessProfile) &&
+                isInvoiceMode)
             _NavItem(
               icon: Icons.account_balance_outlined,
               color: const Color(0xFFE65100),
@@ -129,7 +207,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             if (appProvider.canDo(AppPermission.viewReports) &&
-                profile.isGstRegistered)
+                profile.isGstRegistered &&
+                isInvoiceMode)
             _NavItem(
               icon: Icons.bar_chart_rounded,
               color: const Color(0xFFBF360C),
@@ -149,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute(builder: (_) => const PLReportScreen())),
               ),
             ),
-            if (appProvider.canDo(AppPermission.viewReports))
+            if (appProvider.canDo(AppPermission.viewReports) && isInvoiceMode)
             _NavItem(
               icon: Icons.hourglass_bottom_rounded,
               color: const Color(0xFFF59E0B),
@@ -163,17 +242,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             if (appProvider.canDo(AppPermission.viewReports))
             _NavItem(
-              icon: Icons.receipt_outlined,
-              color: const Color(0xFF0891B2),
-              title: 'Client Statement',
-              subtitle: 'All transactions for a client in a period',
-              onTap: () => _requireFeature(
-                LimitType.reports,
-                () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ClientStatementScreen())),
-              ),
+              icon: Icons.fact_check_outlined,
+              color: const Color(0xFF0D9488),
+              title: 'Data Health',
+              subtitle: 'Missing prices, low stock & other issues to fix',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const DataHealthScreen())),
             ),
-            if (appProvider.canDo(AppPermission.createInvoice))
+            if (appProvider.canDo(AppPermission.createInvoice) && isInvoiceMode)
             _NavItem(
               icon: Icons.repeat_rounded,
               color: const Color(0xFF059669),
@@ -185,6 +261,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute(builder: (_) => const RecurringInvoicesScreen())),
               ),
             ),
+            if (isInvoiceMode)
             _NavItem(
               icon: Icons.local_shipping_outlined,
               color: const Color(0xFF0D9488),
@@ -200,6 +277,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const DeliveryChallanScreen())),
             ),
+            if (isInvoiceMode)
             _NavItem(
               icon: Icons.qr_code_2_outlined,
               color: const Color(0xFF0369A1),
@@ -213,6 +291,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const EInvoiceScreen())),
             ),
+            if (isInvoiceMode)
             _NavItem(
               icon: Icons.add_road_outlined,
               color: const Color(0xFF7C3AED),
@@ -238,25 +317,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
               icon: Icons.inventory_2_outlined,
               color: const Color(0xFF6A1B9A),
               title: '${profile.itemLabel}s & Services',
-              subtitle: profile.serviceItems.isEmpty
+              subtitle: appProvider.serviceItems.isEmpty
                   ? 'Build your product/service catalog'
-                  : '${profile.serviceItems.length} ${profile.itemLabel.toLowerCase()}${profile.serviceItems.length == 1 ? '' : 's'} saved',
+                  : '${appProvider.serviceItems.length} ${profile.itemLabel.toLowerCase()}${appProvider.serviceItems.length == 1 ? '' : 's'} saved',
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ServicesScreen()),
               ),
             ),
             if (appProvider.canDo(AppPermission.manageItems) &&
-                profile.serviceItems.any((s) => s.isTrackingStock))
+                appProvider.serviceItems.any((s) => s.isTrackingStock))
             _NavItem(
               icon: Icons.warehouse_outlined,
               color: const Color(0xFF0E7490),
               title: 'Inventory',
               subtitle: () {
                 final tracked =
-                    profile.serviceItems.where((s) => s.isTrackingStock).length;
+                    appProvider.serviceItems.where((s) => s.isTrackingStock).length;
                 final low =
-                    profile.serviceItems.where((s) => s.isLowStock).length;
+                    appProvider.serviceItems.where((s) => s.isLowStock).length;
                 return low > 0
                     ? '$tracked tracked · $low low stock'
                     : '$tracked item${tracked == 1 ? '' : 's'} tracked';
@@ -266,6 +345,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 () => Navigator.push(context,
                     MaterialPageRoute(builder: (_) => const InventoryScreen())),
               ),
+            ),
+            if (!appProvider.isEmployeeMode)
+            _NavItem(
+              icon: Icons.storefront_outlined,
+              color: const Color(0xFF059669),
+              title: 'This Shop\'s Name',
+              subtitle: appProvider.currentShopName,
+              onTap: () => _editShopName(context),
+            ),
+            _NavItem(
+              icon: Icons.store_outlined,
+              color: const Color(0xFF059669),
+              title: 'My Shops',
+              subtitle: 'Manage shops, view filters & employee access',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(
+                      builder: (_) => const ShopManagementScreen())),
+            ),
+            if (isStockMode)
+            _NavItem(
+              icon: Icons.swap_horiz_rounded,
+              color: const Color(0xFF0891B2),
+              title: 'Stock Transfers',
+              subtitle: 'Send & receive stock between your shops',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(
+                      builder: (_) => const StockTransferScreen())),
+            ),
+            _NavItem(
+              icon: Icons.menu_book_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Ledger',
+              subtitle: 'Party-wise account statements & balances',
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const LedgerScreen())),
             ),
             if (appProvider.canDo(AppPermission.managePaymentMethods))
             _NavItem(
@@ -323,7 +437,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            if (!kIsWeb)
+            if (!kIsWeb && isInvoiceMode)
             _NavItem(
               icon: Icons.notifications_outlined,
               color: const Color(0xFF2E7D32),
@@ -334,6 +448,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 MaterialPageRoute(
                     builder: (_) => const ReminderSettingsScreen()),
               ),
+            ),
+            if (!kIsWeb)
+            _NavItem(
+              icon: Icons.inventory_2_outlined,
+              color: const Color(0xFFF59E0B),
+              title: 'Low Stock Alerts',
+              subtitle: profile.lowStockAlertsEnabled
+                  ? 'Enabled · Notified when items fall below threshold'
+                  : 'Disabled · No alerts for low inventory',
+              onTap: () => _toggleLowStockAlerts(context, profile),
+              trailing: Switch(
+                value: profile.lowStockAlertsEnabled,
+                onChanged: (_) => _toggleLowStockAlerts(context, profile),
+                activeThumbColor: const Color(0xFFF59E0B),
+              ),
+            ),
+            if (!kIsWeb)
+            _NavItem(
+              icon: Icons.print_outlined,
+              color: const Color(0xFF0F766E),
+              title: 'Printer Settings',
+              subtitle: 'Connect a Bluetooth thermal receipt printer',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const PrinterSettingsScreen()),
+              ),
+            ),
+            _NavItem(
+              icon: Icons.timer_outlined,
+              color: AppTheme.error,
+              title: 'Late Payment Penalty',
+              subtitle: profile.lateFeeEnabled
+                  ? '${profile.lateFeePercent.toStringAsFixed(profile.lateFeePercent % 1 == 0 ? 0 : 1)}%/month · Grace ${profile.gracePeriodDays == 0 ? 'none' : '${profile.gracePeriodDays}d'}'
+                  : 'Disabled · Enable to auto-calculate interest',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => const LateFeeSettingsScreen()),
+              ),
+            ),
+            _NavItem(
+              icon: Icons.account_balance_wallet_outlined,
+              color: const Color(0xFF0891B2),
+              title: 'Default Credit Limit',
+              subtitle: profile.defaultCreditLimit != null
+                  ? '${Fmt.currencySymbol(profile.currency)}${Fmt.compact(profile.defaultCreditLimit!)} applied to all clients without an individual limit'
+                  : 'Not set · Tap to apply a limit to all clients',
+              onTap: () => _editDefaultCreditLimit(context, profile),
+            ),
+            if (isInvoiceMode)
+            _NavItem(
+              icon: Icons.fact_check_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Invoice Approval Workflow',
+              subtitle: profile.approvalWorkflowEnabled
+                  ? 'Enabled · Invoices need manager approval before sending'
+                  : 'Disabled · Invoices can be sent directly',
+              onTap: () => _toggleApprovalWorkflow(context, profile),
+              trailing: Switch(
+                value: profile.approvalWorkflowEnabled,
+                onChanged: (_) => _toggleApprovalWorkflow(context, profile),
+                activeThumbColor: const Color(0xFF7C3AED),
+              ),
+            ),
+            if (profile.approvalWorkflowEnabled && isInvoiceMode)
+            _NavItem(
+              icon: Icons.inbox_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Approval Inbox',
+              subtitle: () {
+                final count = appProvider.pendingApprovalInvoices.length;
+                return count == 0
+                    ? 'No invoices pending approval'
+                    : '$count invoice${count == 1 ? '' : 's'} awaiting review';
+              }(),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ApprovalInboxScreen()),
+              ),
+            ),
+            if (!appProvider.isEmployeeMode)
+            _NavItem(
+              icon: Icons.price_change_outlined,
+              color: const Color(0xFF7C3AED),
+              title: 'Employee Price Changes',
+              subtitle: profile.allowEmployeePriceChange
+                  ? 'Allowed · Employees can edit item prices'
+                  : 'Locked · Employees cannot change item prices',
+              onTap: () => _toggleEmployeePriceChange(context, profile),
+              trailing: Switch(
+                value: profile.allowEmployeePriceChange,
+                onChanged: (_) => _toggleEmployeePriceChange(context, profile),
+                activeThumbColor: const Color(0xFF7C3AED),
+              ),
+            ),
+            if (isStockMode && !appProvider.isEmployeeMode)
+            _NavItem(
+              icon: Icons.history_outlined,
+              color: const Color(0xFF0891B2),
+              title: 'Employee Daily Sales History',
+              subtitle: profile.employeeDailySalesVisibilityDays == null
+                  ? 'Employees can view all past entries'
+                  : 'Employees can view the last '
+                      '${profile.employeeDailySalesVisibilityDays} day'
+                      '${profile.employeeDailySalesVisibilityDays == 1 ? '' : 's'}',
+              onTap: () => _editDailySalesVisibility(context, profile),
             ),
             _NavItem(
               icon: Icons.receipt_outlined,
@@ -781,27 +1002,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.success.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_done_outlined,
-                              size: 12, color: AppTheme.success),
-                          SizedBox(width: 4),
-                          Text('Synced',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppTheme.success,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
+                    const SyncStatusBadge(),
                     if (verificationStatus == VerificationStatus.verified) ...[
                       const SizedBox(height: 5),
                       Container(
@@ -932,6 +1133,185 @@ class _SettingsScreenState extends State<SettingsScreen> {
           profile.copyWith(purchaseBillEnabled: !profile.purchaseBillEnabled));
   }
 
+  void _toggleApprovalWorkflow(BuildContext context, BusinessProfile profile) {
+    context.read<AppProvider>().updateProfile(
+          profile.copyWith(approvalWorkflowEnabled: !profile.approvalWorkflowEnabled));
+  }
+
+  void _toggleLowStockAlerts(BuildContext context, BusinessProfile profile) {
+    context.read<AppProvider>().updateProfile(
+          profile.copyWith(lowStockAlertsEnabled: !profile.lowStockAlertsEnabled));
+  }
+
+  void _toggleEmployeePriceChange(BuildContext context, BusinessProfile profile) {
+    context.read<AppProvider>().updateProfile(
+          profile.copyWith(allowEmployeePriceChange: !profile.allowEmployeePriceChange));
+  }
+
+  Future<void> _editDailySalesVisibility(
+      BuildContext context, BusinessProfile profile) async {
+    const options = <int?>[7, 15, 30, 90, null];
+    final selected = await showDialog<int?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Employee Daily Sales History'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              'Choose how many days of past Daily Sales entries '
+              'employees can view.',
+              style: TextStyle(fontSize: 13, color: AppTheme.subtext(ctx)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          for (final days in options)
+            RadioListTile<int?>(
+              value: days,
+              groupValue: profile.employeeDailySalesVisibilityDays,
+              title: Text(days == null ? 'All time' : 'Last $days days'),
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+        ],
+      ),
+    );
+    if (selected == profile.employeeDailySalesVisibilityDays || !context.mounted) return;
+    await context.read<AppProvider>().updateProfile(
+        profile.copyWith(employeeDailySalesVisibilityDays: selected));
+  }
+
+  Future<void> _editShopName(BuildContext context) async {
+    final provider = context.read<AppProvider>();
+    final ctrl = TextEditingController(text: provider.currentShopName);
+    final saved = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Shop / Branch Name'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Give this device a unique name so you can tell your branches apart.',
+              style: TextStyle(fontSize: 13, color: AppTheme.subtext(ctx)),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                labelText: 'Shop / Branch Name',
+                hintText: 'e.g. Main Branch, City Mall, Warehouse',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.dispose());
+    if (saved == null) return;
+    await provider.setShopName(saved);
+  }
+
+  Future<void> _editDefaultCreditLimit(
+      BuildContext context, BusinessProfile profile) async {
+    final sym = Fmt.currencySymbol(profile.currency);
+    final ctrl = TextEditingController(
+      text: profile.defaultCreditLimit != null
+          ? profile.defaultCreditLimit!
+              .toStringAsFixed(profile.defaultCreditLimit! % 1 == 0 ? 0 : 2)
+          : '',
+    );
+    String? error;
+
+    final result = await showDialog<_CreditLimitResult>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Default Credit Limit'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Set a credit limit that applies to all clients who don\'t have '
+                'their own individual limit. Leave blank to remove the default.',
+                style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.subtext(ctx)),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Amount',
+                  prefixText: '$sym ',
+                  hintText: 'e.g. 50000',
+                  errorText: error,
+                ),
+                onChanged: (_) {
+                  if (error != null) setState(() => error = null);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            if (profile.defaultCreditLimit != null)
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, const _CreditLimitResult(value: null, clear: true)),
+                child: const Text('Remove Default',
+                    style: TextStyle(color: AppTheme.error)),
+              ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = ctrl.text.trim();
+                if (text.isEmpty) {
+                  Navigator.pop(ctx, const _CreditLimitResult(value: null, clear: true));
+                  return;
+                }
+                final parsed = double.tryParse(text);
+                if (parsed == null || parsed <= 0) {
+                  setState(() => error = 'Enter a valid amount greater than 0');
+                  return;
+                }
+                Navigator.pop(ctx, _CreditLimitResult(value: parsed, clear: false));
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.dispose());
+    if (result == null || !context.mounted) return;
+
+    context.read<AppProvider>().updateProfile(
+          result.clear
+              ? profile.copyWith(defaultCreditLimit: null)
+              : profile.copyWith(defaultCreditLimit: result.value),
+        );
+  }
+
   void _showLanguagePicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -1004,14 +1384,16 @@ class _EmployeeModeBanner extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Viewing business data',
-                  style: TextStyle(
+                Text(
+                  pairing.shopName != null
+                      ? 'Shop: ${pairing.shopName}'
+                      : 'Viewing business data',
+                  style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: accent),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
                   pairing.ownerEmail as String,
                   style: TextStyle(
@@ -1236,6 +1618,209 @@ class _TeamMembershipCard extends StatelessWidget {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CreditLimitResult {
+  final double? value;
+  final bool clear;
+  const _CreditLimitResult({required this.value, required this.clear});
+}
+
+// ── Business mode card ────────────────────────────────────────────────────────
+
+class _BusinessModeCard extends StatelessWidget {
+  final BusinessMode current;
+  final ValueChanged<BusinessMode>? onChanged;
+  final bool locked;
+
+  const _BusinessModeCard({
+    required this.current,
+    this.onChanged,
+    this.locked = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.outline(context), width: 0.8),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C3AED).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.swap_horiz_rounded,
+                    size: 18, color: Color(0xFF7C3AED)),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Business Mode',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.onCard(context)),
+                    ),
+                    Text(
+                      'Choose how your business tracks sales',
+                      style: TextStyle(
+                          fontSize: 12, color: AppTheme.subtext(context)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (locked) ...[
+            Row(
+              children: [
+                _ModeOption(
+                  icon: current == BusinessMode.invoiceBased
+                      ? Icons.receipt_long_outlined
+                      : Icons.storefront_outlined,
+                  label: current == BusinessMode.invoiceBased
+                      ? 'Invoice Based'
+                      : 'Stock Based',
+                  description: current == BusinessMode.invoiceBased
+                      ? 'Create & send invoices\nto clients'
+                      : 'Daily stock sales &\ncash reconciliation',
+                  selected: true,
+                  onTap: () {},
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Icon(Icons.lock_outline, size: 13, color: Colors.orange),
+                const SizedBox(width: 6),
+                Text(
+                  'Set by owner — disconnect to change',
+                  style: TextStyle(
+                      fontSize: 12, color: AppTheme.subtext(context)),
+                ),
+              ],
+            ),
+          ] else
+            Row(
+              children: [
+                _ModeOption(
+                  icon: Icons.receipt_long_outlined,
+                  label: 'Invoice Based',
+                  description: 'Create & send invoices\nto clients',
+                  selected: current == BusinessMode.invoiceBased,
+                  onTap: () => onChanged!(BusinessMode.invoiceBased),
+                ),
+                const SizedBox(width: 10),
+                _ModeOption(
+                  icon: Icons.storefront_outlined,
+                  label: 'Stock Based',
+                  description: 'Daily stock sales &\ncash reconciliation',
+                  selected: current == BusinessMode.stockBased,
+                  onTap: () => onChanged!(BusinessMode.stockBased),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModeOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String description;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModeOption({
+    required this.icon,
+    required this.label,
+    required this.description,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const activeColor = AppTheme.primary;
+    final bg = selected
+        ? activeColor.withValues(alpha: 0.10)
+        : AppTheme.card(context);
+    final border = selected
+        ? activeColor
+        : AppTheme.outline(context);
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: border, width: selected ? 1.5 : 0.8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon,
+                  size: 22,
+                  color: selected ? activeColor : AppTheme.subtext(context)),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: selected
+                        ? activeColor
+                        : AppTheme.onCard(context)),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                style: TextStyle(
+                    fontSize: 11, color: AppTheme.subtext(context)),
+              ),
+              if (selected) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded,
+                        size: 14, color: activeColor),
+                    const SizedBox(width: 4),
+                    Text('Active',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: activeColor,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

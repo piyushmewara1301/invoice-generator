@@ -119,7 +119,7 @@ class _PosScreenState extends State<PosScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _CartSheet(
-        entries: _cartEntries(appProvider.profile.serviceItems),
+        entries: _cartEntries(appProvider.serviceItems),
         currency: appProvider.profile.currency,
         onIncrement: (id) {
           _add(id);
@@ -156,7 +156,7 @@ class _PosScreenState extends State<PosScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _ChargeSheet(
-        entries: _cartEntries(appProvider.profile.serviceItems),
+        entries: _cartEntries(appProvider.serviceItems),
         profile: appProvider.profile,
         onConfirm: (client, pmId, pmName, saveAsDraft) async {
           Navigator.pop(ctx);
@@ -174,7 +174,7 @@ class _PosScreenState extends State<PosScreen> {
   ) async {
     final appProvider = context.read<AppProvider>();
     final profile = appProvider.profile;
-    final allItems = profile.serviceItems;
+    final allItems = appProvider.serviceItems;
 
     final lineItems = _cart.entries.map((e) {
       final item = allItems.firstWhere((i) => i.id == e.key);
@@ -228,7 +228,7 @@ class _PosScreenState extends State<PosScreen> {
   Widget build(BuildContext context) {
     final appProvider = context.watch<AppProvider>();
     final profile = appProvider.profile;
-    final allItems = profile.serviceItems;
+    final allItems = appProvider.serviceItems;
     final categories = _categories(allItems);
     final filtered = _filtered(allItems);
     final sym = Fmt.currencySymbol(profile.currency);

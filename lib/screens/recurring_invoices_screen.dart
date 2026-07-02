@@ -81,6 +81,7 @@ class _RecurringInvoicesScreenState extends State<RecurringInvoicesScreen> {
     final color = _frequencyColor(s.frequency);
     final total = _scheduleTotal(s);
     final symbol = Fmt.currencySymbol(s.currency);
+    final provider = context.read<AppProvider>();
 
     showModalBottomSheet<void>(
       context: context,
@@ -116,13 +117,9 @@ class _RecurringInvoicesScreenState extends State<RecurringInvoicesScreen> {
                       color: color.withValues(alpha: 0.12),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      s.frequency.icon,
-                      color: color,
-                      size: 22,
-                    ),
+                    child: Icon(s.frequency.icon, color: color, size: 22),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,11 +180,387 @@ class _RecurringInvoicesScreenState extends State<RecurringInvoicesScreen> {
                 label: 'Amount',
                 value: Fmt.currency(total, symbol: symbol),
               ),
+              if (s.endDate != null) ...[
+                const SizedBox(height: 12),
+                _DetailRow(
+                  icon: Icons.event_busy_outlined,
+                  label: 'Ends on',
+                  value: Fmt.date(s.endDate!),
+                ),
+              ],
               const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              // Action buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _showEditSheet(context, s);
+                      },
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Edit'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        _generateNow(context, provider, s);
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                      label: const Text('Generate Now'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         );
       },
+    );
+  }
+
+  // ── Edit schedule sheet ───────────────────────────────────────────────────
+  Future<void> _showEditSheet(BuildContext context, RecurringSchedule s) async {
+    final provider = context.read<AppProvider>();
+    String title = s.title;
+    RecurringFrequency frequency = s.frequency;
+    int daysTillDue = s.daysTillDue;
+    DateTime? endDate = s.endDate;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModal) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 28,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.outline(ctx),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Header
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Edit Schedule',
+                        style: TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Text('Schedule Name',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.subtext(context))),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: title,
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Acme Corp – Monthly Retainer',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => title = v,
+                ),
+                const SizedBox(height: 20),
+
+                // Frequency
+                Text('Repeat Frequency',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.subtext(context))),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: RecurringFrequency.values.map((f) {
+                    final sel = f == frequency;
+                    return GestureDetector(
+                      onTap: () => setModal(() => frequency = f),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppTheme.primary.withValues(alpha: 0.1)
+                              : AppTheme.card(context),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: sel
+                                  ? AppTheme.primary
+                                  : AppTheme.outline(context),
+                              width: sel ? 2 : 1),
+                        ),
+                        child: Text(
+                          f.label,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: sel
+                                ? AppTheme.primary
+                                : AppTheme.subtext(context),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+
+                // Days till due
+                Text('Invoice due after',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.subtext(context))),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  children: [7, 14, 30, 45, 60].map((d) {
+                    final sel = d == daysTillDue;
+                    return GestureDetector(
+                      onTap: () => setModal(() => daysTillDue = d),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: sel
+                              ? AppTheme.primary.withValues(alpha: 0.1)
+                              : AppTheme.card(context),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                              color: sel
+                                  ? AppTheme.primary
+                                  : AppTheme.outline(context),
+                              width: sel ? 2 : 1),
+                        ),
+                        child: Text(
+                          '$d days',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: sel
+                                ? AppTheme.primary
+                                : AppTheme.subtext(context),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 20),
+
+                // End date (optional)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('End Date',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.subtext(context))),
+                    if (endDate != null)
+                      GestureDetector(
+                        onTap: () => setModal(() => endDate = null),
+                        child: const Text(
+                          'Clear',
+                          style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.error,
+                              fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: endDate ??
+                          DateTime.now().add(const Duration(days: 365)),
+                      firstDate: DateTime.now(),
+                      lastDate:
+                          DateTime.now().add(const Duration(days: 365 * 10)),
+                    );
+                    if (picked != null) setModal(() => endDate = picked);
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.card(context),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppTheme.outline(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.calendar_today_outlined,
+                            size: 16, color: AppTheme.subtext(context)),
+                        const SizedBox(width: 10),
+                        Text(
+                          endDate != null
+                              ? Fmt.date(endDate!)
+                              : 'No end date — runs indefinitely',
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: endDate != null
+                                  ? AppTheme.onCard(context)
+                                  : AppTheme.subtext(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      final updated = RecurringSchedule(
+                        id: s.id,
+                        title: title.trim().isEmpty ? s.title : title.trim(),
+                        clientId: s.clientId,
+                        clientName: s.clientName,
+                        items: s.items,
+                        currency: s.currency,
+                        globalDiscountPercent: s.globalDiscountPercent,
+                        globalDiscountFlat: s.globalDiscountFlat,
+                        notes: s.notes,
+                        terms: s.terms,
+                        paymentMethodId: s.paymentMethodId,
+                        paymentMethodName: s.paymentMethodName,
+                        frequency: frequency,
+                        startDate: s.startDate,
+                        endDate: endDate,
+                        // If frequency changed, reset nextGenerationDate
+                        nextGenerationDate: frequency != s.frequency
+                            ? frequency.nextDate(DateTime.now())
+                            : s.nextGenerationDate,
+                        isActive: s.isActive,
+                        createdAt: s.createdAt,
+                        generatedCount: s.generatedCount,
+                        daysTillDue: daysTillDue,
+                      );
+                      provider.updateRecurringSchedule(updated);
+                      Navigator.pop(ctx);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Schedule updated'),
+                            backgroundColor: AppTheme.success,
+                          ),
+                        );
+                      }
+                    },
+                    child: const Text(
+                      'Save Changes',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Manual generation ─────────────────────────────────────────────────────
+  Future<void> _generateNow(BuildContext context, AppProvider provider,
+      RecurringSchedule s) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Generate Now'),
+        content: Text(
+          'Create an invoice for "${s.title}" immediately with today\'s date?',
+          style: const TextStyle(fontSize: 14, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    await provider.generateScheduleNow(s.id);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Invoice generated'),
+        backgroundColor: AppTheme.success,
+      ),
     );
   }
 

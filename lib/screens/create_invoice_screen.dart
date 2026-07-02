@@ -17,9 +17,11 @@ import '../utils/share_service.dart';
 import '../models/subscription_limits.dart' show LimitType;
 import '../widgets/paywall_sheet.dart';
 import '../widgets/quotation_status_sheet.dart';
+import '../widgets/service_item_search_field.dart';
 import '../widgets/status_badge.dart';
 import 'client_picker_screen.dart';
 import 'recurring_invoices_screen.dart';
+import 'barcode_scanner_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../models/custom_field.dart';
 import '../models/employee.dart';
@@ -105,6 +107,54 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     } else {
       _invoice.secondaryExchangeRate = null;
     }
+    // Credit-limit check: warn if this invoice would push the client over their limit.
+    if (_invoice.client != null) {
+      final clientId = _invoice.client!.id;
+      final resolvedClient = provider.clients
+          .firstWhere((c) => c.id == clientId, orElse: () => _invoice.client!);
+      final limit = provider.effectiveCreditLimit(resolvedClient);
+      if (limit != null) {
+        final currentOutstanding = provider.clientOutstanding(clientId);
+        // Exclude this invoice's existing outstanding so we don't double-count on re-save.
+        final existingInvoice = provider.invoices
+            .where((i) => i.id == _invoice.id)
+            .firstOrNull;
+        final existingRemaining = existingInvoice?.amountRemaining ?? 0.0;
+        final projectedOutstanding =
+            currentOutstanding - existingRemaining + _invoice.amountRemaining;
+        if (projectedOutstanding > limit && mounted) {
+          final sym = Fmt.currencySymbol(_invoice.currency);
+          final proceed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Credit Limit Exceeded'),
+              content: Text(
+                '${_invoice.client!.displayName} has a credit limit of '
+                '$sym${Fmt.compact(limit)}.\n\n'
+                'Saving this invoice will bring their outstanding balance to '
+                '$sym${Fmt.compact(projectedOutstanding)}, exceeding the limit by '
+                '$sym${Fmt.compact(projectedOutstanding - limit)}.\n\n'
+                'Do you want to proceed?',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.error),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Save Anyway'),
+                ),
+              ],
+            ),
+          );
+          if (proceed != true) return;
+        }
+      }
+    }
+
     setState(() => _saving = true);
     await provider.saveInvoice(_invoice);
     setState(() => _saving = false);
@@ -136,13 +186,33 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       MaterialPageRoute(builder: (_) => const ClientPickerScreen()),
     );
     if (client != null) {
-      setState(() => _invoice.client = client);
+      setState(() {
+        _invoice.client = client;
+        // Auto-apply bulk discount if this is a bulk buyer
+        if (client.isBulkBuyer && client.bulkDiscountPercent > 0) {
+          _discountIsPercent = true;
+          _discountCtrl.text =
+              client.bulkDiscountPercent.toStringAsFixed(
+                  client.bulkDiscountPercent % 1 == 0 ? 0 : 2);
+          _invoice.globalDiscountPercent = client.bulkDiscountPercent;
+          _invoice.globalDiscountFlat = 0;
+        }
+      });
+      if (client.isBulkBuyer && client.bulkDiscountPercent > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+              'Bulk discount of ${client.bulkDiscountPercent.toStringAsFixed(client.bulkDiscountPercent % 1 == 0 ? 0 : 2)}% applied'),
+          backgroundColor: AppTheme.success,
+          duration: const Duration(seconds: 2),
+        ));
+      }
     }
   }
 
   void _addLineItem() {
-    final profile = context.read<AppProvider>().profile;
-    if (profile.serviceItems.isEmpty) {
+    final provider = context.read<AppProvider>();
+    final profile = provider.profile;
+    if (provider.serviceItems.isEmpty) {
       setState(() {
         _invoice.items.add(LineItem(
           description: '',
@@ -158,7 +228,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => _CatalogPickerSheet(
-        items: profile.serviceItems,
+        items: provider.serviceItems,
         itemLabel: profile.itemLabel,
       ),
     ).then((picked) async {
@@ -173,20 +243,79 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
         });
       } else {
         final s = picked as ServiceItem;
-        final qty = await _showQtyPickerDialog(context, s.name) ?? 1.0;
+        double rate = s.rate;
+        String desc =
+            s.description?.isNotEmpty == true ? s.description! : s.name;
+        if (s.hasVariants) {
+          final variant =
+              await _showVariantPickerDialog(context, s);
+          if (!mounted) return;
+          if (variant == null) return;
+          rate = variant.rate;
+          desc = '${s.name} (${variant.name})';
+        }
+        final qty = await _showQtyPickerDialog(context, desc) ?? 1.0;
         if (!mounted) return;
         setState(() {
           _invoice.items.add(LineItem(
-            description: s.description?.isNotEmpty == true
-                ? s.description!
-                : s.name,
-            rate: s.rate,
+            description: desc,
+            rate: rate,
             taxPercent: s.taxPercent,
             quantity: qty,
             category: s.category,
           ));
         });
       }
+    });
+  }
+
+  Future<void> _addItemByBarcode() async {
+    final barcode = await scanBarcode(context, title: 'Scan to Add Item');
+    if (!mounted || barcode == null) return;
+
+    final provider = context.read<AppProvider>();
+    final result = await provider.findByBarcode(barcode);
+    if (!mounted) return;
+
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('No product found for barcode: $barcode'),
+        backgroundColor: AppTheme.error,
+      ));
+      return;
+    }
+
+    final s = result.item;
+    double rate;
+    String desc;
+
+    if (result.variant != null) {
+      // Barcode matched a specific variant — use it directly
+      final v = result.variant!;
+      rate = v.rate;
+      desc = '${s.name} (${v.name})';
+    } else if (s.hasVariants) {
+      // Item barcode but item has variants — ask which variant
+      final variant = await _showVariantPickerDialog(context, s);
+      if (!mounted || variant == null) return;
+      rate = variant.rate;
+      desc = '${s.name} (${variant.name})';
+    } else {
+      rate = s.rate;
+      desc = s.description?.isNotEmpty == true ? s.description! : s.name;
+    }
+
+    final qty = await _showQtyPickerDialog(context, desc) ?? 1.0;
+    if (!mounted) return;
+
+    setState(() {
+      _invoice.items.add(LineItem(
+        description: desc,
+        rate: rate,
+        taxPercent: s.taxPercent,
+        quantity: qty,
+        category: s.category,
+      ));
     });
   }
 
@@ -201,6 +330,27 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       return;
     }
     final provider = context.read<AppProvider>();
+
+    // If approval workflow is on and user cannot approve, submit for review
+    // instead of sending directly.
+    if (status == InvoiceStatus.sent &&
+        provider.profile.approvalWorkflowEnabled &&
+        !provider.canDo(AppPermission.approveInvoice)) {
+      await _save();
+      if (!mounted) return;
+      await provider.submitForApproval(_invoice.id);
+      setState(() => _invoice.status = InvoiceStatus.pendingApproval);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invoice submitted for manager approval'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
     await provider.updateInvoiceStatus(_invoice.id, status);
     setState(() => _invoice.status = status);
 
@@ -744,10 +894,23 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             _section(
               l10n.lineItems,
               action: canEdit
-                  ? TextButton.icon(
-                      icon: const Icon(Icons.add, size: 16),
-                      label: Text('${l10n.add} ${profile.itemLabel}'),
-                      onPressed: _addLineItem,
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.qr_code_scanner, size: 20),
+                          tooltip: 'Scan barcode',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: _addItemByBarcode,
+                        ),
+                        const SizedBox(width: 4),
+                        TextButton.icon(
+                          icon: const Icon(Icons.add, size: 16),
+                          label: Text('${l10n.add} ${profile.itemLabel}'),
+                          onPressed: _addLineItem,
+                        ),
+                      ],
                     )
                   : null,
               child: Column(
@@ -756,11 +919,22 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Center(
-                        child: TextButton.icon(
-                          onPressed: _addLineItem,
-                          icon: const Icon(Icons.add_circle_outline),
-                          label: Text(
-                              'Add your first ${profile.itemLabel.toLowerCase()}'),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _addLineItem,
+                              icon: const Icon(Icons.add_circle_outline),
+                              label: Text(
+                                  'Add your first ${profile.itemLabel.toLowerCase()}'),
+                            ),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: _addItemByBarcode,
+                              icon: const Icon(Icons.qr_code_scanner, size: 16),
+                              label: const Text('Scan'),
+                            ),
+                          ],
                         ),
                       ),
                     )
@@ -778,8 +952,10 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
                         showQty: showQty,
                         showHsn: profile.isGstRegistered,
                         itemLabel: profile.itemLabel,
-                        serviceItems: profile.serviceItems,
                         canEdit: canEdit,
+                        canEditRate: canEdit &&
+                            (!provider.isEmployeeMode ||
+                                profile.allowEmployeePriceChange),
                       ),
                     ),
                 ],
@@ -1931,8 +2107,8 @@ class _LineItemRow extends StatefulWidget {
   final bool showQty;
   final bool showHsn;
   final String itemLabel;
-  final List<ServiceItem> serviceItems;
   final bool canEdit;
+  final bool canEditRate;
 
   const _LineItemRow({
     Key? key,
@@ -1945,8 +2121,8 @@ class _LineItemRow extends StatefulWidget {
     this.showQty = true,
     this.showHsn = false,
     this.itemLabel = 'Item',
-    this.serviceItems = const [],
     this.canEdit = true,
+    this.canEditRate = true,
   }) : super(key: key);
 
   @override
@@ -1959,6 +2135,7 @@ class _LineItemRowState extends State<_LineItemRow> {
   late TextEditingController _taxCtrl;
   late TextEditingController _discCtrl;
   late TextEditingController _hsnCtrl;
+  late TextEditingController _descCtrl;
 
   @override
   void initState() {
@@ -1968,6 +2145,7 @@ class _LineItemRowState extends State<_LineItemRow> {
     _taxCtrl = TextEditingController(text: widget.item.taxPercent.toString());
     _discCtrl = TextEditingController(text: widget.item.discountPercent.toString());
     _hsnCtrl = TextEditingController(text: widget.item.hsnSac ?? '');
+    _descCtrl = TextEditingController(text: widget.item.description);
   }
 
   @override
@@ -1977,6 +2155,7 @@ class _LineItemRowState extends State<_LineItemRow> {
     _taxCtrl.dispose();
     _discCtrl.dispose();
     _hsnCtrl.dispose();
+    _descCtrl.dispose();
     super.dispose();
   }
 
@@ -1991,12 +2170,6 @@ class _LineItemRowState extends State<_LineItemRow> {
   }
 
   void _selectService(ServiceItem s) {
-    final desc = s.description?.isNotEmpty == true ? s.description! : s.name;
-    widget.item.description = desc;
-    if (s.rate > 0) {
-      _rateCtrl.text = s.rate.toString();
-      widget.item.rate = s.rate;
-    }
     _taxCtrl.text = s.taxPercent.toString();
     widget.item.taxPercent = s.taxPercent;
     widget.item.category = s.category;
@@ -2005,12 +2178,26 @@ class _LineItemRowState extends State<_LineItemRow> {
       widget.item.hsnSac = s.hsnSac;
     }
 
-    // Defer to the next frame so the autocomplete overlay finishes closing
-    // before we push the dialog route — avoids the InheritedElement
-    // 'dependents.isEmpty' assertion.
+    // Defer so the autocomplete overlay finishes closing before pushing dialogs.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      final qty = await _showQtyPickerDialog(context, s.name) ?? 1.0;
+      String desc =
+          s.description?.isNotEmpty == true ? s.description! : s.name;
+      double rate = s.rate;
+      if (s.hasVariants) {
+        final variant = await _showVariantPickerDialog(context, s);
+        if (!mounted) return;
+        if (variant == null) return;
+        rate = variant.rate;
+        desc = '${s.name} (${variant.name})';
+      }
+      widget.item.description = desc;
+      _descCtrl.text = desc;
+      if (rate > 0) {
+        _rateCtrl.text = rate.toString();
+        widget.item.rate = rate;
+      }
+      final qty = await _showQtyPickerDialog(context, desc) ?? 1.0;
       if (!mounted) return;
       _qtyCtrl.text = qty % 1 == 0 ? qty.toInt().toString() : qty.toString();
       widget.item.quantity = qty;
@@ -2051,82 +2238,46 @@ class _LineItemRowState extends State<_LineItemRow> {
             ],
           ),
           const SizedBox(height: 8),
-          Autocomplete<ServiceItem>(
-            initialValue: TextEditingValue(text: widget.item.description),
-            optionsBuilder: (value) {
-              if (widget.serviceItems.isEmpty) return const [];
-              final q = value.text.toLowerCase();
-              if (q.isEmpty) return widget.serviceItems;
-              return widget.serviceItems.where((s) =>
-                  s.name.toLowerCase().contains(q) ||
-                  (s.description?.toLowerCase().contains(q) ?? false));
+          ServiceItemSearchField(
+            db: context.read<AppProvider>().db,
+            controller: _descCtrl,
+            readOnly: !widget.canEdit,
+            labelText: 'Description',
+            hintText: widget.canEdit
+                ? 'Type or search ${widget.itemLabel.toLowerCase()}s'
+                : null,
+            suffixIcon: widget.canEdit
+                ? Icon(Icons.search, size: 18,
+                    color: AppTheme.subtext(context))
+                : null,
+            onChangedText: (v) {
+              widget.item.description = v;
+              widget.onChanged();
             },
-            displayStringForOption: (s) =>
-                s.description?.isNotEmpty == true ? s.description! : s.name,
             onSelected: _selectService,
-            fieldViewBuilder: (ctx, ctrl, focusNode, _) => TextField(
-              controller: ctrl,
-              focusNode: focusNode,
-              readOnly: !widget.canEdit,
-              onChanged: widget.canEdit
-                  ? (v) {
-                      widget.item.description = v;
-                      widget.onChanged();
-                    }
-                  : null,
-              decoration: InputDecoration(
-                labelText: 'Description',
-                hintText: widget.canEdit
-                    ? 'Type or search ${widget.itemLabel.toLowerCase()}s'
+            itemBuilder: (ctx, s) {
+              final desc = s.description?.isNotEmpty == true
+                  ? s.description!
+                  : null;
+              return ListTile(
+                dense: true,
+                title: Text(s.name,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: desc != null
+                    ? Text(desc,
+                        style: TextStyle(
+                            fontSize: 11, color: AppTheme.subtext(ctx)),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis)
                     : null,
-                suffixIcon: widget.canEdit && widget.serviceItems.isNotEmpty
-                    ? Icon(Icons.search, size: 18,
-                        color: AppTheme.subtext(ctx))
+                trailing: s.rate > 0
+                    ? Text('${widget.symbol}${s.rate.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppTheme.primary))
                     : null,
-              ),
-            ),
-            optionsViewBuilder: (ctx, onSelected, options) => Align(
-              alignment: Alignment.topLeft,
-              child: Material(
-                elevation: 4,
-                borderRadius: BorderRadius.circular(8),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 200, maxWidth: 340),
-                  child: ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: options.length,
-                    itemBuilder: (_, i) {
-                      final s = options.elementAt(i);
-                      final desc = s.description?.isNotEmpty == true
-                          ? s.description!
-                          : null;
-                      return ListTile(
-                        dense: true,
-                        title: Text(s.name,
-                            style: const TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: desc != null
-                            ? Text(desc,
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppTheme.subtext(ctx)),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis)
-                            : null,
-                        trailing: s.rate > 0
-                            ? Text(
-                                '${widget.symbol}${s.rate.toStringAsFixed(0)}',
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppTheme.primary))
-                            : null,
-                        onTap: () => onSelected(s),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
+              );
+            },
           ),
           if (widget.showHsn) ...[
             const SizedBox(height: 8),
@@ -2180,8 +2331,8 @@ class _LineItemRowState extends State<_LineItemRow> {
                     controller: _rateCtrl,
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
-                    readOnly: !widget.canEdit,
-                    onChanged: widget.canEdit ? (_) => _update() : null,
+                    readOnly: !widget.canEditRate,
+                    onChanged: widget.canEditRate ? (_) => _update() : null,
                     decoration: InputDecoration(
                       labelText: 'Rate',
                       prefixText: widget.symbol,
@@ -2195,8 +2346,8 @@ class _LineItemRowState extends State<_LineItemRow> {
               controller: _rateCtrl,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
-              readOnly: !widget.canEdit,
-              onChanged: widget.canEdit ? (_) => _update() : null,
+              readOnly: !widget.canEditRate,
+              onChanged: widget.canEditRate ? (_) => _update() : null,
               decoration: InputDecoration(
                 labelText: 'Price',
                 prefixText: widget.symbol,
@@ -2624,6 +2775,44 @@ class _CountBadge extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<ProductVariant?> _showVariantPickerDialog(
+    BuildContext context, ServiceItem item) {
+  return showDialog<ProductVariant>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text(item.name),
+      contentPadding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Select a variant:',
+              style: TextStyle(fontSize: 13, color: Colors.grey)),
+          const SizedBox(height: 10),
+          ...item.variants.map((v) => ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(v.name,
+                    style: const TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: Text('₹${v.rate.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 12, color: AppTheme.primary)),
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => Navigator.pop(ctx, v),
+              )),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ],
+    ),
+  );
 }
 
 Future<double?> _showQtyPickerDialog(BuildContext context, String itemName) {

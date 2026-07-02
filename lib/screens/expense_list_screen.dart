@@ -7,6 +7,7 @@ import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
 import '../widgets/paywall_sheet.dart';
 import 'create_expense_screen.dart';
+import 'cash_book_screen.dart';
 import '../l10n/app_localizations.dart';
 import '../models/employee.dart';
 import '../widgets/feature_guide_sheet.dart';
@@ -139,6 +140,14 @@ class _ExpenseListScreenState extends State<ExpenseListScreen> {
       appBar: AppBar(
         title: Text(l10n.expenses),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book_outlined),
+            tooltip: 'Cash Book',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CashBookScreen()),
+            ),
+          ),
           if (canManage)
             IconButton(
               icon: const Icon(Icons.add),

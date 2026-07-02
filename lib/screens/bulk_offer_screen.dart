@@ -21,7 +21,10 @@ import '../widgets/feature_guide_sheet.dart';
 enum _Channel { whatsapp, email }
 
 class BulkOfferScreen extends StatefulWidget {
-  const BulkOfferScreen({super.key});
+  /// When non-null, these client IDs start pre-selected (e.g. from a segment).
+  final Set<String>? initialSelectedIds;
+
+  const BulkOfferScreen({super.key, this.initialSelectedIds});
 
   @override
   State<BulkOfferScreen> createState() => _BulkOfferScreenState();
@@ -53,6 +56,10 @@ class _BulkOfferScreenState extends State<BulkOfferScreen>
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
     _loadTemplates();
+    // Pre-select clients passed from a segment view.
+    if (widget.initialSelectedIds != null) {
+      _selectedIds.addAll(widget.initialSelectedIds!);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) showFeatureGuide(context, AppGuides.bulkOffer);
     });

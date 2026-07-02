@@ -1,71 +1,1311 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="BillBook — Professional Invoice Generator for businesses, freelancers and consultants. Create GST-compliant invoices, manage clients, track payments.">
-  <meta name="theme-color" content="#2563EB">
+  <meta name="description" content="BillBook — GST invoicing, OCR receipt scanning, expense tracking and P&L reports for Indian businesses. Available on Web, iOS & Android.">
+  <meta name="theme-color" content="#000000">
 
-  <!-- Google Sign-In Web Client ID — REPLACE with your Web application client ID from
-       Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Client IDs (type: Web application).
-       Project: invoicegenerator-497122 -->
+  <!-- Google Sign-In -->
   <meta name="google-signin-client_id" content="891634878125-hh0jrdebvo205mclifdpau6tbo66a9cu.apps.googleusercontent.com">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="BillBook — Invoice Generator">
-  <meta property="og:description" content="Professional invoicing for modern businesses. GST-compliant, multi-template, cloud-synced.">
+  <meta property="og:title" content="BillBook — Invoice &amp; Billing App for Indian Businesses">
+  <meta property="og:description" content="GST invoices, OCR receipt scanning, P&L reports, and more. Free to start.">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="icons/Icon-512.png">
 
   <!-- iOS -->
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BillBook">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>BillBook — Invoice Generator</title>
+  <title>BillBook — Invoice Generator for Indian Businesses</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background-color: #F1F5F9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    #loading {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background: #F1F5F9; z-index: 9999;
-    }
-    #loading .logo {
-      width: 56px; height: 56px; background: #2563EB; border-radius: 14px;
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 16px; box-shadow: 0 8px 24px rgba(37,99,235,0.3);
-    }
-    #loading .logo span { color: white; font-size: 22px; font-weight: 800; letter-spacing: -1px; }
-    #loading h1 { color: #0F172A; font-size: 22px; font-weight: 700; margin-bottom: 6px; }
-    #loading p { color: #64748B; font-size: 13px; margin-bottom: 32px; }
-    #loading .spinner {
-      width: 32px; height: 32px; border: 3px solid #E2E8F0;
-      border-top-color: #2563EB; border-radius: 50%; animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
+<style>
+/* ── Reset & Tokens ──────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#2563EB;--blue-l:#60A5FA;--purple:#7C3AED;
+  --green:#10B981;--orange:#F97316;--red:#EF4444;
+  --ink:#0F172A;--gray:#64748B;--gray-l:#94A3B8;
+  --border:#E2E8F0;--surf:#F8FAFC;
+}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:'Inter',sans-serif;background:#000;color:#fff;overflow-x:hidden}
+
+/* ── Scroll progress ─────────────────────────────── */
+#sp{position:fixed;top:0;left:0;height:2px;width:0;
+    background:linear-gradient(90deg,#2563EB,#7C3AED,#EC4899);
+    z-index:99999;transition:width .1s linear;pointer-events:none}
+
+/* ── Landing overlay ─────────────────────────────── */
+#landing{
+  position:fixed;inset:0;z-index:9000;overflow-y:auto;overflow-x:hidden;
+  background:#000;
+  transition:opacity .55s cubic-bezier(.22,1,.36,1),transform .55s cubic-bezier(.22,1,.36,1);
+}
+#landing.hide{opacity:0;transform:scale(1.012);pointer-events:none}
+
+/* ── Flutter spinner (behind landing) ───────────── */
+#flutter-loader{
+  position:fixed;inset:0;z-index:8000;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;background:#000;gap:16px;
+}
+.fl-logo{width:64px;height:64px;background:linear-gradient(135deg,#2563EB,#7C3AED);
+  border-radius:18px;display:flex;align-items:center;justify-content:center;
+  font-size:26px;font-weight:900;color:#fff;letter-spacing:-1px;
+  box-shadow:0 0 40px rgba(37,99,235,.5)}
+.fl-name{font-size:18px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.fl-ring{width:36px;height:36px;border:3px solid rgba(255,255,255,.1);
+  border-top-color:#2563EB;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Announcement bar ────────────────────────────── */
+.ann{
+  background:linear-gradient(90deg,#000,#0a0618,#000);
+  border-bottom:1px solid rgba(124,58,237,.25);
+  text-align:center;padding:9px 20px;font-size:12px;
+  color:rgba(255,255,255,.6);position:relative;overflow:hidden;
+  cursor:default
+}
+.ann::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(124,58,237,.08),transparent);
+  animation:sweep 4s linear infinite}
+@keyframes sweep{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.ann>span{position:relative;z-index:1}
+.ann-dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:#10B981;margin-right:8px;animation:pulse 1.6s ease-in-out infinite;
+  vertical-align:middle}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.5}}
+.ann-tag{display:inline-block;background:linear-gradient(135deg,#7C3AED,#4338CA);
+  color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;
+  margin:0 5px;vertical-align:middle}
+
+/* ── Nav ─────────────────────────────────────────── */
+nav{
+  position:sticky;top:0;z-index:200;
+  transition:background .3s,border-color .3s,backdrop-filter .3s;
+  border-bottom:1px solid transparent
+}
+nav.solid{
+  background:rgba(0,0,0,.82);
+  border-color:rgba(255,255,255,.08);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)
+}
+.nav-inner{
+  max-width:1200px;margin:0 auto;padding:0 24px;
+  height:62px;display:flex;align-items:center;gap:28px
+}
+.nav-brand{display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0}
+.nav-brand-icon{
+  width:34px;height:34px;background:linear-gradient(135deg,#2563EB,#7C3AED);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:16px;font-weight:900;color:#fff;letter-spacing:-.5px
+}
+.nav-brand-name{font-size:17px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.nav-links{display:flex;gap:2px;margin-left:4px}
+.nav-a{color:rgba(255,255,255,.6);font-size:13px;font-weight:500;
+  text-decoration:none;padding:6px 12px;border-radius:8px;transition:all .15s;white-space:nowrap}
+.nav-a:hover{color:#fff;background:rgba(255,255,255,.08)}
+.nav-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.btn-ghost-sm{
+  color:rgba(255,255,255,.75);font-size:13px;font-weight:600;
+  padding:7px 16px;border-radius:8px;border:1px solid rgba(255,255,255,.2);
+  text-decoration:none;cursor:pointer;background:transparent;
+  transition:all .2s;white-space:nowrap
+}
+.btn-ghost-sm:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.4);color:#fff}
+.btn-prim-sm{
+  background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;
+  font-size:13px;font-weight:700;padding:8px 18px;border-radius:8px;
+  text-decoration:none;cursor:pointer;border:none;white-space:nowrap;
+  position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s;
+  box-shadow:0 4px 16px rgba(37,99,235,.35)
+}
+.btn-prim-sm::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);
+  animation:shim 2.8s ease-in-out infinite}
+@keyframes shim{0%{left:-60%}100%{left:160%}}
+.btn-prim-sm:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(37,99,235,.5)}
+@media(max-width:768px){.nav-links{display:none}.btn-ghost-sm{display:none}}
+
+/* ── Hero ────────────────────────────────────────── */
+.hero{
+  min-height:100vh;position:relative;overflow:hidden;
+  display:flex;align-items:center;
+  padding:80px 0 60px;
+  background:linear-gradient(180deg,#000 0%,#030810 55%,#060d18 100%)
+}
+.orb{position:absolute;border-radius:50%;filter:blur(80px);pointer-events:none;
+  animation:orbF 9s ease-in-out infinite alternate}
+.orb1{width:560px;height:560px;background:rgba(37,99,235,.18);top:-150px;left:-120px;animation-duration:11s}
+.orb2{width:480px;height:480px;background:rgba(124,58,237,.14);bottom:-80px;right:-80px;animation-duration:13s;animation-delay:-4s}
+.orb3{width:320px;height:320px;background:rgba(6,182,212,.09);top:45%;left:58%;animation-duration:8s;animation-delay:-7s}
+@keyframes orbF{0%{transform:translate(0,0)}100%{transform:translate(36px,-48px)}}
+.hero-inner{max-width:1200px;margin:0 auto;padding:0 24px;
+  display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;
+  position:relative;z-index:2}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:8px;
+  background:rgba(37,99,235,.12);border:1px solid rgba(37,99,235,.3);
+  color:#93C5FD;font-size:11.5px;font-weight:600;padding:6px 14px;
+  border-radius:20px;letter-spacing:.6px;text-transform:uppercase;margin-bottom:22px
+}
+.hero-eyebrow i{display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:#10B981;animation:pulse 1.6s ease-in-out infinite}
+.hero h1{
+  font-size:clamp(38px,5vw,68px);font-weight:900;
+  letter-spacing:-2.5px;line-height:1.05;color:#fff;margin-bottom:22px
+}
+.gr{
+  background:linear-gradient(135deg,#60A5FA 0%,#818CF8 45%,#C084FC 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  background-size:300% 300%;animation:gradAnim 5s ease-in-out infinite
+}
+@keyframes gradAnim{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+.hero-sub{font-size:clamp(15px,1.8vw,18px);color:rgba(255,255,255,.55);
+  max-width:470px;line-height:1.7;margin-bottom:34px}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:40px}
+.btn-hero{
+  display:inline-flex;align-items:center;gap:9px;padding:14px 28px;
+  border-radius:12px;font-size:15px;font-weight:700;text-decoration:none;
+  cursor:pointer;border:none;transition:all .2s
+}
+.btn-hero-prim{
+  background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;
+  box-shadow:0 4px 24px rgba(37,99,235,.4);position:relative;overflow:hidden
+}
+.btn-hero-prim::before{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  animation:shim 2.8s ease-in-out infinite}
+.btn-hero-prim:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(37,99,235,.55)}
+.btn-hero-ghost{
+  background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.2);
+  color:rgba(255,255,255,.8);backdrop-filter:blur(8px)
+}
+.btn-hero-ghost:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.45);color:#fff}
+.hero-trust{display:flex;flex-direction:column;gap:5px}
+.hero-stars{color:#F59E0B;font-size:13px;letter-spacing:1px}
+.hero-meta{font-size:12.5px;color:rgba(255,255,255,.38)}
+
+/* ── Web app frames ──────────────────────────────── */
+.webapp-frame{
+  position:relative;display:flex;justify-content:center;align-items:flex-start;gap:14px
+}
+.browser-window{
+  background:#18181b;border-radius:14px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04);
+  width:100%;max-width:520px;
+  animation:floatW 5.5s ease-in-out infinite
+}
+@keyframes floatW{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.browser-bar{
+  background:#27272a;padding:10px 14px;display:flex;
+  align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.06)
+}
+.browser-dots{display:flex;gap:5px}
+.browser-dot{width:10px;height:10px;border-radius:50%}
+.browser-url{
+  flex:1;background:#3f3f46;border-radius:6px;padding:4px 10px;
+  font-size:11px;color:rgba(255,255,255,.45);font-family:monospace
+}
+.browser-body{background:#0F172A;min-height:340px;padding:0;overflow:hidden}
+
+/* Dashboard mock inside browser */
+.dash-nav{background:#1E293B;border-bottom:1px solid #334155;padding:8px 14px;
+  display:flex;align-items:center;gap:10px}
+.dash-logo{width:22px;height:22px;background:linear-gradient(135deg,#2563EB,#7C3AED);
+  border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;color:#fff;flex-shrink:0}
+.dash-title{font-size:11px;font-weight:700;color:#F1F5F9}
+.dash-tabs{display:flex;gap:1px;background:#0F172A;border-bottom:1px solid #334155}
+.dash-tab{flex:1;padding:6px 4px;text-align:center;font-size:7px;font-weight:600;color:#64748B}
+.dash-tab.on{color:#60A5FA;border-bottom:2px solid #2563EB;background:#0F172A}
+.dash-body{padding:10px 12px}
+.d-stat-row{display:flex;gap:5px;margin-bottom:7px}
+.d-stat{flex:1;background:#1E293B;border:1px solid #334155;border-radius:7px;
+  padding:6px 7px;text-align:center}
+.d-stat-v{font-size:9px;font-weight:800;color:#F1F5F9}
+.d-stat-l{font-size:6.5px;color:#64748B;margin-top:1px}
+.d-banner{background:linear-gradient(135deg,#1E40AF,#2563EB);border-radius:8px;
+  padding:9px 11px;margin-bottom:7px;color:#fff}
+.d-banner .v{font-size:13px;font-weight:800}
+.d-banner .l{font-size:7px;opacity:.75}
+.d-card{background:#1E293B;border:1px solid #334155;border-radius:8px;
+  padding:8px 10px;margin-bottom:5px}
+.d-ct{font-size:8.5px;font-weight:700;color:#F1F5F9;margin-bottom:2px}
+.d-cs{font-size:7px;color:#64748B}
+.d-bdg{display:inline-block;font-size:6.5px;font-weight:700;padding:1.5px 5px;border-radius:7px}
+.d-pll{background:#DBEAFE;color:#1D4ED8}.d-pad{background:#DCFCE7;color:#15803D}
+.d-pov{background:#FEE2E2;color:#DC2626}.d-ppp{background:#FFF7ED;color:#C2410C}
+.d-fab{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;
+  margin-left:auto;box-shadow:0 4px 10px rgba(37,99,235,.45)}
+
+/* ── Stats ───────────────────────────────────────── */
+.stats{
+  background:linear-gradient(90deg,#04080f,#060c1a,#04080f);
+  border-top:1px solid rgba(255,255,255,.05);
+  border-bottom:1px solid rgba(255,255,255,.05);padding:36px 0
+}
+.stats-grid{
+  max-width:1200px;margin:0 auto;padding:0 24px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:0
+}
+.stat{text-align:center;padding:16px;position:relative}
+.stat+.stat::before{content:'';position:absolute;left:0;top:20%;bottom:20%;
+  width:1px;background:rgba(255,255,255,.07)}
+.stat-n{
+  font-size:clamp(28px,3.5vw,42px);font-weight:900;letter-spacing:-1.5px;
+  background:linear-gradient(135deg,#60A5FA,#818CF8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;line-height:1
+}
+.stat-l{font-size:12.5px;color:rgba(255,255,255,.4);margin-top:5px}
+@media(max-width:640px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ── Section shared ──────────────────────────────── */
+.sec{padding:92px 0}
+.sec-dark{background:linear-gradient(180deg,#000,#04080f)}
+.sec-white{background:#fff}
+.sec-surf{background:#F8FAFC}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+.sec-head{text-align:center;margin-bottom:60px}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:10.5px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;padding:5px 12px;border-radius:20px;margin-bottom:12px
+}
+.eyebrow.dark{background:rgba(37,99,235,.12);color:#93C5FD;border:1px solid rgba(37,99,235,.3)}
+.eyebrow.light{background:#EFF6FF;color:#1D4ED8}
+.h2-dark{font-size:clamp(28px,3.8vw,44px);font-weight:900;letter-spacing:-1.5px;
+  color:#fff;line-height:1.12;margin-bottom:14px}
+.h2-light{font-size:clamp(28px,3.8vw,44px);font-weight:900;letter-spacing:-1.5px;
+  color:#0F172A;line-height:1.12;margin-bottom:14px}
+.sub-dark{font-size:16px;color:rgba(255,255,255,.48);max-width:540px;
+  margin:0 auto;line-height:1.7}
+.sub-light{font-size:16px;color:#64748B;max-width:540px;margin:0 auto;line-height:1.7}
+
+/* ── Feature pillars (3-col) ─────────────────────── */
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.pillar{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;padding:28px 24px;position:relative;overflow:hidden;
+  transition:all .3s cubic-bezier(.22,1,.36,1)
+}
+.pillar::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(37,99,235,.06),rgba(124,58,237,.04));
+  opacity:0;transition:opacity .3s}
+.pillar:hover{transform:translateY(-5px);border-color:rgba(37,99,235,.35);
+  box-shadow:0 16px 40px rgba(37,99,235,.1)}
+.pillar:hover::before{opacity:1}
+.p-icon{width:48px;height:48px;border-radius:13px;
+  display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:16px}
+.pillar h3{font-size:16px;font-weight:800;color:#fff;margin-bottom:8px}
+.pillar p{font-size:13px;color:rgba(255,255,255,.45);line-height:1.65}
+@media(max-width:768px){.pillars{grid-template-columns:1fr}}
+
+/* ── Showcase (split) ────────────────────────────── */
+.showcase{
+  display:grid;grid-template-columns:1fr 1fr;gap:72px;
+  align-items:center;margin-bottom:112px
+}
+.showcase:last-child{margin-bottom:0}
+.showcase.rev{direction:rtl}
+.showcase.rev>*{direction:ltr}
+.sc-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  padding:5px 12px;border-radius:20px;margin-bottom:14px
+}
+.sc-tag.b{background:rgba(37,99,235,.12);color:#60A5FA;border:1px solid rgba(37,99,235,.25)}
+.sc-tag.p{background:rgba(124,58,237,.12);color:#A78BFA;border:1px solid rgba(124,58,237,.25)}
+.sc-tag.g{background:rgba(16,185,129,.12);color:#34D399;border:1px solid rgba(16,185,129,.25)}
+.sc-tag.o{background:rgba(249,115,22,.12);color:#FB923C;border:1px solid rgba(249,115,22,.25)}
+.showcase h2{font-size:clamp(24px,3vw,36px);font-weight:900;letter-spacing:-1px;
+  color:#fff;line-height:1.18;margin-bottom:14px}
+.showcase>div p{font-size:14.5px;color:rgba(255,255,255,.5);line-height:1.75;margin-bottom:22px}
+.feat-list{display:flex;flex-direction:column;gap:9px}
+.fi{display:flex;align-items:flex-start;gap:11px;font-size:13.5px;color:rgba(255,255,255,.7)}
+.fi::before{
+  content:'';width:17px;height:17px;border-radius:5px;flex-shrink:0;margin-top:2px;
+  background:rgba(37,99,235,.2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%2360A5FA' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E") center/10px no-repeat;
+  border:1px solid rgba(37,99,235,.3)
+}
+.sc-note{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;padding:12px 14px;margin-top:22px;
+  display:inline-flex;align-items:center;gap:10px
+}
+.sc-note-icon{font-size:18px}
+.sc-note-text{font-size:12.5px;color:rgba(255,255,255,.5);line-height:1.5}
+.sc-note-text b{color:rgba(255,255,255,.8)}
+@media(max-width:900px){.showcase{grid-template-columns:1fr;gap:36px}.showcase.rev{direction:ltr}}
+
+/* ── Browser mockup (showcase) ───────────────────── */
+.sc-browser{
+  background:#18181b;border-radius:12px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:0 30px 60px rgba(0,0,0,.5);
+  animation:floatW 5.5s ease-in-out infinite
+}
+.sc-browser.slow{animation-delay:-2.7s}
+.sc-bar{background:#27272a;padding:9px 12px;display:flex;align-items:center;gap:8px;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.sc-dots{display:flex;gap:4px}
+.sc-dot{width:9px;height:9px;border-radius:50%}
+.sc-url{flex:1;background:#3f3f46;border-radius:5px;padding:3px 9px;
+  font-size:10px;color:rgba(255,255,255,.4);font-family:monospace}
+
+/* ── All features grid ───────────────────────────── */
+.all-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.ag{
+  background:#fff;border:1.5px solid #E2E8F0;border-radius:14px;padding:20px 18px;
+  transition:all .25s cubic-bezier(.22,1,.36,1)
+}
+.ag:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(37,99,235,.09);border-color:#BFDBFE}
+.ag-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;
+  justify-content:center;font-size:18px;margin-bottom:12px}
+.ag h4{font-size:13.5px;font-weight:800;color:#0F172A;margin-bottom:5px}
+.ag p{font-size:12px;color:#64748B;line-height:1.6}
+@media(max-width:900px){.all-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.all-grid{grid-template-columns:1fr}}
+
+/* ── GST compliance ──────────────────────────────── */
+.gst-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.gst-card{
+  background:#fff;border:1.5px solid #E2E8F0;border-radius:18px;padding:24px 20px;
+  transition:all .25s
+}
+.gst-card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(0,0,0,.07)}
+.gst-icon{width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.gst-card h3{font-size:15px;font-weight:800;color:#0F172A;margin-bottom:7px}
+.gst-card p{font-size:12.5px;color:#64748B;line-height:1.65}
+.plan-badge{display:inline-block;font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:7px;margin-top:10px}
+.pb-pro{background:#EDE9FE;color:#5B21B6}
+.pb-lite{background:#DBEAFE;color:#1E40AF}
+@media(max-width:768px){.gst-grid{grid-template-columns:1fr}}
+
+/* ── Security ────────────────────────────────────── */
+.security{
+  background:linear-gradient(180deg,#000,#060c18);
+  position:relative;overflow:hidden
+}
+.hex-bg{position:absolute;inset:0;
+  background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.025) 1px,transparent 0);
+  background-size:28px 28px;pointer-events:none}
+.sec-inner{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center;position:relative;z-index:1}
+.sec-badges{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sb-card{
+  background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+  border-radius:14px;padding:18px;transition:all .22s
+}
+.sb-card:hover{background:rgba(255,255,255,.07);border-color:rgba(37,99,235,.3);transform:translateY(-2px)}
+.sb-card-icon{font-size:22px;margin-bottom:9px}
+.sb-card h4{font-size:13px;font-weight:700;color:#fff;margin-bottom:4px}
+.sb-card p{font-size:11.5px;color:rgba(255,255,255,.42);line-height:1.55}
+@media(max-width:900px){.sec-inner{grid-template-columns:1fr}.sec-badges{grid-template-columns:repeat(2,1fr)}}
+
+/* ── Testimonials ────────────────────────────────── */
+.testi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.testi{
+  background:#fff;border:1.5px solid #E2E8F0;border-radius:18px;padding:24px;
+  transition:all .25s
+}
+.testi:hover{transform:translateY(-3px);box-shadow:0 14px 36px rgba(0,0,0,.07)}
+.t-stars{color:#F59E0B;font-size:13px;margin-bottom:12px;letter-spacing:1px}
+.t-text{font-size:13.5px;color:#334155;line-height:1.75;margin-bottom:16px;font-style:italic}
+.t-author{display:flex;align-items:center;gap:10px}
+.t-avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:14px;font-weight:800;color:#fff;flex-shrink:0}
+.t-name{font-size:13.5px;font-weight:700;color:#0F172A}
+.t-role{font-size:11.5px;color:#64748B}
+@media(max-width:768px){.testi-grid{grid-template-columns:1fr}}
+
+/* ── Plans ───────────────────────────────────────── */
+.plans-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.plan{
+  background:#fff;border:1.5px solid #E2E8F0;border-radius:18px;
+  padding:22px 18px 26px;display:flex;flex-direction:column;
+  transition:all .3s cubic-bezier(.22,1,.36,1);position:relative
+}
+.plan:hover{transform:translateY(-5px);box-shadow:0 20px 48px rgba(37,99,235,.1)}
+.plan.pop{border-color:#2563EB;background:linear-gradient(180deg,#EFF6FF,#fff);
+  box-shadow:0 0 0 3px rgba(37,99,235,.07)}
+.plan.pop:hover{box-shadow:0 0 0 3px rgba(37,99,235,.12),0 20px 48px rgba(37,99,235,.15)}
+.plan.ent{background:linear-gradient(160deg,#000,#0d0821,#140c2e);border-color:#7C3AED}
+.plan-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+  background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;
+  font-size:10px;font-weight:700;padding:3px 12px;border-radius:18px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(37,99,235,.4)}
+.plan-name{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  color:#64748B;margin-bottom:7px}
+.ent .plan-name{color:#94A3B8}
+.plan-price{font-size:34px;font-weight:900;color:#0F172A;letter-spacing:-1.5px;line-height:1}
+.ent .plan-price{color:#e2d9ff}
+.plan-per{font-size:11.5px;color:#64748B;margin:3px 0 2px}
+.ent .plan-per{color:#94A3B8}
+.plan-save{font-size:11.5px;color:#10B981;font-weight:600;margin-bottom:14px}
+.ent .plan-save{color:#86EFAC}
+.plan-div{height:1px;background:#E2E8F0;margin:12px 0}
+.ent .plan-div{background:#334155}
+.pf{display:flex;gap:7px;font-size:12px;color:#334155;padding:2.5px 0}
+.ent .pf{color:#CBD5E1}
+.pf .ck{color:#10B981;font-weight:700;flex-shrink:0}
+.pf .cx{color:#CBD5E1;flex-shrink:0}
+.pf.mt{color:#94A3B8}
+.plan-feats{flex:1}
+.plan-btn{
+  display:block;text-align:center;padding:10px 0;border-radius:9px;
+  font-size:13px;font-weight:700;cursor:pointer;margin-top:18px;
+  text-decoration:none;transition:all .2s;border:none
+}
+.plan-btn.prim{background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;
+  box-shadow:0 4px 14px rgba(37,99,235,.3)}
+.plan-btn.prim:hover{box-shadow:0 8px 22px rgba(37,99,235,.45);transform:translateY(-1px)}
+.plan-btn.out{border:1.5px solid #2563EB;color:#2563EB;background:transparent}
+.plan-btn.out:hover{background:#EFF6FF}
+.plan-btn.ent-b{background:linear-gradient(135deg,#7C3AED,#4338CA);color:#fff}
+@media(max-width:1100px){.plans-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.plans-grid{grid-template-columns:1fr}}
+
+/* ── CTA Banner ──────────────────────────────────── */
+.cta-banner{
+  background:linear-gradient(135deg,#090f27,#0d1535);
+  border:1px solid rgba(37,99,235,.22);border-radius:24px;
+  padding:72px 48px;text-align:center;position:relative;overflow:hidden
+}
+.cta-banner::before{content:'';position:absolute;top:-180px;left:50%;
+  transform:translateX(-50%);width:650px;height:650px;border-radius:50%;
+  background:radial-gradient(circle,rgba(37,99,235,.1),transparent 60%);pointer-events:none}
+.cta-banner h2{font-size:clamp(26px,4vw,44px);font-weight:900;color:#fff;
+  letter-spacing:-1.5px;margin-bottom:14px}
+.cta-banner p{font-size:16px;color:rgba(255,255,255,.48);
+  max-width:460px;margin:0 auto 32px;line-height:1.7}
+.cta-row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.store-btn{
+  display:inline-flex;align-items:center;gap:9px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
+  color:#fff;padding:11px 20px;border-radius:11px;text-decoration:none;
+  transition:all .2s;cursor:pointer;backdrop-filter:blur(8px)
+}
+.store-btn:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.38)}
+.store-icon{font-size:20px}
+.store-sub{font-size:9.5px;color:rgba(255,255,255,.48);display:block}
+.store-name{font-size:13.5px;font-weight:700;display:block}
+.store-btn.primary{
+  background:linear-gradient(135deg,#2563EB,#7C3AED);
+  border-color:transparent;box-shadow:0 4px 18px rgba(37,99,235,.35)
+}
+.store-btn.primary:hover{box-shadow:0 8px 28px rgba(37,99,235,.5);transform:translateY(-1px)}
+
+/* ── Footer ──────────────────────────────────────── */
+footer{background:#000;border-top:1px solid rgba(255,255,255,.05);padding:56px 0 36px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:44px;margin-bottom:48px}
+.ft-icon{width:40px;height:40px;background:linear-gradient(135deg,#2563EB,#7C3AED);
+  border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:#fff;margin-bottom:12px}
+.ft-name{font-size:18px;font-weight:800;color:#fff;margin-bottom:7px}
+.ft-desc{font-size:12.5px;color:rgba(255,255,255,.38);line-height:1.7;max-width:240px;margin-bottom:18px}
+.ft-badges{display:flex;gap:7px;flex-wrap:wrap}
+.ft-badge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);
+  color:rgba(255,255,255,.45);font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:7px}
+.footer-col h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;
+  color:rgba(255,255,255,.3);margin-bottom:14px}
+.footer-col a{display:block;color:rgba(255,255,255,.5);font-size:13px;text-decoration:none;
+  margin-bottom:8px;transition:color .15s}
+.footer-col a:hover{color:#fff}
+.ft-bottom{border-top:1px solid rgba(255,255,255,.05);padding-top:24px;
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.ft-copy{font-size:12px;color:rgba(255,255,255,.28)}
+.ft-legal{display:flex;gap:16px}
+.ft-legal a{font-size:12px;color:rgba(255,255,255,.28);text-decoration:none;transition:color .15s}
+.ft-legal a:hover{color:rgba(255,255,255,.65)}
+@media(max-width:768px){.footer-grid{grid-template-columns:1fr 1fr}.footer-grid>:first-child{grid-column:1/-1}}
+
+/* ── Scroll reveal ───────────────────────────────── */
+.reveal{opacity:0;transform:translateY(36px) scale(.97);
+  transition:opacity .7s cubic-bezier(.22,1,.36,1),
+             transform .7s cubic-bezier(.22,1,.36,1),
+             filter .7s;filter:blur(7px)}
+.reveal.on{opacity:1;transform:none;filter:blur(0)}
+.reveal-l{opacity:0;transform:translateX(-36px);filter:blur(6px);
+  transition:opacity .7s cubic-bezier(.22,1,.36,1),
+             transform .7s cubic-bezier(.22,1,.36,1),filter .7s}
+.reveal-l.on{opacity:1;transform:none;filter:blur(0)}
+.reveal-r{opacity:0;transform:translateX(36px);filter:blur(6px);
+  transition:opacity .7s cubic-bezier(.22,1,.36,1),
+             transform .7s cubic-bezier(.22,1,.36,1),filter .7s}
+.reveal-r.on{opacity:1;transform:none;filter:blur(0)}
+.d1{transition-delay:.08s}.d2{transition-delay:.16s}.d3{transition-delay:.24s}
+.d4{transition-delay:.32s}.d5{transition-delay:.40s}.d6{transition-delay:.48s}
+
+/* ── Back to top ─────────────────────────────────── */
+#btt{position:fixed;bottom:26px;right:26px;width:42px;height:42px;
+  background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  text-decoration:none;box-shadow:0 4px 14px rgba(37,99,235,.4);
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:400}
+#btt.show{opacity:1;pointer-events:auto}
+#btt:hover{transform:translateY(-2px) scale(1.07)}
+
+/* Mobile adjustments */
+@media(max-width:640px){
+  .reveal,.reveal-l,.reveal-r{opacity:1;transform:none;filter:none;transition:none}
+  .hero h1 .gr{background:none;-webkit-background-clip:unset;background-clip:unset;
+    -webkit-text-fill-color:#93C5FD;color:#93C5FD;animation:none}
+  .hero-inner{grid-template-columns:1fr}
+  .webapp-frame{display:none}
+}
+</style>
 </head>
 <body>
-  <div id="loading">
-    <div class="logo"><span>BB</span></div>
-    <h1>BillBook</h1>
-    <p>Invoice Generator</p>
-    <div class="spinner"></div>
+
+<!-- Flutter background loader (hidden behind landing) -->
+<div id="flutter-loader">
+  <div class="fl-logo">B</div>
+  <div class="fl-name">BillBook</div>
+  <div class="fl-ring"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     LANDING PAGE OVERLAY
+═══════════════════════════════════════════════ -->
+<div id="landing">
+  <div id="sp"></div>
+
+  <!-- Announcement bar -->
+  <div class="ann">
+    <span>
+      <span class="ann-dot"></span>
+      New <span class="ann-tag">v2.1</span>
+      OCR Receipt Scanner, Auto Paid Status &amp; Smart Preferences are live &nbsp;·&nbsp;
+      <b style="color:rgba(255,255,255,.8)">Free to get started</b>
+    </span>
   </div>
-  <script>
-    window.addEventListener('flutter-first-frame', function() {
-      var el = document.getElementById('loading');
-      if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(function(){ el.remove(); }, 300); }
-    });
-  </script>
-  <script src="flutter_bootstrap.js" async></script>
+
+  <!-- Nav -->
+  <nav id="nav">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <div class="nav-brand-icon">B</div>
+        <span class="nav-brand-name">BillBook</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features" class="nav-a">Features</a>
+        <a href="#gst" class="nav-a">GST &amp; Compliance</a>
+        <a href="#plans" class="nav-a">Pricing</a>
+        <a href="../guide.html" class="nav-a" target="_blank">Docs</a>
+      </div>
+      <div class="nav-right">
+        <button class="btn-ghost-sm" id="btnLaunch" onclick="launchApp()">Sign In</button>
+        <button class="btn-prim-sm" id="btnGetStarted" onclick="launchApp()">Open App →</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ══════════ HERO ══════════ -->
+  <section class="hero" id="top">
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+    <div class="hero-inner">
+      <!-- Left copy -->
+      <div>
+        <div class="hero-eyebrow reveal">
+          <i></i>&nbsp;India's #1 Billing Web App
+        </div>
+        <h1 class="reveal d1">
+          Invoice Faster.<br>
+          <span class="gr">Get Paid Smarter.</span>
+        </h1>
+        <p class="hero-sub reveal d2">
+          GST invoices, OCR receipt scanning, expense tracking, P&amp;L reports, and team management — all running in your browser. No install needed.
+        </p>
+        <div class="hero-actions reveal d3">
+          <button class="btn-hero btn-hero-prim" onclick="launchApp()">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            Open Web App — Free
+          </button>
+          <a href="../guide.html" class="btn-hero btn-hero-ghost" target="_blank">
+            📖 View User Guide
+          </a>
+        </div>
+        <div class="hero-trust reveal d4">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="hero-stars">★★★★★</span>
+            <span style="font-size:13px;color:rgba(255,255,255,.45)">4.9 · 10,000+ businesses</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;margin-top:5px;flex-wrap:wrap">
+            <span class="hero-meta">🔐 AES-256 Encrypted</span>
+            <span class="hero-meta">☁️ Google Drive Sync</span>
+            <span class="hero-meta">📴 Works Offline</span>
+            <span class="hero-meta">🌐 6 Languages</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: browser mockup -->
+      <div class="webapp-frame reveal-r d1">
+        <div class="browser-window">
+          <div class="browser-bar">
+            <div class="browser-dots">
+              <div class="browser-dot" style="background:#EF4444"></div>
+              <div class="browser-dot" style="background:#F59E0B"></div>
+              <div class="browser-dot" style="background:#10B981"></div>
+            </div>
+            <div class="browser-url">app.billbook.in/dashboard</div>
+          </div>
+          <div class="browser-body">
+            <div class="dash-nav">
+              <div class="dash-logo">B</div>
+              <div class="dash-title">BillBook</div>
+              <div style="margin-left:auto;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#2563EB,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff">R</div>
+            </div>
+            <div class="dash-tabs">
+              <div class="dash-tab on">Dashboard</div>
+              <div class="dash-tab">Invoices</div>
+              <div class="dash-tab">Expenses</div>
+              <div class="dash-tab">Reports</div>
+            </div>
+            <div class="dash-body">
+              <div class="d-banner">
+                <div class="l">Total Invoiced — June 2026</div>
+                <div class="v">₹3,24,500</div>
+                <div class="l">42 invoices · ₹2.4L collected</div>
+              </div>
+              <div class="d-stat-row">
+                <div class="d-stat"><div class="d-stat-v" style="color:#10B981">₹2.4L</div><div class="d-stat-l">Revenue</div></div>
+                <div class="d-stat"><div class="d-stat-v" style="color:#F59E0B">₹85K</div><div class="d-stat-l">Outstanding</div></div>
+                <div class="d-stat"><div class="d-stat-v" style="color:#60A5FA">18</div><div class="d-stat-l">This Month</div></div>
+                <div class="d-stat"><div class="d-stat-v" style="color:#A78BFA">₹1.98L</div><div class="d-stat-l">Net Profit</div></div>
+              </div>
+              <div style="font-size:7px;font-weight:700;color:#64748B;margin:5px 0 4px;text-transform:uppercase;letter-spacing:.5px">Recent Invoices</div>
+              <div class="d-card">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div class="d-ct">Rajesh Kumar</div><div class="d-cs">INV-0042 · Due 30 Jun</div></div>
+                  <div style="text-align:right"><div style="font-size:9px;font-weight:800;color:#F1F5F9">₹50,660</div><div class="d-bdg d-pll">Sent</div></div>
+                </div>
+              </div>
+              <div class="d-card">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div class="d-ct">Priya Enterprises</div><div class="d-cs">INV-0041 · Paid 15 Jun</div></div>
+                  <div style="text-align:right"><div style="font-size:9px;font-weight:800;color:#F1F5F9">₹18,000</div><div class="d-bdg d-pad">Paid</div></div>
+                </div>
+              </div>
+              <div class="d-card">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div><div class="d-ct">Amit Shah &amp; Co</div><div class="d-cs">INV-0040 · Overdue</div></div>
+                  <div style="text-align:right"><div style="font-size:9px;font-weight:800;color:#F1F5F9">₹75,000</div><div class="d-bdg d-pov">Overdue</div></div>
+                </div>
+              </div>
+              <div class="d-fab">+</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ STATS ══════════ -->
+  <div class="stats">
+    <div class="stats-grid">
+      <div class="stat reveal"><div class="stat-n" data-to="10000" data-suffix="K+">10K+</div><div class="stat-l">Businesses on BillBook</div></div>
+      <div class="stat reveal d1"><div class="stat-n">₹50Cr+</div><div class="stat-l">Invoices generated</div></div>
+      <div class="stat reveal d2"><div class="stat-n">4.9★</div><div class="stat-l">Average rating</div></div>
+      <div class="stat reveal d3"><div class="stat-n">6</div><div class="stat-l">Indian languages supported</div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ WHY ══════════ -->
+  <section class="sec sec-dark" id="features">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow dark reveal">Why BillBook Web</div>
+        <h2 class="h2-dark reveal d1">The complete billing suite,<br><span class="gr">right in your browser</span></h2>
+        <p class="sub-dark reveal d2">Access all your invoices, reports, and client data from any device. No install. No sync delay. Always up to date.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar reveal">
+          <div class="p-icon" style="background:rgba(37,99,235,.15)">📄</div>
+          <h3>Full-Featured Invoicing</h3>
+          <p>GST-compliant invoices with auto CGST/SGST/IGST. 11 templates. UPI QR on every PDF. Share via WhatsApp or email in one click.</p>
+        </div>
+        <div class="pillar reveal d1">
+          <div class="p-icon" style="background:rgba(124,58,237,.15)">📷</div>
+          <h3>OCR Receipt Scanner</h3>
+          <p>Photograph any bill. On-device OCR reads vendor, amount, date, and GSTIN. Tap to auto-fill the form. No internet upload needed.</p>
+        </div>
+        <div class="pillar reveal d2">
+          <div class="p-icon" style="background:rgba(16,185,129,.15)">📊</div>
+          <h3>Real-Time Reports</h3>
+          <p>P&amp;L, cash flow, GST reports, outstanding analysis, category analytics. Your business numbers always one click away.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SHOWCASE: INVOICING ══════════ -->
+  <section class="sec sec-dark">
+    <div class="wrap">
+      <div class="showcase">
+        <!-- Browser mockup -->
+        <div class="reveal-l">
+          <div class="sc-browser">
+            <div class="sc-bar">
+              <div class="sc-dots">
+                <div class="sc-dot" style="background:#EF4444"></div>
+                <div class="sc-dot" style="background:#F59E0B"></div>
+                <div class="sc-dot" style="background:#10B981"></div>
+              </div>
+              <div class="sc-url">app.billbook.in/invoice/new</div>
+            </div>
+            <div style="background:#0F172A;padding:12px 14px;min-height:290px">
+              <div style="background:#1E293B;border:1px solid #334155;border-radius:9px;padding:12px;margin-bottom:8px">
+                <div style="font-size:10px;font-weight:700;color:#F1F5F9;margin-bottom:8px">Invoice Details</div>
+                <div style="display:flex;gap:8px">
+                  <div style="flex:1;background:#0F172A;border:1px solid #334155;border-radius:6px;padding:7px 9px">
+                    <div style="font-size:7px;color:#64748B;margin-bottom:2px">Invoice #</div>
+                    <div style="font-size:9px;color:#F1F5F9;font-weight:600">INV-0043</div>
+                  </div>
+                  <div style="flex:1;background:#0F172A;border:1px solid #334155;border-radius:6px;padding:7px 9px">
+                    <div style="font-size:7px;color:#64748B;margin-bottom:2px">Client</div>
+                    <div style="font-size:9px;color:#60A5FA;font-weight:600">Rajesh Kumar ↓</div>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#1E293B;border:1px solid #334155;border-radius:9px;padding:10px 12px;margin-bottom:8px">
+                <div style="display:flex;justify-content:space-between;font-size:8.5px;font-weight:700;color:#94A3B8;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid #334155">
+                  <span style="flex:3">Item</span><span style="flex:1;text-align:center">Qty</span><span style="flex:1;text-align:center">Rate</span><span style="flex:1;text-align:center">GST</span><span style="flex:1;text-align:right">Amount</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:8px;color:#CBD5E1;padding:3px 0;border-bottom:1px solid rgba(51,65,85,.5)">
+                  <span style="flex:3">Website Design</span><span style="flex:1;text-align:center">1</span><span style="flex:1;text-align:center">₹35,000</span><span style="flex:1;text-align:center;color:#34D399">18%</span><span style="flex:1;text-align:right;font-weight:700">₹41,300</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:8px;color:#CBD5E1;padding:3px 0">
+                  <span style="flex:3">SEO Setup</span><span style="flex:1;text-align:center">1</span><span style="flex:1;text-align:center">₹8,000</span><span style="flex:1;text-align:center;color:#34D399">18%</span><span style="flex:1;text-align:right;font-weight:700">₹9,440</span>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;gap:8px;align-items:center">
+                <div style="text-align:right">
+                  <div style="font-size:9px;color:#64748B">Subtotal ₹43,000 · GST ₹7,740</div>
+                  <div style="font-size:14px;font-weight:900;color:#60A5FA">Total ₹50,740</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#2563EB,#7C3AED);color:#fff;font-size:9px;font-weight:700;padding:8px 14px;border-radius:7px">Save &amp; Share</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Copy -->
+        <div class="reveal-r">
+          <div class="sc-tag b">📄 Core Invoicing</div>
+          <h2>GST Invoices in Under 60 Seconds</h2>
+          <p>Select a client, add items from your saved catalog, and BillBook handles every calculation — CGST, SGST, IGST, discounts, totals. Instant WhatsApp or email delivery.</p>
+          <ul class="feat-list">
+            <li>Auto-calculated CGST/SGST or IGST based on buyer state code</li>
+            <li>11 PDF templates — Classic, Minimal, GST Bill, Thermal &amp; more</li>
+            <li>Custom invoice prefix (INV-, BILL-, your brand abbreviation)</li>
+            <li>UPI scan-to-pay QR on every PDF — clients pay in seconds</li>
+            <li>Digital signature auto-embedded on every invoice</li>
+            <li>Duplicate any invoice for repeat jobs</li>
+          </ul>
+          <div class="sc-note">
+            <div class="sc-note-icon">🔁</div>
+            <div class="sc-note-text"><b>Recurring Invoices —</b> auto-generate weekly, monthly, or quarterly. Perfect for retainers.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- OCR SCANNER -->
+      <div class="showcase rev" id="ocr">
+        <div class="reveal-l">
+          <div class="sc-browser slow">
+            <div class="sc-bar">
+              <div class="sc-dots">
+                <div class="sc-dot" style="background:#EF4444"></div>
+                <div class="sc-dot" style="background:#F59E0B"></div>
+                <div class="sc-dot" style="background:#10B981"></div>
+              </div>
+              <div class="sc-url">app.billbook.in/expenses/new</div>
+            </div>
+            <div style="background:#0F172A;padding:12px 14px;min-height:290px">
+              <!-- Receipt card -->
+              <div style="background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.3);border-radius:9px;padding:11px;margin-bottom:8px">
+                <div style="display:flex;align-items:center;gap:9px">
+                  <div style="width:40px;height:40px;background:rgba(16,185,129,.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🧾</div>
+                  <div style="flex:1">
+                    <div style="font-size:8.5px;font-weight:700;color:#34D399">Receipt attached</div>
+                    <div style="display:flex;gap:5px;margin-top:5px">
+                      <div style="background:#065F46;border-radius:8px;padding:2px 8px;font-size:7px;font-weight:700;color:#34D399;cursor:pointer">📷 Scan &amp; Fill</div>
+                      <div style="background:#1E293B;border-radius:8px;padding:2px 8px;font-size:7px;font-weight:700;color:#94A3B8">Change</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- OCR results card -->
+              <div style="background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);border-radius:9px;padding:10px 12px">
+                <div style="font-size:8px;font-weight:700;color:#60A5FA;margin-bottom:8px">📄 Scan Results — Select fields to apply</div>
+                <div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,99,235,.15)">
+                  <div style="width:11px;height:11px;background:#2563EB;border-radius:3px;margin-right:9px;flex-shrink:0"></div>
+                  <div style="font-size:7.5px;color:#94A3B8;flex:1">Amount</div>
+                  <div style="font-size:8.5px;font-weight:700;color:#60A5FA">₹4,500.00</div>
+                </div>
+                <div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid rgba(37,99,235,.15)">
+                  <div style="width:11px;height:11px;background:#2563EB;border-radius:3px;margin-right:9px;flex-shrink:0"></div>
+                  <div style="font-size:7.5px;color:#94A3B8;flex:1">Date</div>
+                  <div style="font-size:8.5px;font-weight:700;color:#60A5FA">02 Jun 2026</div>
+                </div>
+                <div style="display:flex;align-items:center;padding:5px 0">
+                  <div style="width:11px;height:11px;background:#2563EB;border-radius:3px;margin-right:9px;flex-shrink:0"></div>
+                  <div style="font-size:7.5px;color:#94A3B8;flex:1">Vendor</div>
+                  <div style="font-size:8.5px;font-weight:700;color:#60A5FA">ABC Suppliers</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#10B981,#059669);color:#fff;font-size:8px;font-weight:700;padding:6px 10px;border-radius:7px;text-align:center;margin-top:8px">✨ Apply All Fields</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="reveal-r">
+          <div class="sc-tag g">📷 New in v2.1</div>
+          <h2>Scan Any Receipt. Auto-Fill the Form.</h2>
+          <p>Photograph a vendor bill or expense receipt. On-device OCR (Google ML Kit) reads and extracts the data in under 3 seconds — completely offline, nothing sent to any server.</p>
+          <ul class="feat-list">
+            <li>Expenses: detects Amount, Date, and Vendor Name</li>
+            <li>Purchase Bills: also detects Bill Number and GSTIN</li>
+            <li>Per-field checkboxes — apply only what you want</li>
+            <li>Supports ₹/Rs., DD/MM/YYYY, and 15-char GSTIN formats</li>
+            <li>Receipt photo stored in Google Drive alongside the record</li>
+            <li>100% offline — zero data leaves your device</li>
+          </ul>
+          <div class="sc-note">
+            <div class="sc-note-icon">⚡</div>
+            <div class="sc-note-text"><b>5× faster data entry.</b> Photograph and move on — no typing required.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REPORTS -->
+      <div class="showcase">
+        <div class="reveal-l">
+          <div class="sc-browser">
+            <div class="sc-bar">
+              <div class="sc-dots">
+                <div class="sc-dot" style="background:#EF4444"></div>
+                <div class="sc-dot" style="background:#F59E0B"></div>
+                <div class="sc-dot" style="background:#10B981"></div>
+              </div>
+              <div class="sc-url">app.billbook.in/reports/pl</div>
+            </div>
+            <div style="background:#0F172A;padding:12px 14px;min-height:290px">
+              <div style="display:flex;gap:7px;margin-bottom:8px">
+                <div style="flex:1;background:#1E293B;border:1px solid #334155;border-radius:8px;padding:9px;text-align:center">
+                  <div style="font-size:12px;font-weight:900;color:#10B981">₹2.4L</div><div style="font-size:7px;color:#64748B;margin-top:2px">Revenue</div>
+                </div>
+                <div style="flex:1;background:#1E293B;border:1px solid #334155;border-radius:8px;padding:9px;text-align:center">
+                  <div style="font-size:12px;font-weight:900;color:#EF4444">₹42K</div><div style="font-size:7px;color:#64748B;margin-top:2px">Expenses</div>
+                </div>
+                <div style="flex:1;background:#1E293B;border:1px solid #334155;border-radius:8px;padding:9px;text-align:center">
+                  <div style="font-size:12px;font-weight:900;color:#60A5FA">₹1.98L</div><div style="font-size:7px;color:#64748B;margin-top:2px">Net Profit</div>
+                </div>
+              </div>
+              <div style="background:#1E293B;border:1px solid #334155;border-radius:8px;padding:10px 11px;margin-bottom:7px">
+                <div style="font-size:7.5px;font-weight:700;color:#94A3B8;margin-bottom:6px">Revenue by Client</div>
+                <div style="margin-bottom:5px">
+                  <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;margin-bottom:2px"><span>Rajesh Kumar</span><span style="font-weight:700">₹90K</span></div>
+                  <div style="height:5px;background:#334155;border-radius:3px;overflow:hidden"><div style="width:90%;height:100%;background:linear-gradient(90deg,#2563EB,#7C3AED);border-radius:3px"></div></div>
+                </div>
+                <div style="margin-bottom:5px">
+                  <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;margin-bottom:2px"><span>Priya Enterprises</span><span style="font-weight:700">₹75K</span></div>
+                  <div style="height:5px;background:#334155;border-radius:3px;overflow:hidden"><div style="width:75%;height:100%;background:linear-gradient(90deg,#7C3AED,#EC4899);border-radius:3px"></div></div>
+                </div>
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;margin-bottom:2px"><span>Amit Shah &amp; Co</span><span style="font-weight:700">₹48K</span></div>
+                  <div style="height:5px;background:#334155;border-radius:3px;overflow:hidden"><div style="width:48%;height:100%;background:linear-gradient(90deg,#0891B2,#10B981);border-radius:3px"></div></div>
+                </div>
+              </div>
+              <div style="background:#1E293B;border:1px solid #334155;border-radius:8px;padding:9px 11px">
+                <div style="font-size:7.5px;font-weight:700;color:#94A3B8;margin-bottom:5px">Expenses by Category</div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;padding:2px 0"><span>🏠 Rent</span><span style="font-weight:700">₹12,000</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;padding:2px 0"><span>👥 Salary</span><span style="font-weight:700">₹18,000</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#CBD5E1;padding:2px 0"><span>⚡ Electricity</span><span style="font-weight:700">₹4,500</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="reveal-r">
+          <div class="sc-tag p">📊 Reports &amp; Analytics</div>
+          <h2>Know Your Numbers — Without a Spreadsheet</h2>
+          <p>Real-time P&amp;L, cash flow forecast, GST reports, age-wise outstanding, category analytics, and a web dashboard with AI-generated business insights.</p>
+          <ul class="feat-list">
+            <li>P&amp;L: revenue vs expenses vs net profit in any period</li>
+            <li>Outstanding: 5 colour-coded age buckets (Not Due → 90+ days)</li>
+            <li>Cash Flow: inflows vs outflows sorted by due date</li>
+            <li>GST Reports: GSTR-1 style, B2B + B2C + HSN summary</li>
+            <li>Category Analytics: top services and products by revenue</li>
+            <li>Web Dashboard: 11 KPI panels + AI insights</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ ALL FEATURES GRID ══════════ -->
+  <section class="sec sec-white">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow light reveal">Complete Feature Set</div>
+        <h2 class="h2-light reveal d1">Every tool your business needs</h2>
+        <p class="sub-light reveal d2">30+ features built specifically for Indian businesses — all in one web app.</p>
+      </div>
+      <div class="all-grid">
+        <div class="ag reveal"><div class="ag-icon" style="background:#EFF6FF">📄</div><h4>GST Invoicing</h4><p>Auto CGST/SGST/IGST. 11 templates. UPI QR on every PDF.</p></div>
+        <div class="ag reveal d1"><div class="ag-icon" style="background:#F0FDF4">📷</div><h4>OCR Scanner</h4><p>Scan receipts &amp; bills. Auto-fill form fields from photo. Offline.</p></div>
+        <div class="ag reveal d2"><div class="ag-icon" style="background:#FFF7ED">💸</div><h4>Expense Tracking</h4><p>Categories, receipt photos, recurring costs. Feeds into P&amp;L.</p></div>
+        <div class="ag reveal d3"><div class="ag-icon" style="background:#FEF2F2">🧾</div><h4>Purchase Bills</h4><p>Vendor bills, ITC tracking, OCR scan, payment reminders.</p></div>
+        <div class="ag reveal"><div class="ag-icon" style="background:#F5F3FF">📈</div><h4>P&amp;L Report</h4><p>Revenue vs expenses vs net profit. Periods &amp; client breakdown.</p></div>
+        <div class="ag reveal d1"><div class="ag-icon" style="background:#FFFBEB">⏰</div><h4>Outstanding Analysis</h4><p>Age-wise buckets from Not Due to 90+ days overdue.</p></div>
+        <div class="ag reveal d2"><div class="ag-icon" style="background:#ECFEFF">💰</div><h4>Cash Flow Forecast</h4><p>Inflows vs outflows by due date — no surprises.</p></div>
+        <div class="ag reveal d3"><div class="ag-icon" style="background:#F5F3FF">📊</div><h4>Category Analytics</h4><p>Revenue by service, top products, top clients.</p></div>
+        <div class="ag reveal"><div class="ag-icon" style="background:#ECFDF5">🔁</div><h4>Recurring Invoices</h4><p>Auto-generate weekly, monthly, quarterly. Set once.</p></div>
+        <div class="ag reveal d1"><div class="ag-icon" style="background:#EFF6FF">🛒</div><h4>Point of Sale</h4><p>Tap items → checkout → receipt. Built for walk-in customers.</p></div>
+        <div class="ag reveal d2"><div class="ag-icon" style="background:#FFF7ED">📝</div><h4>Quotations</h4><p>Send quotes, track approval, convert to invoice in one tap.</p></div>
+        <div class="ag reveal d3"><div class="ag-icon" style="background:#FFFBEB">💳</div><h4>Partial Payments &amp; TDS</h4><p>Record milestones &amp; TDS. Invoice auto-marks Paid.</p></div>
+        <div class="ag reveal"><div class="ag-icon" style="background:#ECFDF5">📦</div><h4>Inventory</h4><p>Per-item stock tracking. Auto-deducts on invoice save.</p></div>
+        <div class="ag reveal d1"><div class="ag-icon" style="background:#FEF2F2">🔴</div><h4>Credit Notes</h4><p>Returns &amp; corrections. GST-compliant. Full audit trail.</p></div>
+        <div class="ag reveal d2"><div class="ag-icon" style="background:#F0FDF4">🚚</div><h4>Delivery Challan</h4><p>Dispatch docs before billing. Convert to invoice on arrival.</p></div>
+        <div class="ag reveal d3"><div class="ag-icon" style="background:#ECFEFF">👥</div><h4>Team Management</h4><p>4 roles: Owner, Manager, Staff, Viewer. QR code pairing.</p></div>
+        <div class="ag reveal"><div class="ag-icon" style="background:#F5F3FF">🖥️</div><h4>Web Dashboard</h4><p>11 KPI panels, AI insights, revenue forecast. Pinnable layout.</p></div>
+        <div class="ag reveal d1"><div class="ag-icon" style="background:#FFF7ED">🔔</div><h4>Payment Reminders</h4><p>Scheduled push + bulk WhatsApp reminders to overdue clients.</p></div>
+        <div class="ag reveal d2"><div class="ag-icon" style="background:#EFF6FF">💱</div><h4>Multi-Currency</h4><p>Invoice in USD, EUR, AED &amp; 30+ currencies. P&amp;L auto-converts.</p></div>
+        <div class="ag reveal d3"><div class="ag-icon" style="background:#ECFDF5">🌐</div><h4>6 Languages</h4><p>English, Hindi, Gujarati, Marathi, Tamil, Telugu.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ GST & COMPLIANCE ══════════ -->
+  <section class="sec sec-surf" id="gst">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow light reveal">GST &amp; Compliance</div>
+        <h2 class="h2-light reveal d1">Stay compliant — <span style="color:#2563EB">automatically</span></h2>
+        <p class="sub-light reveal d2">BillBook handles the GST rules so your CA gets everything they need.</p>
+      </div>
+      <div class="gst-grid">
+        <div class="gst-card reveal"><div class="gst-icon" style="background:#FEF2F2">🏛️</div><h3>E-Invoice (IRN)</h3><p>Generate Invoice Reference Numbers from the IRP portal. IRN and QR code auto-embed in the PDF.</p><span class="plan-badge pb-pro">Pro+</span></div>
+        <div class="gst-card reveal d1"><div class="gst-icon" style="background:#FFF7ED">🚛</div><h3>E-Way Bills</h3><p>Generate and track E-Way Bills for goods over ₹50,000. EWB number saved against the invoice.</p><span class="plan-badge pb-pro">Pro+</span></div>
+        <div class="gst-card reveal d2"><div class="gst-icon" style="background:#F5F3FF">📋</div><h3>GSTR-1 Style Reports</h3><p>B2B, B2C, and HSN/SAC summary with CGST/SGST/IGST auto-split. Export for CA — filing ready.</p><span class="plan-badge pb-pro">Pro+</span></div>
+        <div class="gst-card reveal d3"><div class="gst-icon" style="background:#ECFDF5">🔄</div><h3>Input Tax Credit (ITC)</h3><p>Every purchase bill tracks GST paid. ITC calculated automatically per vendor for GSTR-3B.</p><span class="plan-badge pb-pro">Pro+</span></div>
+        <div class="gst-card reveal"><div class="gst-icon" style="background:#EFF6FF">💳</div><h3>TDS Tracking</h3><p>Record TDS under 194J, 194C, 194H. Invoice auto-settles when cash + TDS covers the total.</p><span class="plan-badge pb-lite">Lite+</span></div>
+        <div class="gst-card reveal d1"><div class="gst-icon" style="background:#FEF2F2">🔴</div><h3>Credit Notes</h3><p>GST-compliant corrections for returns or errors. Linked to original invoice for audit trail.</p><span class="plan-badge pb-pro">Pro+</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ SECURITY ══════════ -->
+  <section class="sec security">
+    <div class="hex-bg"></div>
+    <div class="wrap">
+      <div class="sec-inner">
+        <div class="reveal-l">
+          <div class="eyebrow dark" style="margin-bottom:16px">Security &amp; Privacy</div>
+          <h2 class="h2-dark">Your data is yours.<br><span class="gr">Always.</span></h2>
+          <p style="font-size:15px;color:rgba(255,255,255,.48);line-height:1.75;max-width:380px;margin:16px 0 28px">
+            BillBook stores all data in your own Google Drive, encrypted with AES-256. We never see your invoices. No third-party data sharing. No ads.
+          </p>
+          <button class="btn-prim-sm" style="font-size:14px;padding:12px 24px;border-radius:10px" onclick="launchApp()">
+            Start for Free — No Card Needed
+          </button>
+        </div>
+        <div class="sec-badges reveal-r">
+          <div class="sb-card"><div class="sb-card-icon">🔐</div><h4>AES-256 Encryption</h4><p>All data encrypted before it leaves your device. Military-grade security standard.</p></div>
+          <div class="sb-card"><div class="sb-card-icon">☁️</div><h4>Your Google Drive</h4><p>Data stored in your own Drive account. BillBook never has access to your data.</p></div>
+          <div class="sb-card"><div class="sb-card-icon">📴</div><h4>Offline-First PWA</h4><p>Create invoices and view reports with zero internet connection.</p></div>
+          <div class="sb-card"><div class="sb-card-icon">📷</div><h4>On-Device OCR</h4><p>Receipt scanning runs entirely locally. Photos never uploaded to any server.</p></div>
+          <div class="sb-card"><div class="sb-card-icon">🔄</div><h4>Instant Restore</h4><p>Sign in on any device — your full invoice history restores automatically.</p></div>
+          <div class="sb-card"><div class="sb-card-icon">👥</div><h4>QR Team Pairing</h4><p>Employees join via QR code. No passwords shared. Revoke access instantly.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ TESTIMONIALS ══════════ -->
+  <section class="sec sec-white">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow light reveal">What businesses say</div>
+        <h2 class="h2-light reveal d1">Trusted by 10,000+ businesses</h2>
+      </div>
+      <div class="testi-grid">
+        <div class="testi reveal">
+          <div class="t-stars">★★★★★</div>
+          <p class="t-text">"I use BillBook on my browser at the office and on my phone when I'm at client sites. Everything stays in sync. The OCR scanner saves me 30 minutes every week just on vendor bill entry."</p>
+          <div class="t-author"><div class="t-avatar" style="background:#2563EB">R</div><div><div class="t-name">Rajesh Agarwal</div><div class="t-role">Hardware Trader, Pune</div></div></div>
+        </div>
+        <div class="testi reveal d1">
+          <div class="t-stars">★★★★★</div>
+          <p class="t-text">"The web app is incredibly fast. GST reports, GSTR-1 prep, E-Invoice — all from my browser. I forward the PDF to my CA in one click. What used to take a day now takes 10 minutes."</p>
+          <div class="t-author"><div class="t-avatar" style="background:#7C3AED">P</div><div><div class="t-name">Priya Nambiar</div><div class="t-role">IT Consultant, Bengaluru</div></div></div>
+        </div>
+        <div class="testi reveal d2">
+          <div class="t-stars">★★★★★</div>
+          <p class="t-text">"My accountant has Viewer access. He logs in from his laptop, checks all invoices and P&amp;L anytime he needs. No more sending Excel files back and forth. Huge time saver."</p>
+          <div class="t-author"><div class="t-avatar" style="background:#10B981">A</div><div><div class="t-name">Arvind Menon</div><div class="t-role">Restaurant Owner, Chennai</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ PLANS ══════════ -->
+  <section class="sec sec-surf" id="plans">
+    <div class="wrap">
+      <div class="sec-head">
+        <div class="eyebrow light reveal">Pricing</div>
+        <h2 class="h2-light reveal d1">Start free. Upgrade as you grow.</h2>
+        <p class="sub-light reveal d2">Cancel anytime. Your data always stays in your own Google Drive.</p>
+      </div>
+      <div class="plans-grid">
+        <div class="plan reveal">
+          <div><div class="plan-name">Free</div><div class="plan-price"><sup style="font-size:15px">₹</sup>0</div><div class="plan-per">forever free</div><div class="plan-save">&nbsp;</div><div class="plan-div"></div></div>
+          <div class="plan-feats">
+            <div class="pf"><span class="ck">✓</span>5 invoices / month</div>
+            <div class="pf"><span class="ck">✓</span>10 clients · 10 items</div>
+            <div class="pf"><span class="ck">✓</span>Classic template</div>
+            <div class="pf mt"><span class="cx">✗</span>No cloud backup</div>
+            <div class="pf mt"><span class="cx">✗</span>No reports</div>
+          </div>
+          <button class="plan-btn out" onclick="launchApp()">Get Started Free</button>
+        </div>
+        <div class="plan reveal d1">
+          <div><div class="plan-name">Lite</div><div class="plan-price"><sup style="font-size:15px">₹</sup>499</div><div class="plan-per">per year</div><div class="plan-save">₹42/mo · Best for solo</div><div class="plan-div"></div></div>
+          <div class="plan-feats">
+            <div class="pf"><span class="ck">✓</span>50 invoices / month</div>
+            <div class="pf"><span class="ck">✓</span>Quotations &amp; partial pay</div>
+            <div class="pf"><span class="ck">✓</span>Expenses + OCR scanner</div>
+            <div class="pf"><span class="ck">✓</span>P&amp;L · Outstanding</div>
+            <div class="pf"><span class="ck">✓</span>Google Drive sync</div>
+          </div>
+          <button class="plan-btn out" onclick="launchApp()">Upgrade to Lite</button>
+        </div>
+        <div class="plan pop reveal d2">
+          <div class="plan-badge">⭐ Most Popular</div>
+          <div><div class="plan-name">Pro</div><div class="plan-price"><sup style="font-size:15px">₹</sup>1,499</div><div class="plan-per">per year</div><div class="plan-save">₹125/mo · Save 17%</div><div class="plan-div"></div></div>
+          <div class="plan-feats">
+            <div class="pf"><span class="ck">✓</span>Unlimited invoices &amp; clients</div>
+            <div class="pf"><span class="ck">✓</span>All 11 PDF templates</div>
+            <div class="pf"><span class="ck">✓</span>Recurring · Credit Notes</div>
+            <div class="pf"><span class="ck">✓</span>Inventory · POS screen</div>
+            <div class="pf"><span class="ck">✓</span>GST Reports · E-Invoice</div>
+            <div class="pf"><span class="ck">✓</span>Purchase Bills + OCR</div>
+          </div>
+          <button class="plan-btn prim" onclick="launchApp()">Upgrade to Pro</button>
+        </div>
+        <div class="plan reveal d3">
+          <div><div class="plan-name">Premium</div><div class="plan-price"><sup style="font-size:15px">₹</sup>2,999</div><div class="plan-per">per year</div><div class="plan-save">₹250/mo · Save 17%</div><div class="plan-div"></div></div>
+          <div class="plan-feats">
+            <div class="pf"><span class="ck">✓</span>Everything in Pro</div>
+            <div class="pf"><span class="ck">✓</span>Team (up to 5 members)</div>
+            <div class="pf"><span class="ck">✓</span>Scheduled reminders</div>
+            <div class="pf"><span class="ck">✓</span>Web Dashboard + AI</div>
+            <div class="pf"><span class="ck">✓</span>Priority support</div>
+          </div>
+          <button class="plan-btn out" onclick="launchApp()">Upgrade to Premium</button>
+        </div>
+        <div class="plan ent reveal d4">
+          <div><div class="plan-name">Enterprise</div><div class="plan-price"><sup style="font-size:14px">₹</sup>9,999</div><div class="plan-per">per year · or custom</div><div class="plan-save">Volume discounts</div><div class="plan-div"></div></div>
+          <div class="plan-feats">
+            <div class="pf"><span class="ck">✓</span>Everything in Premium</div>
+            <div class="pf"><span class="ck">✓</span>Unlimited team members</div>
+            <div class="pf"><span class="ck">✓</span>Dedicated account manager</div>
+            <div class="pf"><span class="ck">✓</span>Phone &amp; WhatsApp support</div>
+            <div class="pf"><span class="ck">✓</span>SLA · API access</div>
+          </div>
+          <a href="mailto:sales@billbook.app" class="plan-btn ent-b">Contact Sales</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ CTA ══════════ -->
+  <section class="sec sec-dark">
+    <div class="wrap">
+      <div class="cta-banner reveal">
+        <h2>Start invoicing for free today</h2>
+        <p>Open BillBook in your browser right now. No credit card. No install. Your first invoice in under 2 minutes.</p>
+        <div class="cta-row">
+          <button class="store-btn primary" onclick="launchApp()">
+            <div class="store-icon">🚀</div>
+            <div><span class="store-sub">Open for free</span><span class="store-name">Launch Web App</span></div>
+          </button>
+          <a href="https://play.google.com/store" class="store-btn" target="_blank" rel="noopener">
+            <div class="store-icon">🤖</div>
+            <div><span class="store-sub">Download on</span><span class="store-name">Google Play</span></div>
+          </a>
+          <a href="https://apps.apple.com" class="store-btn" target="_blank" rel="noopener">
+            <div class="store-icon">🍎</div>
+            <div><span class="store-sub">Download on the</span><span class="store-name">App Store</span></div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ FOOTER ══════════ -->
+  <footer>
+    <div class="wrap">
+      <div class="footer-grid">
+        <div>
+          <div class="ft-icon">B</div>
+          <div class="ft-name">BillBook</div>
+          <p class="ft-desc">The complete billing and invoicing web app for Indian businesses. Invoice faster, track smarter, get paid on time.</p>
+          <div class="ft-badges">
+            <span class="ft-badge">🌐 Web App</span>
+            <span class="ft-badge">📱 iOS &amp; Android</span>
+            <span class="ft-badge">🔐 AES-256</span>
+            <span class="ft-badge">☁️ Drive Sync</span>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <a href="#features">Features</a>
+          <a href="#plans">Pricing</a>
+          <a href="#gst">GST Compliance</a>
+          <a href="../guide.html" target="_blank">User Manual</a>
+        </div>
+        <div class="footer-col">
+          <h4>Features</h4>
+          <a href="#ocr">OCR Scanner</a>
+          <a href="#features">POS Screen</a>
+          <a href="#features">Inventory</a>
+          <a href="#features">Team Access</a>
+          <a href="#features">Web Dashboard</a>
+        </div>
+        <div class="footer-col">
+          <h4>Support</h4>
+          <a href="../guide.html" target="_blank">Documentation</a>
+          <a href="#">FAQ</a>
+          <a href="mailto:support@billbook.app">Contact Support</a>
+          <a href="mailto:sales@billbook.app">Enterprise</a>
+          <a href="#">Privacy Policy</a>
+        </div>
+      </div>
+      <div class="ft-bottom">
+        <span class="ft-copy">© 2026 BillBook · AES-256 Encrypted · Data stored in your Google Drive · v2.1</span>
+        <div class="ft-legal">
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Refund Policy</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <a href="#top" id="btt" title="Back to top">↑</a>
+</div><!-- /landing -->
+
+<!-- ═══════════════════════════════════════════════
+     FLUTTER BOOTSTRAP
+═══════════════════════════════════════════════ -->
+<script>
+/* ── Landing scroll & nav behaviour ── */
+const landing = document.getElementById('landing');
+const nav     = document.getElementById('nav');
+const btt     = document.getElementById('btt');
+const sp      = document.getElementById('sp');
+
+landing.addEventListener('scroll', () => {
+  const s = landing.scrollTop;
+  const h = landing.scrollHeight - landing.clientHeight;
+  if (sp) sp.style.width = (s / h * 100) + '%';
+  nav.classList.toggle('solid', s > 40);
+  btt.classList.toggle('show', s > 500);
+  document.querySelectorAll('.orb1,.orb2,.orb3').forEach((o, i) => {
+    o.style.transform = `translateY(${s * (i % 2 === 0 ? 0.15 : -0.1)}px)`;
+  });
+}, { passive: true });
+
+/* ── Scroll reveal ── */
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('on');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.07, rootMargin: '0px 0px -48px 0px', root: landing });
+
+document.querySelectorAll('.reveal,.reveal-l,.reveal-r').forEach(el => io.observe(el));
+
+function revealInView() {
+  document.querySelectorAll('.reveal,.reveal-l,.reveal-r').forEach(el => {
+    const r = el.getBoundingClientRect();
+    if (r.top < window.innerHeight && r.bottom > 0) el.classList.add('on');
+  });
+}
+requestAnimationFrame(() => requestAnimationFrame(revealInView));
+window.addEventListener('load', revealInView);
+
+/* ── Smooth anchor scroll (inside landing) ── */
+document.querySelectorAll('#landing a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const id = a.getAttribute('href');
+    if (id === '#') { landing.scrollTo({ top: 0, behavior: 'smooth' }); e.preventDefault(); return; }
+    const target = landing.querySelector(id);
+    if (target) {
+      e.preventDefault();
+      const offset = nav.offsetHeight + 16;
+      landing.scrollTo({ top: target.offsetTop - offset, behavior: 'smooth' });
+    }
+  });
+});
+
+/* ── Back to top ── */
+document.getElementById('btt').addEventListener('click', (e) => {
+  e.preventDefault();
+  landing.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+/* ── Launch app: hide landing, reveal flutter-loader ── */
+let flutterReady = false;
+let launchRequested = false;
+
+function launchApp() {
+  launchRequested = true;
+  landing.classList.add('hide');
+  document.getElementById('flutter-loader').style.display = 'flex';
+  if (flutterReady) {
+    removeLanding();
+  }
+}
+
+function removeLanding() {
+  setTimeout(() => {
+    landing.style.display = 'none';
+    document.getElementById('flutter-loader').style.display = 'none';
+  }, 600);
+}
+
+/* ── Flutter first frame ── */
+window.addEventListener('flutter-first-frame', function () {
+  flutterReady = true;
+  if (launchRequested) {
+    removeLanding();
+  }
+  // If user hasn't tapped anything yet, Flutter loaded — just hide the loader
+  document.getElementById('flutter-loader').style.display = 'none';
+});
+</script>
+
+<script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

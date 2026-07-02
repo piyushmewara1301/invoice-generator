@@ -23,6 +23,8 @@ import '../models/recurring_schedule.dart';
 
 enum _Period { all, today, week, month, custom }
 
+enum _BulkAction { markSent, markCancelled, sendReminders }
+
 enum _CsvAction { export, import }
 
 
@@ -50,7 +52,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 7, vsync: this);
+    _tabs = TabController(length: 8, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) showFeatureGuide(context, AppGuides.invoices);
     });
@@ -532,6 +534,109 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
     }
   }
 
+  Future<void> _bulkMarkPaid(BuildContext context) async {
+    final provider = context.read<AppProvider>();
+    final methods = provider.profile.allPaymentMethods;
+    final sym = Fmt.currencySymbol(provider.profile.currency);
+
+    // Collect the invoices that will actually be affected (skip already-paid).
+    final targets = provider.invoices
+        .where((i) =>
+            _selectedIds.contains(i.id) && i.status != InvoiceStatus.paid)
+        .toList();
+
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('All selected invoices are already marked as paid.'),
+      ));
+      setState(() => _selectedIds.clear());
+      return;
+    }
+
+    final result = await showModalBottomSheet<_BulkPaidOptions>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => _BulkMarkPaidSheet(
+        invoiceCount: targets.length,
+        total: targets.fold(0.0, (s, i) => s + i.amountRemaining),
+        sym: sym,
+        methods: methods,
+      ),
+    );
+
+    if (result == null || !context.mounted) return;
+
+    final changed = await provider.bulkUpdateStatus(
+      _selectedIds,
+      InvoiceStatus.paid,
+      paymentDate: result.date,
+      paymentMethodId: result.methodId,
+      paymentMethodName: result.methodName,
+    );
+
+    if (!context.mounted) return;
+    setState(() => _selectedIds.clear());
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('$changed invoice${changed == 1 ? '' : 's'} marked as paid'),
+      backgroundColor: AppTheme.success,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  Future<void> _bulkUpdateStatus(
+      BuildContext context, InvoiceStatus status) async {
+    final provider = context.read<AppProvider>();
+    final targets = provider.invoices
+        .where((i) =>
+            _selectedIds.contains(i.id) && i.status != status)
+        .toList();
+
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'All selected invoices are already ${status.label.toLowerCase()}.'),
+      ));
+      setState(() => _selectedIds.clear());
+      return;
+    }
+
+    final label = status.label;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Mark as $label'),
+        content: Text(
+          'Mark ${targets.length} invoice${targets.length == 1 ? '' : 's'} '
+          'as $label?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Mark $label'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final changed = await provider.bulkUpdateStatus(_selectedIds, status);
+
+    if (!context.mounted) return;
+    setState(() => _selectedIds.clear());
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+          '$changed invoice${changed == 1 ? '' : 's'} marked as ${label.toLowerCase()}'),
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
   Future<void> _sendBulkReminders(BuildContext context) async {
     final provider = context.read<AppProvider>();
     final selected = provider.invoices
@@ -855,6 +960,7 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
                   Tab(text: l10n.overdue),
                   const Tab(text: 'Quotes'),
                   const Tab(text: 'Credit Notes'),
+                  const Tab(text: 'Pending'),
                 ],
               ),
             ],
@@ -934,6 +1040,18 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
               _CreditNotesTab(
                   creditNotes: provider.creditNotes,
                   search: _search),
+              _InvoiceTab(
+                invoices: _filter(provider.invoicesOnly, InvoiceStatus.pendingApproval),
+                selectedIds: _selectedIds,
+                isSelecting: _isSelecting,
+                onToggle: (id) => setState(() {
+                  if (_selectedIds.contains(id)) {
+                    _selectedIds.remove(id);
+                  } else {
+                    _selectedIds.add(id);
+                  }
+                }),
+              ),
             ],
           ),
           if (_isSelecting)
@@ -942,38 +1060,119 @@ class _InvoiceListScreenState extends State<InvoiceListScreen>
               left: 0,
               right: 0,
               child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                    16, 12, 16, 16 + MediaQuery.of(context).padding.bottom),
                 decoration: BoxDecoration(
                   color: AppTheme.card(context),
                   boxShadow: AppTheme.elevatedShadow,
                 ),
-                child: Row(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton(
-                      onPressed: () {
-                        final all = provider.invoicesOnly;
-                        setState(() {
-                          if (_selectedIds.length == all.length) {
-                            _selectedIds.clear();
-                          } else {
-                            _selectedIds.addAll(all.map((i) => i.id));
-                          }
-                        });
-                      },
-                      child: const Text('Select All'),
+                    Row(
+                      children: [
+                        Text(
+                          '${_selectedIds.length} selected',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.onCard(context),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact),
+                          onPressed: () {
+                            final all = provider.invoicesOnly;
+                            setState(() {
+                              if (_selectedIds.length == all.length) {
+                                _selectedIds.clear();
+                              } else {
+                                _selectedIds
+                                    .addAll(all.map((i) => i.id));
+                              }
+                            });
+                          },
+                          child: Text(
+                            _selectedIds.length ==
+                                    provider.invoicesOnly.length
+                                ? 'Deselect All'
+                                : 'Select All',
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () =>
+                              setState(() => _selectedIds.clear()),
+                          child: const Text('Cancel'),
+                        ),
+                      ],
                     ),
-                    const Spacer(),
-                    FilledButton.icon(
-                      onPressed: _selectedIds.isEmpty
-                          ? null
-                          : () => _sendBulkReminders(context),
-                      icon: const Icon(Icons.send_outlined, size: 16),
-                      label: Text('Send Reminders (${_selectedIds.length})'),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => setState(() => _selectedIds.clear()),
-                      child: const Text('Cancel'),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: _selectedIds.isEmpty
+                                ? null
+                                : () => _bulkMarkPaid(context),
+                            icon: const Icon(Icons.check_circle_outline,
+                                size: 16),
+                            label: const Text('Mark Paid'),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.success,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        PopupMenuButton<_BulkAction>(
+                          tooltip: 'More actions',
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (action) {
+                            switch (action) {
+                              case _BulkAction.markSent:
+                                _bulkUpdateStatus(
+                                    context, InvoiceStatus.sent);
+                              case _BulkAction.markCancelled:
+                                _bulkUpdateStatus(
+                                    context, InvoiceStatus.cancelled);
+                              case _BulkAction.sendReminders:
+                                _sendBulkReminders(context);
+                            }
+                          },
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: _BulkAction.markSent,
+                              child: ListTile(
+                                leading: Icon(Icons.send_outlined),
+                                title: Text('Mark as Sent'),
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: _BulkAction.markCancelled,
+                              child: ListTile(
+                                leading: Icon(Icons.cancel_outlined),
+                                title: Text('Mark as Cancelled'),
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              ),
+                            ),
+                            PopupMenuItem(
+                              value: _BulkAction.sendReminders,
+                              child: ListTile(
+                                leading:
+                                    Icon(Icons.notifications_outlined),
+                                title: Text('Send Reminders'),
+                                contentPadding: EdgeInsets.zero,
+                                dense: true,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -1176,6 +1375,24 @@ class _InvoiceCard extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 12, color: AppTheme.subtext(context)),
                         ),
+                        if (invoice.pendingNumber) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppTheme.warning.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'Pending Sync',
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppTheme.warning),
+                            ),
+                          ),
+                        ],
                         Spacer(),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
@@ -2294,6 +2511,204 @@ class _CreditNotesTab extends StatelessWidget {
           child: card,
         );
       },
+    );
+  }
+}
+
+// ── Bulk Mark Paid ────────────────────────────────────────────────────────────
+
+class _BulkPaidOptions {
+  final DateTime date;
+  final String? methodId;
+  final String? methodName;
+  const _BulkPaidOptions({
+    required this.date,
+    this.methodId,
+    this.methodName,
+  });
+}
+
+class _BulkMarkPaidSheet extends StatefulWidget {
+  final int invoiceCount;
+  final double total;
+  final String sym;
+  final List<PaymentMethod> methods;
+
+  const _BulkMarkPaidSheet({
+    required this.invoiceCount,
+    required this.total,
+    required this.sym,
+    required this.methods,
+  });
+
+  @override
+  State<_BulkMarkPaidSheet> createState() => _BulkMarkPaidSheetState();
+}
+
+class _BulkMarkPaidSheetState extends State<_BulkMarkPaidSheet> {
+  DateTime _date = DateTime.now();
+  PaymentMethod? _method;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          24, 20, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle bar
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.outline(context),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppTheme.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.check_circle_outline,
+                    color: AppTheme.success, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Mark ${widget.invoiceCount} Invoice${widget.invoiceCount == 1 ? '' : 's'} as Paid',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.onCard(context)),
+                    ),
+                    Text(
+                      'Total: ${widget.sym}${Fmt.compact(widget.total)}',
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.subtext(context)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Payment date picker
+          Text('Payment Date',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.subtext(context))),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _date,
+                firstDate: DateTime(2020),
+                lastDate: DateTime.now().add(const Duration(days: 1)),
+                builder: (ctx, child) => Theme(
+                  data: Theme.of(ctx).copyWith(
+                    colorScheme:
+                        const ColorScheme.light(primary: AppTheme.primary),
+                  ),
+                  child: child!,
+                ),
+              );
+              if (picked != null) setState(() => _date = picked);
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppTheme.outline(context)),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.calendar_today_outlined,
+                      size: 16, color: AppTheme.primary),
+                  const SizedBox(width: 10),
+                  Text(Fmt.date(_date),
+                      style: TextStyle(
+                          fontSize: 14, color: AppTheme.onCard(context))),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Payment method picker
+          Text('Payment Method',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.subtext(context))),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border.all(color: AppTheme.outline(context)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: DropdownButton<PaymentMethod?>(
+              value: _method,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              hint: const Text('Select method (optional)'),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('None'),
+                ),
+                ...widget.methods.map((m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(m.name),
+                    )),
+              ],
+              onChanged: (m) => setState(() => _method = m),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.pop(
+                context,
+                _BulkPaidOptions(
+                  date: _date,
+                  methodId: _method?.id,
+                  methodName: _method?.name,
+                ),
+              ),
+              style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.success),
+              icon: const Icon(Icons.check_circle_outline, size: 18),
+              label: Text(
+                'Confirm — Mark ${widget.invoiceCount} as Paid',
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

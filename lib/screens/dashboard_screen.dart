@@ -13,7 +13,6 @@ import '../models/purchase_bill.dart';
 import 'create_invoice_screen.dart';
 import 'invoice_list_screen.dart';
 import 'expense_list_screen.dart';
-import 'purchase_bill_list_screen.dart';
 import 'cash_flow_screen.dart';
 import 'settings_screen.dart';
 import 'gst_report_screen.dart';
@@ -27,6 +26,10 @@ import 'agewise_report_screen.dart';
 import '../models/subscription_limits.dart' show LimitType;
 import '../widgets/feature_guide_sheet.dart';
 import '../widgets/paywall_sheet.dart';
+import '../widgets/sync_status_badge.dart';
+import '../models/daily_sale.dart';
+import 'daily_sales_screen.dart';
+import 'inventory_screen.dart';
 
 enum _Period { today, week, month, year, custom }
 
@@ -78,57 +81,90 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget build(BuildContext context) {
     final appProvider = context.watch<AppProvider>();
     final posEnabled = appProvider.profile.posEnabled;
-    final purchaseBillEnabled = appProvider.profile.purchaseBillEnabled;
     final isFreeTier =
         appProvider.profile.subscriptionTier == SubscriptionTier.free;
+    final isStockMode =
+        appProvider.profile.businessMode == BusinessMode.stockBased;
 
     final l10n = AppLocalizations.of(context)!;
 
-    final screens = [
-      const _DashboardHome(),
-      const InvoiceListScreen(),
-      if (posEnabled) const PosScreen(),
-      const ExpenseListScreen(),
-      if (purchaseBillEnabled) const PurchaseBillListScreen(),
-      const SettingsScreen(),
-    ];
+    final List<Widget> screens;
+    final List<NavigationDestination> destinations;
 
-    final destinations = [
-      NavigationDestination(
-        icon: const Icon(Icons.dashboard_outlined),
-        selectedIcon: const Icon(Icons.dashboard),
-        label: l10n.dashboard,
-      ),
-      NavigationDestination(
-        icon: const Icon(Icons.receipt_long_outlined),
-        selectedIcon: const Icon(Icons.receipt_long),
-        label: l10n.invoices,
-      ),
-      if (posEnabled)
-        const NavigationDestination(
-          icon: Icon(Icons.point_of_sale_outlined),
-          selectedIcon: Icon(Icons.point_of_sale_rounded),
-          label: 'POS',
+    if (isStockMode) {
+      screens = const [
+        _StockDashboardHome(),
+        DailySalesScreen(),
+        InventoryScreen(),
+        ExpenseListScreen(),
+        SettingsScreen(),
+      ];
+      destinations = [
+        NavigationDestination(
+          icon: const Icon(Icons.dashboard_outlined),
+          selectedIcon: const Icon(Icons.dashboard),
+          label: l10n.dashboard,
         ),
-      NavigationDestination(
-        icon: const Icon(Icons.account_balance_wallet_outlined),
-        selectedIcon: const Icon(Icons.account_balance_wallet),
-        label: l10n.expenses,
-      ),
-      if (purchaseBillEnabled)
         const NavigationDestination(
-          icon: Icon(Icons.receipt_outlined),
-          selectedIcon: Icon(Icons.receipt_rounded),
-          label: 'Bills',
+          icon: Icon(Icons.storefront_outlined),
+          selectedIcon: Icon(Icons.storefront),
+          label: 'Daily Sales',
         ),
-      NavigationDestination(
-        icon: const Icon(Icons.settings_outlined),
-        selectedIcon: const Icon(Icons.settings),
-        label: l10n.settings,
-      ),
-    ];
+        const NavigationDestination(
+          icon: Icon(Icons.inventory_2_outlined),
+          selectedIcon: Icon(Icons.inventory_2),
+          label: 'Stock',
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: const Icon(Icons.account_balance_wallet),
+          label: l10n.expenses,
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.settings_outlined),
+          selectedIcon: const Icon(Icons.settings),
+          label: l10n.settings,
+        ),
+      ];
+    } else {
+      screens = [
+        const _DashboardHome(),
+        const InvoiceListScreen(),
+        if (posEnabled) const PosScreen(),
+        const ExpenseListScreen(),
+        const SettingsScreen(),
+      ];
+      destinations = [
+        NavigationDestination(
+          icon: const Icon(Icons.dashboard_outlined),
+          selectedIcon: const Icon(Icons.dashboard),
+          label: l10n.dashboard,
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.receipt_long_outlined),
+          selectedIcon: const Icon(Icons.receipt_long),
+          label: l10n.invoices,
+        ),
+        if (posEnabled)
+          const NavigationDestination(
+            icon: Icon(Icons.point_of_sale_outlined),
+            selectedIcon: Icon(Icons.point_of_sale_rounded),
+            label: 'POS',
+          ),
+        NavigationDestination(
+          icon: const Icon(Icons.account_balance_wallet_outlined),
+          selectedIcon: const Icon(Icons.account_balance_wallet),
+          label: l10n.expenses,
+        ),
+        NavigationDestination(
+          icon: const Icon(Icons.settings_outlined),
+          selectedIcon: const Icon(Icons.settings),
+          label: l10n.settings,
+        ),
+      ];
+    }
 
-    // Clamp index so toggling POS never leaves an out-of-range selection.
+    // Clamp index so toggling features never leaves an out-of-range selection.
     final safeIndex = _selectedIndex.clamp(0, screens.length - 1);
 
     return Scaffold(
@@ -338,6 +374,10 @@ class _DashboardHomeState extends State<_DashboardHome>
                     strokeWidth: 2, color: AppTheme.primary),
               ),
             ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4),
+            child: SyncStatusBadge(),
+          ),
           if (canCreateInvoice)
             IconButton(
               icon: const Icon(Icons.add),
@@ -761,20 +801,8 @@ class _DashboardHomeState extends State<_DashboardHome>
   }
 
   Widget _sectionHeader(BuildContext context, String title,
-      {VoidCallback? onViewAll}) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(title,
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.onCard(context))),
-        if (onViewAll != null)
-          TextButton(onPressed: onViewAll, child: Text(AppLocalizations.of(context)!.viewAll)),
-      ],
-    );
-  }
+      {VoidCallback? onViewAll}) =>
+      _buildSectionHeader(context, title, onViewAll: onViewAll);
 
   Widget _emptyState(BuildContext context) {
     return Container(
@@ -1472,3 +1500,380 @@ class _OutstandingCard extends StatelessWidget {
   }
 }
 
+
+// ─── Stock mode dashboard home ────────────────────────────────────────────────
+
+// Top-level helper shared by both dashboard home widgets.
+Widget _buildSectionHeader(BuildContext context, String title,
+    {VoidCallback? onViewAll}) {
+  return Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Text(title,
+          style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.onCard(context))),
+      if (onViewAll != null)
+        TextButton(
+            onPressed: onViewAll,
+            child: Text(AppLocalizations.of(context)!.viewAll)),
+    ],
+  );
+}
+
+class _StockDashboardHome extends StatelessWidget {
+  const _StockDashboardHome();
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = context.watch<AppProvider>();
+    final currency = provider.profile.currency;
+    final sales = provider.dailySales;
+    final today = provider.todaysSale;
+    final l10n = AppLocalizations.of(context)!;
+
+    final weekStart = DateTime.now().subtract(const Duration(days: 6));
+    final weekSales = sales.where((s) =>
+        !s.date.isBefore(DateTime(weekStart.year, weekStart.month, weekStart.day)));
+    final weekTotal = weekSales.fold(0.0, (s, d) => s + d.totalSales);
+    final weekCash  = weekSales.fold(0.0, (s, d) => s + d.cashReceived);
+    final weekBank  = weekSales.fold(0.0, (s, d) => s + d.bankReceived);
+    final unbalancedCount = weekSales.where((d) => !d.isBalanced).length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l10n.dashboard),
+            Text(
+              provider.profile.name.isNotEmpty
+                  ? provider.profile.name
+                  : l10n.businessProfile,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.subtext(context),
+                  fontWeight: FontWeight.w400),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'New Daily Entry',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DailySalesScreen()),
+            ),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _StockTodayCard(sale: today, currency: currency),
+            const SizedBox(height: 20),
+            Text(
+              'Last 7 Days',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.subtext(context)),
+            ),
+            const SizedBox(height: 10),
+            LayoutBuilder(builder: (_, c) {
+              final w = (c.maxWidth - 12) / 2;
+              return GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: w / 130,
+                children: [
+                  SummaryCard(
+                    title: 'Total Sales',
+                    value: Fmt.currencyAmount(weekTotal, currency),
+                    icon: Icons.sell_outlined,
+                    color: AppTheme.primary,
+                  ),
+                  SummaryCard(
+                    title: 'Cash',
+                    value: Fmt.currencyAmount(weekCash, currency),
+                    icon: Icons.payments_outlined,
+                    color: AppTheme.success,
+                  ),
+                  SummaryCard(
+                    title: 'Bank / UPI',
+                    value: Fmt.currencyAmount(weekBank, currency),
+                    icon: Icons.account_balance_outlined,
+                    color: const Color(0xFF0891B2),
+                  ),
+                  SummaryCard(
+                    title: 'Unbalanced Days',
+                    value: '$unbalancedCount',
+                    icon: Icons.warning_amber_rounded,
+                    color: unbalancedCount > 0 ? AppTheme.error : AppTheme.success,
+                  ),
+                ],
+              );
+            }),
+            const SizedBox(height: 24),
+            _buildSectionHeader(context, 'Recent Entries',
+                onViewAll: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const DailySalesScreen()))),
+            const SizedBox(height: 10),
+            if (sales.isEmpty)
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32),
+                  child: Column(
+                    children: [
+                      Icon(Icons.storefront_outlined,
+                          size: 52, color: AppTheme.subtext(context)),
+                      const SizedBox(height: 12),
+                      Text('No entries yet',
+                          style: TextStyle(color: AppTheme.subtext(context))),
+                    ],
+                  ),
+                ),
+              )
+            else
+              ...sales.take(5).map(
+                  (s) => _StockSaleSummaryTile(sale: s, currency: currency)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Today card ────────────────────────────────────────────────────────────────
+
+class _StockTodayCard extends StatelessWidget {
+  final DailySale? sale;
+  final String currency;
+  const _StockTodayCard({required this.sale, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = sale;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppTheme.primary, AppTheme.primary.withValues(alpha: 0.75)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: AppTheme.primary.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: s == null
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Today's Sales",
+                    style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const SizedBox(height: 6),
+                const Text('No entry yet',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700)),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(
+                          builder: (_) => const DailySalesScreen())),
+                  icon: const Icon(Icons.add, size: 16, color: Colors.white),
+                  label: const Text('Add Entry',
+                      style: TextStyle(color: Colors.white)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white54),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text("Today's Sales",
+                        style:
+                            TextStyle(color: Colors.white70, fontSize: 13)),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: s.isBalanced
+                            ? Colors.white.withValues(alpha: 0.2)
+                            : AppTheme.error.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                              s.isBalanced
+                                  ? Icons.check_circle_outline
+                                  : Icons.error_outline,
+                              size: 12,
+                              color: Colors.white),
+                          const SizedBox(width: 4),
+                          Text(
+                            s.isBalanced ? 'Balanced' : 'Unbalanced',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  Fmt.currencyAmount(s.totalSales, currency),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Flexible(child: _MiniStat(
+                        label: 'Cash',
+                        value: Fmt.currencyAmount(s.cashReceived, currency))),
+                    const SizedBox(width: 16),
+                    Flexible(child: _MiniStat(
+                        label: 'Bank',
+                        value: Fmt.currencyAmount(s.bankReceived, currency))),
+                    if (!s.isBalanced) ...[
+                      const SizedBox(width: 16),
+                      Flexible(child: _MiniStat(
+                          label: 'Diff',
+                          value: Fmt.currencyAmount(s.difference.abs(), currency),
+                          isAlert: true)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isAlert;
+  const _MiniStat(
+      {required this.label, required this.value, this.isAlert = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 11,
+                color:
+                    isAlert ? Colors.orange.shade200 : Colors.white70)),
+        Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isAlert
+                    ? Colors.orange.shade100
+                    : Colors.white)),
+      ],
+    );
+  }
+}
+
+// ── Recent entry row ──────────────────────────────────────────────────────────
+
+class _StockSaleSummaryTile extends StatelessWidget {
+  final DailySale sale;
+  final String currency;
+  const _StockSaleSummaryTile(
+      {required this.sale, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final balanced = sale.isBalanced;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.card(context),
+        border: Border.all(color: AppTheme.outline(context), width: 0.8),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(Fmt.date(sale.date),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.onCard(context))),
+                Text(
+                  '${sale.items.length} item${sale.items.length == 1 ? '' : 's'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 11, color: AppTheme.subtext(context)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            Fmt.currencyAmount(sale.totalSales, currency),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: AppTheme.primary),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            balanced ? Icons.check_circle_outline : Icons.error_outline,
+            size: 16,
+            color: balanced ? AppTheme.success : AppTheme.error,
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -4,11 +4,13 @@ import 'package:timezone/timezone.dart' as tz;
 import '../models/invoice.dart';
 import '../models/purchase_bill.dart';
 import '../models/reminder_settings.dart';
+import '../models/service_item.dart';
 import '../utils/formatters.dart';
 
 // Notification channel IDs used on Android.
-const _channelId     = 'payment_reminders';      // incoming (invoices)
-const _billChannelId = 'bill_payment_reminders';  // outgoing (purchase bills)
+const _channelId      = 'payment_reminders';      // incoming (invoices)
+const _billChannelId  = 'bill_payment_reminders';  // outgoing (purchase bills)
+const _stockChannelId = 'low_stock_alerts';        // inventory low-stock
 
 class ReminderService {
   static final _plugin = FlutterLocalNotificationsPlugin();
@@ -48,6 +50,17 @@ class ReminderService {
           _billChannelId,
           'Bill Payment Reminders',
           description: 'Reminders to settle your purchase bills on time',
+          importance: Importance.high,
+        ));
+
+    // Low-stock alerts channel.
+    await _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(const AndroidNotificationChannel(
+          _stockChannelId,
+          'Low Stock Alerts',
+          description: 'Alerts when an inventory item falls below its threshold',
           importance: Importance.high,
         ));
 
@@ -249,6 +262,51 @@ class ReminderService {
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       payload: 'bill:${bill.id}',
+    );
+  }
+
+  // ── Low-stock alerts ─────────────────────────────────────────────────────────
+
+  /// Deterministic notification ID for a stock alert.
+  /// Uses a separate hash space (base 30 000 000) to avoid collision with
+  /// invoice / bill IDs.  [variantId] is empty string for flat items.
+  static int _stockNotifId(String itemId, String variantId) =>
+      ((itemId + variantId).hashCode.abs() % 10000000) + 30000000;
+
+  /// Fires an immediate low-stock notification for [item] (or one of its
+  /// [variant]s).  Call this only after confirming the item is actually below
+  /// threshold — the caller is responsible for de-duplication.
+  static Future<void> notifyLowStock(
+    ServiceItem item, {
+    ProductVariant? variant,
+  }) async {
+    if (!_initialized) await initialize();
+    final name = variant != null ? '${item.name} (${variant.name})' : item.name;
+    final qty = variant != null ? variant.totalStock : item.totalStock;
+    final threshold = (variant?.lowStockThreshold ?? item.lowStockThreshold)!;
+    final id = _stockNotifId(item.id, variant?.id ?? '');
+
+    await _plugin.show(
+      id,
+      'Low stock: $name',
+      '${qty.toStringAsFixed(qty % 1 == 0 ? 0 : 1)} units remaining '
+          '(threshold: ${threshold.toStringAsFixed(threshold % 1 == 0 ? 0 : 1)})',
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          _stockChannelId,
+          'Low Stock Alerts',
+          channelDescription:
+              'Alerts when an inventory item falls below its threshold',
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_launcher',
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: false,
+          presentSound: true,
+        ),
+      ),
     );
   }
 

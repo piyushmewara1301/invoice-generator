@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/client.dart';
@@ -16,21 +18,46 @@ class ClientPickerScreen extends StatefulWidget {
 
 class _ClientPickerScreenState extends State<ClientPickerScreen> {
   String _search = '';
+  Timer? _debounce;
+  int _limit = _pageSize;
+  static const _pageSize = 50;
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      setState(() => _limit += _pageSize);
+    }
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(() {
+        _search = value;
+        _limit = _pageSize;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final provider = context.watch<AppProvider>();
     final canCreate = provider.canDo(AppPermission.createClient);
-    final q = _search.toLowerCase();
-    final clients = provider
-        .clients
-        .where((c) =>
-            q.isEmpty ||
-            c.displayName.toLowerCase().contains(q) ||
-            c.email.toLowerCase().contains(q) ||
-            c.phone.toLowerCase().contains(q))
-        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -62,18 +89,23 @@ class _ClientPickerScreenState extends State<ClientPickerScreen> {
                 hintText: '${l10n.searchClients}...',
                 prefixIcon: const Icon(Icons.search, size: 20),
               ),
-              onChanged: (v) => setState(() => _search = v),
+              onChanged: _onSearchChanged,
             ),
           ),
           Expanded(
-            child: clients.isEmpty
-                ? Center(
+            child: StreamBuilder<List<Client>>(
+              stream: provider.db.clientsDao
+                  .watchClients(search: _search, limit: _limit),
+              builder: (context, snapshot) {
+                final clients = snapshot.data ?? const <Client>[];
+                if (clients.isEmpty) {
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.people_outline,
                             size: 48, color: AppTheme.subtext(context)),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Text(l10n.noClientsYet,
                             style: TextStyle(
                                 color: AppTheme.subtext(context))),
@@ -95,35 +127,39 @@ class _ClientPickerScreenState extends State<ClientPickerScreen> {
                           ),
                       ],
                     ),
-                  )
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: clients.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 8),
-                    itemBuilder: (context, i) {
-                      final c = clients[i];
-                      return Card(
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor:
-                                AppTheme.primary.withValues(alpha: 0.15),
-                            child: Text(
-                              c.displayName[0].toUpperCase(),
-                              style: const TextStyle(
-                                  color: AppTheme.primary,
-                                  fontWeight: FontWeight.w600),
-                            ),
+                  );
+                }
+                return ListView.separated(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: clients.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (context, i) {
+                    final c = clients[i];
+                    return Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              AppTheme.primary.withValues(alpha: 0.15),
+                          child: Text(
+                            c.displayName[0].toUpperCase(),
+                            style: const TextStyle(
+                                color: AppTheme.primary,
+                                fontWeight: FontWeight.w600),
                           ),
-                          title: Text(c.displayName,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600)),
-                          subtitle: Text(c.email),
-                          onTap: () => Navigator.pop(context, c),
                         ),
-                      );
-                    },
-                  ),
+                        title: Text(c.displayName,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                        subtitle: Text(c.email),
+                        onTap: () => Navigator.pop(context, c),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
       ),

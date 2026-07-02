@@ -926,15 +926,6 @@ class _FeaturesSection extends StatefulWidget {
 }
 
 class _FeaturesSectionState extends State<_FeaturesSection> {
-  bool _visible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(milliseconds: 100),
-        () { if (mounted) setState(() => _visible = true); });
-  }
-
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width;
@@ -974,15 +965,11 @@ class _FeaturesSectionState extends State<_FeaturesSection> {
             crossCount: crossCount,
             spacing: 20,
             children: features
-                .asMap()
-                .entries
-                .map((e) => _AnimatedFeatureCard(
-                      index: e.key,
-                      icon: e.value.$1,
-                      color: e.value.$2,
-                      title: e.value.$3,
-                      desc: e.value.$4,
-                      visible: _visible,
+                .map((e) => _FeatureCard(
+                      icon: e.$1,
+                      color: e.$2,
+                      title: e.$3,
+                      desc: e.$4,
                     ))
                 .toList(),
           ),
@@ -992,40 +979,6 @@ class _FeaturesSectionState extends State<_FeaturesSection> {
   }
 }
 
-class _AnimatedFeatureCard extends StatelessWidget {
-  final int index;
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String desc;
-  final bool visible;
-
-  const _AnimatedFeatureCard({
-    required this.index,
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.desc,
-    required this.visible,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: visible ? 1 : 0),
-      duration: Duration(milliseconds: 500 + index * 80),
-      curve: Curves.easeOutCubic,
-      builder: (_, val, child) => Opacity(
-        opacity: val,
-        child: Transform.translate(
-          offset: Offset(0, 20 * (1 - val)),
-          child: child,
-        ),
-      ),
-      child: _FeatureCard(icon: icon, color: color, title: title, desc: desc),
-    );
-  }
-}
 
 class _FeatureCard extends StatefulWidget {
   final IconData icon;

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/business_profile.dart';
 import '../providers/app_provider.dart';
 import '../models/invoice.dart';
 import '../utils/app_theme.dart';
 import '../utils/formatters.dart';
+import '../utils/late_fee_calculator.dart';
 import 'create_invoice_screen.dart';
 
 // ── Bucket definition ─────────────────────────────────────────────────────────
@@ -12,11 +14,13 @@ class _Bucket {
   final String label;
   final Color color;
   final List<Invoice> invoices;
+  final double penaltyTotal;
 
   const _Bucket({
     required this.label,
     required this.color,
     required this.invoices,
+    this.penaltyTotal = 0,
   });
 
   double get total =>
@@ -41,10 +45,10 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
     super.dispose();
   }
 
-  List<_Bucket> _buildBuckets(List<Invoice> outstanding) {
+  List<_Bucket> _buildBuckets(
+      List<Invoice> outstanding, BusinessProfile profile) {
     final today = DateTime.now();
-    final todayDate =
-        DateTime(today.year, today.month, today.day);
+    final todayDate = DateTime(today.year, today.month, today.day);
 
     final notYetDue = <Invoice>[];
     final days1to30 = <Invoice>[];
@@ -53,8 +57,8 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
     final days90plus = <Invoice>[];
 
     for (final inv in outstanding) {
-      final dueDate = DateTime(
-          inv.dueDate.year, inv.dueDate.month, inv.dueDate.day);
+      final dueDate =
+          DateTime(inv.dueDate.year, inv.dueDate.month, inv.dueDate.day);
       final diff = todayDate.difference(dueDate).inDays;
 
       if (diff <= 0) {
@@ -70,31 +74,41 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
       }
     }
 
+    double bucketPenalty(List<Invoice> invoices) => invoices.fold(
+        0.0,
+        (sum, inv) =>
+            sum + LateFeeCalculator.forInvoice(inv, profile).amount);
+
     return [
       _Bucket(
         label: 'Not Yet Due',
         color: AppTheme.primary,
         invoices: notYetDue,
+        penaltyTotal: 0, // not overdue, never a penalty
       ),
       _Bucket(
         label: '1–30 Days',
         color: AppTheme.warning,
         invoices: days1to30,
+        penaltyTotal: bucketPenalty(days1to30),
       ),
       _Bucket(
         label: '31–60 Days',
         color: const Color(0xFFF97316),
         invoices: days31to60,
+        penaltyTotal: bucketPenalty(days31to60),
       ),
       _Bucket(
         label: '61–90 Days',
         color: AppTheme.error,
         invoices: days61to90,
+        penaltyTotal: bucketPenalty(days61to90),
       ),
       _Bucket(
         label: '90+ Days',
         color: const Color(0xFF991B1B),
         invoices: days90plus,
+        penaltyTotal: bucketPenalty(days90plus),
       ),
     ];
   }
@@ -111,7 +125,8 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    final currency = provider.profile.currency;
+    final profile = provider.profile;
+    final currency = profile.currency;
 
     final outstanding = provider.invoicesOnly
         .where((inv) =>
@@ -122,8 +137,12 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
     final totalOutstanding =
         outstanding.fold(0.0, (sum, inv) => sum + inv.amountRemaining);
 
-    final buckets = _buildBuckets(outstanding);
+    final buckets = _buildBuckets(outstanding, profile);
     final allClear = outstanding.isEmpty;
+
+    final totalPenalty = profile.lateFeeEnabled
+        ? buckets.fold(0.0, (sum, b) => sum + b.penaltyTotal)
+        : 0.0;
 
     return Scaffold(
       appBar: AppBar(
@@ -138,6 +157,9 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
             _OutstandingBanner(
               totalAmount: Fmt.currencyAmount(totalOutstanding, currency),
               invoiceCount: outstanding.length,
+              penaltyTotal: profile.lateFeeEnabled && totalPenalty > 0
+                  ? Fmt.currencyAmount(totalPenalty, currency)
+                  : null,
             ),
             const SizedBox(height: 20),
 
@@ -158,6 +180,7 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
                     onToggle: () =>
                         setState(() => _expanded[i] = !_expanded[i]),
                     daysOverdueFn: _daysOverdue,
+                    showPenalty: profile.lateFeeEnabled,
                   ),
                 );
               }),
@@ -174,10 +197,13 @@ class _AgewiseReportScreenState extends State<AgewiseReportScreen> {
 class _OutstandingBanner extends StatelessWidget {
   final String totalAmount;
   final int invoiceCount;
+  /// Non-null when late fee is enabled and total accrued penalty > 0.
+  final String? penaltyTotal;
 
   const _OutstandingBanner({
     required this.totalAmount,
     required this.invoiceCount,
+    this.penaltyTotal,
   });
 
   @override
@@ -264,6 +290,33 @@ class _OutstandingBanner extends StatelessWidget {
                   ),
                 ),
               ),
+              if (penaltyTotal != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent.withValues(alpha: 0.30),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_outlined,
+                          size: 11, color: Colors.white),
+                      const SizedBox(width: 5),
+                      Text(
+                        '$penaltyTotal accrued penalty',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -280,6 +333,7 @@ class _BucketCard extends StatelessWidget {
   final bool expanded;
   final VoidCallback onToggle;
   final int Function(Invoice) daysOverdueFn;
+  final bool showPenalty;
 
   const _BucketCard({
     required this.bucket,
@@ -287,6 +341,7 @@ class _BucketCard extends StatelessWidget {
     required this.expanded,
     required this.onToggle,
     required this.daysOverdueFn,
+    this.showPenalty = false,
   });
 
   @override
@@ -345,13 +400,27 @@ class _BucketCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    Fmt.currencyAmount(bucket.total, currency),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: bucket.color,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        Fmt.currencyAmount(bucket.total, currency),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: bucket.color,
+                        ),
+                      ),
+                      if (showPenalty && bucket.penaltyTotal > 0)
+                        Text(
+                          '+${Fmt.currencyAmount(bucket.penaltyTotal, currency)} penalty',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.error.withValues(alpha: 0.75),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(width: 6),
                   AnimatedRotation(
@@ -382,12 +451,19 @@ class _BucketCard extends StatelessWidget {
                   final inv = entry.value;
                   final days = daysOverdueFn(inv);
                   final isLast = i == bucket.invoices.length - 1;
+                  // Compute per-invoice penalty via provider for accuracy.
+                  final profile =
+                      context.read<AppProvider>().profile;
+                  final penalty = showPenalty
+                      ? LateFeeCalculator.forInvoice(inv, profile)
+                      : null;
                   return _InvoiceRow(
                     invoice: inv,
                     currency: currency,
                     daysOverdue: days,
                     bucketColor: bucket.color,
                     isLast: isLast,
+                    penaltyResult: penalty,
                   );
                 }),
               ],
@@ -408,6 +484,7 @@ class _InvoiceRow extends StatelessWidget {
   final int daysOverdue;
   final Color bucketColor;
   final bool isLast;
+  final LateFeeResult? penaltyResult;
 
   const _InvoiceRow({
     required this.invoice,
@@ -415,6 +492,7 @@ class _InvoiceRow extends StatelessWidget {
     required this.daysOverdue,
     required this.bucketColor,
     required this.isLast,
+    this.penaltyResult,
   });
 
   @override
@@ -499,6 +577,25 @@ class _InvoiceRow extends StatelessWidget {
                             : FontWeight.w400,
                       ),
                     ),
+                    if (penaltyResult != null && penaltyResult!.hasPenalty) ...[
+                      const SizedBox(height: 3),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 5, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.error.withValues(alpha: 0.10),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '+${Fmt.currencyAmount(penaltyResult!.amount, currency)}',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(width: 4),

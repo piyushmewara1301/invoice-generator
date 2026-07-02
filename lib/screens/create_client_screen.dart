@@ -27,6 +27,9 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
   late TextEditingController _countryCtrl;
   late TextEditingController _postalCtrl;
   late TextEditingController _gstinCtrl;
+  late TextEditingController _creditLimitCtrl;
+  late TextEditingController _bulkDiscountCtrl;
+  bool _isBulkBuyer = false;
 
   @override
   void initState() {
@@ -42,6 +45,19 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
     _countryCtrl = TextEditingController(text: c?.country ?? '');
     _postalCtrl = TextEditingController(text: c?.postalCode ?? '');
     _gstinCtrl = TextEditingController(text: c?.gstin ?? '');
+    _creditLimitCtrl = TextEditingController(
+      text: c?.creditLimit != null
+          ? c!.creditLimit!.toStringAsFixed(
+              c.creditLimit! % 1 == 0 ? 0 : 2)
+          : '',
+    );
+    _isBulkBuyer = c?.isBulkBuyer ?? false;
+    _bulkDiscountCtrl = TextEditingController(
+      text: (c?.bulkDiscountPercent ?? 0) > 0
+          ? c!.bulkDiscountPercent.toStringAsFixed(
+              c.bulkDiscountPercent % 1 == 0 ? 0 : 2)
+          : '',
+    );
   }
 
   @override
@@ -49,6 +65,7 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
     for (final c in [
       _nameCtrl, _companyCtrl, _emailCtrl, _phoneCtrl, _addressCtrl,
       _cityCtrl, _stateCtrl, _countryCtrl, _postalCtrl, _gstinCtrl,
+      _creditLimitCtrl, _bulkDiscountCtrl,
     ]) {
       c.dispose();
     }
@@ -82,6 +99,12 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
       country: _countryCtrl.text.trim(),
       postalCode: _postalCtrl.text.trim(),
       gstin: _gstinCtrl.text.trim().isEmpty ? null : _gstinCtrl.text.trim(),
+      creditLimit: _creditLimitCtrl.text.trim().isEmpty
+          ? null
+          : double.tryParse(_creditLimitCtrl.text.trim()),
+      isBulkBuyer: _isBulkBuyer,
+      bulkDiscountPercent:
+          double.tryParse(_bulkDiscountCtrl.text.trim()) ?? 0.0,
     );
 
     if (widget.client == null) {
@@ -175,6 +198,71 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
                 ],
               ),
             ],
+            const SizedBox(height: 12),
+            _sectionCard(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Credit Limit',
+              subtitle: l10n.optional,
+              children: [
+                _field(
+                  _creditLimitCtrl,
+                  'Maximum outstanding balance',
+                  hint: 'Leave blank for no limit',
+                  type: const TextInputType.numberWithOptions(decimal: true),
+                  prefix: provider.profile.currency,
+                  readOnly: !canEdit,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return null;
+                    if (double.tryParse(v.trim()) == null) {
+                      return 'Enter a valid amount';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _sectionCard(
+              icon: Icons.local_offer_outlined,
+              title: 'Bulk Buyer',
+              subtitle: l10n.optional,
+              children: [
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Regular bulk buyer',
+                      style: TextStyle(fontSize: 14)),
+                  subtitle: const Text(
+                      'Auto-apply a discount on every invoice for this client',
+                      style: TextStyle(fontSize: 12)),
+                  value: _isBulkBuyer,
+                  onChanged: canEdit
+                      ? (v) => setState(() => _isBulkBuyer = v)
+                      : null,
+                ),
+                if (_isBulkBuyer) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _bulkDiscountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    readOnly: !canEdit,
+                    decoration: const InputDecoration(
+                      labelText: 'Bulk discount',
+                      hintText: 'e.g. 10',
+                      suffixText: '%',
+                    ),
+                    validator: (v) {
+                      if (v == null || v.trim().isEmpty) return null;
+                      final n = double.tryParse(v.trim());
+                      if (n == null || n < 0 || n > 100) {
+                        return 'Enter 0–100';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
             const SizedBox(height: 24),
 
             if (canEdit)
@@ -252,7 +340,9 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
       bool required = false,
       String? hint,
       int? maxLines = 1,
-      bool readOnly = false}) {
+      bool readOnly = false,
+      String? prefix,
+      String? Function(String?)? validator}) {
     return TextFormField(
       controller: ctrl,
       keyboardType: type,
@@ -261,10 +351,12 @@ class _CreateClientScreenState extends State<CreateClientScreen> {
       decoration: InputDecoration(
         labelText: required && !readOnly ? '$label *' : label,
         hintText: readOnly ? null : hint,
+        prefixText: prefix != null ? '$prefix ' : null,
       ),
-      validator: (required && !readOnly)
-          ? (v) => v == null || v.trim().isEmpty ? '$label is required' : null
-          : null,
+      validator: validator ??
+          ((required && !readOnly)
+              ? (v) => v == null || v.trim().isEmpty ? '$label is required' : null
+              : null),
     );
   }
 }

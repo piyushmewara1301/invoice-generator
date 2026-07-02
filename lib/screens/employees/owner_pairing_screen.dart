@@ -10,10 +10,16 @@ class OwnerPairingScreen extends StatefulWidget {
   final String employeeName;
   final String employeeEmail;
 
+  /// When set the QR restricts the employee to this shop only.
+  final String? shopId;
+  final String? shopName;
+
   const OwnerPairingScreen({
     super.key,
     required this.employeeName,
     required this.employeeEmail,
+    this.shopId,
+    this.shopName,
   });
 
   @override
@@ -39,7 +45,8 @@ class _OwnerPairingScreenState extends State<OwnerPairingScreen> {
     try {
       final qr = await context
           .read<AppProvider>()
-          .generatePairingQr(widget.employeeEmail);
+          .generatePairingQr(widget.employeeEmail,
+              shopId: widget.shopId, shopName: widget.shopName);
       if (mounted) setState(() => _qrData = qr);
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
@@ -81,6 +88,24 @@ class _OwnerPairingScreenState extends State<OwnerPairingScreen> {
                 style: TextStyle(
                     fontSize: 13, color: AppTheme.subtext(context)),
               ),
+              if (widget.shopName != null) ...[
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Shop: ${widget.shopName}',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.primary),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
 
               if (_generating)

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -95,6 +96,186 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    return kIsWeb ? _buildWeb(context) : _buildMobile(context);
+  }
+
+  Widget _buildWeb(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Row(
+        children: [
+          // ── Left branding panel ───────────────────────────────────
+          Expanded(
+            flex: 5,
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0F172A), Color(0xFF1E3A8A), Color(0xFF1D4ED8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  stops: [0.0, 0.5, 1.0],
+                ),
+              ),
+              padding: const EdgeInsets.all(56),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        child: const Icon(Icons.receipt_long,
+                            color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'BillBook',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'Invoice like a Pro.\nGet Paid Faster.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 42,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                      letterSpacing: -1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'GST-compliant invoices synced securely\nto your Google Drive.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.68),
+                      fontSize: 16,
+                      height: 1.65,
+                    ),
+                  ),
+                  const SizedBox(height: 44),
+                  _webFeaturePill(Icons.lock_outline, 'AES-256 end-to-end encrypted'),
+                  const SizedBox(height: 14),
+                  _webFeaturePill(Icons.sync_outlined, 'Syncs across all your devices'),
+                  const SizedBox(height: 14),
+                  _webFeaturePill(Icons.picture_as_pdf_outlined, 'Share PDF invoices instantly'),
+                  const Spacer(),
+                  Text(
+                    '© ${DateTime.now().year} BillBook. All rights reserved.',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.28),
+                        fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ── Right form panel ──────────────────────────────────────
+          Expanded(
+            flex: 4,
+            child: Container(
+              color: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 60),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Get started',
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Sign in with Google to create and manage\nyour invoices from anywhere.',
+                    style: TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF64748B),
+                        height: 1.55),
+                  ),
+                  const SizedBox(height: 40),
+                  _termsCheckbox(),
+                  const SizedBox(height: 20),
+                  _signInButton(),
+                  if (_error != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline,
+                              color: AppTheme.error, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(_error!,
+                                style: const TextStyle(
+                                    color: AppTheme.error, fontSize: 13)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Your data is stored privately in your own Google Drive account.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8), height: 1.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _webFeaturePill(IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(icon, color: Colors.white, size: 16),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          label,
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.82),
+              fontSize: 14,
+              fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMobile(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.card(context),
       body: SafeArea(
@@ -103,7 +284,7 @@ class _LoginScreenState extends State<LoginScreen>
           child: Column(
             children: [
               const Spacer(flex: 2),
-              // ── Logo ────────────────────────────────────────────────
+              // ── Logo ──────────────────────────────────────────────
               FadeTransition(
                 opacity: _logoAnim,
                 child: ScaleTransition(
@@ -118,7 +299,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
               const SizedBox(height: 28),
-              // ── Title + subtitle ────────────────────────────────────
+              // ── Title + subtitle ──────────────────────────────────
               FadeTransition(
                 opacity: _titleAnim,
                 child: SlideTransition(
@@ -136,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen>
                           color: AppTheme.onCard(context),
                         ),
                       ),
-                      SizedBox(height: 10),
+                      const SizedBox(height: 10),
                       Text(
                         'Create professional invoices and access\nthem from any device.',
                         textAlign: TextAlign.center,
@@ -151,7 +332,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
               const Spacer(flex: 2),
-              // ── Features ────────────────────────────────────────────
+              // ── Features ──────────────────────────────────────────
               FadeTransition(
                 opacity: _featAnim,
                 child: SlideTransition(
@@ -177,7 +358,7 @@ class _LoginScreenState extends State<LoginScreen>
                 ),
               ),
               const Spacer(flex: 3),
-              // ── Error ────────────────────────────────────────────────
+              // ── Error ─────────────────────────────────────────────
               if (_error != null)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -199,13 +380,13 @@ class _LoginScreenState extends State<LoginScreen>
                     ],
                   ),
                 ),
-              // ── T&C checkbox ─────────────────────────────────────────
+              // ── T&C checkbox ──────────────────────────────────────
               FadeTransition(
                 opacity: _btnAnim,
                 child: _termsCheckbox(),
               ),
               const SizedBox(height: 14),
-              // ── Sign-in button ──────────────────────────────────────
+              // ── Sign-in button ────────────────────────────────────
               FadeTransition(
                 opacity: _btnAnim,
                 child: SlideTransition(
@@ -216,7 +397,7 @@ class _LoginScreenState extends State<LoginScreen>
                   child: _signInButton(),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               FadeTransition(
                 opacity: _btnAnim,
                 child: Text(

@@ -56,6 +56,8 @@ class AppTheme {
         return primary;
       case 'cancelled':
         return textSecondary;
+      case 'pending':
+        return const Color(0xFF7C3AED);
       default:
         return warning;
     }

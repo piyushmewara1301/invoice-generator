@@ -39,6 +39,7 @@ enum AppPermission {
   editInvoice,
   deleteInvoice,
   sendInvoice,
+  approveInvoice,
   markInvoicePaid,
   recordPayment,
   // Clients
@@ -70,6 +71,8 @@ extension AppPermissionX on AppPermission {
         return 'Delete invoices';
       case AppPermission.sendInvoice:
         return 'Send invoices';
+      case AppPermission.approveInvoice:
+        return 'Approve invoices';
       case AppPermission.markInvoicePaid:
         return 'Mark invoices as paid';
       case AppPermission.recordPayment:
@@ -106,6 +109,7 @@ extension AppPermissionX on AppPermission {
       case AppPermission.editInvoice:
       case AppPermission.deleteInvoice:
       case AppPermission.sendInvoice:
+      case AppPermission.approveInvoice:
       case AppPermission.markInvoicePaid:
       case AppPermission.recordPayment:
         return 'Invoices';
@@ -138,6 +142,7 @@ const Map<EmployeeRole, Set<AppPermission>> roleDefaultPermissions = {
     AppPermission.editInvoice,
     AppPermission.deleteInvoice,
     AppPermission.sendInvoice,
+    AppPermission.approveInvoice,
     AppPermission.markInvoicePaid,
     AppPermission.recordPayment,
     AppPermission.viewClients,
@@ -181,6 +186,14 @@ class Employee {
   /// null → use role defaults; non-null → fully custom permission set
   final Set<AppPermission>? customPermissions;
 
+  /// Which shop this employee is assigned to.
+  /// null / empty = not yet assigned (defaults to single-shop behaviour).
+  final String? shopId;
+
+  /// When true this employee can see all shops regardless of [shopId].
+  /// Only the owner can grant this.
+  final bool accessAllShops;
+
   const Employee({
     required this.id,
     required this.name,
@@ -189,6 +202,8 @@ class Employee {
     this.isActive = true,
     required this.addedAt,
     this.customPermissions,
+    this.shopId,
+    this.accessAllShops = false,
   });
 
   Set<AppPermission> get effectivePermissions =>
@@ -203,6 +218,8 @@ class Employee {
     bool? isActive,
     Set<AppPermission>? customPermissions,
     bool clearCustomPermissions = false,
+    String? shopId,
+    bool? accessAllShops,
   }) {
     return Employee(
       id: id,
@@ -213,6 +230,8 @@ class Employee {
       addedAt: addedAt,
       customPermissions:
           clearCustomPermissions ? null : customPermissions ?? this.customPermissions,
+      shopId: shopId ?? this.shopId,
+      accessAllShops: accessAllShops ?? this.accessAllShops,
     );
   }
 
@@ -226,6 +245,8 @@ class Employee {
         if (customPermissions != null)
           'customPermissions':
               customPermissions!.map((p) => p.name).toList(),
+        if (shopId != null) 'shopId': shopId,
+        'accessAllShops': accessAllShops,
       };
 
   factory Employee.fromJson(Map<String, dynamic> j) {
@@ -254,6 +275,8 @@ class Employee {
       isActive: j['isActive'] as bool? ?? true,
       addedAt: DateTime.tryParse(j['addedAt'] as String? ?? '') ?? DateTime.now(),
       customPermissions: custom,
+      shopId: j['shopId'] as String?,
+      accessAllShops: j['accessAllShops'] as bool? ?? false,
     );
   }
 
@@ -279,6 +302,8 @@ class Employee {
       if (customPermissions != null)
         'customPermissions':
             _arrField(customPermissions!.map((p) => p.name).toList()),
+      if (shopId != null) 'shopId': _strField(shopId!),
+      'accessAllShops': _boolField(accessAllShops),
     };
   }
 
@@ -320,6 +345,8 @@ class Employee {
       isActive: _bool(fields, 'isActive') ?? true,
       addedAt: DateTime.tryParse(_str(fields, 'addedAt') ?? '') ?? DateTime.now(),
       customPermissions: custom,
+      shopId: _str(fields, 'shopId'),
+      accessAllShops: _bool(fields, 'accessAllShops') ?? false,
     );
   }
 }

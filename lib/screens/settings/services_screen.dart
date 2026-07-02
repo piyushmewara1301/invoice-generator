@@ -4,6 +4,8 @@ import '../../models/business_profile.dart';
 import '../../providers/app_provider.dart';
 import '../../utils/app_theme.dart';
 import '../../widgets/paywall_sheet.dart';
+import '../barcode_scanner_screen.dart';
+import '../import_inventory_screen.dart';
 
 // ─── Palette for category colour dots ────────────────────────────────────────
 const _kCategoryColors = [
@@ -27,7 +29,11 @@ Color _catColor(String category, List<String> allCats) {
 const _kUncategorized = 'Uncategorized';
 
 class ServicesScreen extends StatefulWidget {
-  const ServicesScreen({super.key});
+  const ServicesScreen({super.key, this.initialSearch});
+
+  /// Pre-fills the search box — used to deep-link here (e.g. from the Data
+  /// Health screen) directly to a specific item.
+  final String? initialSearch;
 
   @override
   State<ServicesScreen> createState() => _ServicesScreenState();
@@ -35,25 +41,49 @@ class ServicesScreen extends StatefulWidget {
 
 class _ServicesScreenState extends State<ServicesScreen> {
   String _itemLabel = 'Item';
-  List<ServiceItem> _items = [];
   bool _initialized = false;
+  String _search = '';
+  late final TextEditingController _searchCtrl;
 
-  // Which category sections are expanded (all expanded by default)
+  @override
+  void initState() {
+    super.initState();
+    _search = widget.initialSearch ?? '';
+    _searchCtrl = TextEditingController(text: _search);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  // Which category sections are expanded (all expanded by default for
+  // small catalogs).
   final Set<String> _collapsed = {};
 
-  void _init(BusinessProfile p) {
+  // Above this many items, every category starts collapsed so the screen
+  // doesn't have to build hundreds/thousands of item tiles on first frame.
+  static const _kAutoCollapseThreshold = 30;
+
+  // Above this many search matches, results are rendered in a bounded-height,
+  // truly virtualized ListView instead of a shrinkWrap one.
+  static const _kSearchVirtualizeThreshold = 20;
+
+  void _init(BusinessProfile p, List<ServiceItem> items) {
     _itemLabel = p.itemLabel;
-    _items = List.from(p.serviceItems);
+    if (items.length > _kAutoCollapseThreshold) {
+      _collapsed
+        ..addAll(_sortedCategories(items))
+        ..add(_kUncategorized);
+    }
     _initialized = true;
   }
 
   Future<void> _save() async {
     final provider = context.read<AppProvider>();
     final cur = provider.profile;
-    await provider.updateProfile(cur.copyWith(
-      itemLabel: _itemLabel,
-      serviceItems: _items,
-    ));
+    await provider.updateProfile(cur.copyWith(itemLabel: _itemLabel));
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -66,32 +96,30 @@ class _ServicesScreenState extends State<ServicesScreen> {
   // ── Item CRUD ────────────────────────────────────────────────────────────
 
   Future<void> _add({String? presetCategory}) async {
-    final limitInfo = context.read<AppProvider>().checkServiceItemLimit();
+    final provider = context.read<AppProvider>();
+    final limitInfo = await provider.checkServiceItemLimit();
     if (limitInfo != null) {
+      if (!mounted) return;
       final upgrade = await showPaywallSheet(context, limitInfo);
       if (upgrade && mounted) Navigator.pushNamed(context, '/plans');
       return;
     }
     final result = await _showForm(presetCategory: presetCategory);
     if (result != null) {
-      setState(() => _items.add(result));
-      await _save();
+      await provider.addServiceItem(result);
     }
   }
 
   Future<void> _edit(ServiceItem s) async {
     final result = await _showForm(existing: s);
-    if (result != null) {
-      setState(() {
-        final i = _items.indexOf(s);
-        if (i >= 0) _items[i] = result;
-      });
-      await _save();
+    if (result != null && mounted) {
+      await context.read<AppProvider>().updateServiceItem(result);
     }
   }
 
   Future<ServiceItem?> _showForm({ServiceItem? existing, String? presetCategory}) {
-    final allCategories = _sortedCategories();
+    final allCategories =
+        _sortedCategories(context.read<AppProvider>().serviceItems);
     return showModalBottomSheet<ServiceItem>(
       context: context,
       isScrollControlled: true,
@@ -112,8 +140,8 @@ class _ServicesScreenState extends State<ServicesScreen> {
   // ── Category helpers ─────────────────────────────────────────────────────
 
   /// All named categories sorted, then null/empty items go to Uncategorized.
-  List<String> _sortedCategories() {
-    return _items
+  List<String> _sortedCategories(List<ServiceItem> items) {
+    return items
         .map((s) => s.category?.trim())
         .where((c) => c != null && c.isNotEmpty)
         .cast<String>()
@@ -122,10 +150,24 @@ class _ServicesScreenState extends State<ServicesScreen> {
       ..sort();
   }
 
+  /// Whether [item] (or any of its variants) matches the search [query].
+  bool _matchesQuery(ServiceItem item, String query) {
+    if (item.name.toLowerCase().contains(query)) return true;
+    if (item.category?.toLowerCase().contains(query) ?? false) return true;
+    if (item.barcode?.toLowerCase().contains(query) ?? false) return true;
+    if (item.hasVariants) {
+      for (final v in item.variants) {
+        if (v.name.toLowerCase().contains(query)) return true;
+        if (v.barcode?.toLowerCase().contains(query) ?? false) return true;
+      }
+    }
+    return false;
+  }
+
   /// { categoryName → items } with '' key for uncategorized items.
-  Map<String, List<ServiceItem>> _grouped() {
+  Map<String, List<ServiceItem>> _grouped(List<ServiceItem> items) {
     final map = <String, List<ServiceItem>>{};
-    for (final s in _items) {
+    for (final s in items) {
       final key = (s.category?.trim().isNotEmpty == true)
           ? s.category!.trim()
           : '';
@@ -138,7 +180,7 @@ class _ServicesScreenState extends State<ServicesScreen> {
     final ctrl = TextEditingController();
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('New Category'),
         content: TextField(
           controller: ctrl,
@@ -148,38 +190,53 @@ class _ServicesScreenState extends State<ServicesScreen> {
             labelText: 'Category name',
             hintText: 'e.g. Design, Food, Consulting',
           ),
-          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel')),
           FilledButton(
-              onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
               child: const Text('Next: Add Item')),
         ],
       ),
     );
-    if (name != null && name.isNotEmpty) {
-      await _add(presetCategory: name);
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.dispose());
+    if (!mounted || name == null || name.isEmpty) return;
+    await _add(presetCategory: name);
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    final profile = context.watch<AppProvider>().profile;
-    if (!_initialized) _init(profile);
+    final provider = context.watch<AppProvider>();
+    final profile = provider.profile;
+    if (!_initialized) _init(profile, provider.serviceItems);
 
-    final grouped = _grouped();
-    final namedCats = _sortedCategories();
+    final items = provider.serviceItems;
+    final grouped = _grouped(items);
+    final namedCats = _sortedCategories(items);
     final uncategorized = grouped[''] ?? [];
+
+    final query = _search.trim().toLowerCase();
+    final matches =
+        query.isEmpty ? <ServiceItem>[] : items.where((s) => _matchesQuery(s, query)).toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Text('${_itemLabel}s & Services'),
         actions: [
+          IconButton(
+            tooltip: 'Import from CSV',
+            icon: const Icon(Icons.upload_file_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ImportInventoryScreen()),
+            ),
+          ),
           TextButton.icon(
             onPressed: _promptAddCategory,
             icon: const Icon(Icons.create_new_folder_outlined, size: 18),
@@ -201,59 +258,151 @@ class _ServicesScreenState extends State<ServicesScreen> {
           const SizedBox(height: 20),
 
           // ── Empty state ─────────────────────────────────────────────────
-          if (_items.isEmpty) _emptyState(),
+          if (items.isEmpty) _emptyState(),
 
-          // ── Named categories ────────────────────────────────────────────
-          for (final cat in namedCats) ...[
-            _CategorySection(
-              categoryName: cat,
-              color: _catColor(cat, namedCats),
-              items: grouped[cat] ?? [],
-              itemLabel: _itemLabel,
-              collapsed: _collapsed.contains(cat),
-              onToggle: () => setState(() {
-                if (_collapsed.contains(cat)) {
-                  _collapsed.remove(cat);
-                } else {
-                  _collapsed.add(cat);
-                }
-              }),
-              onAdd: () => _add(presetCategory: cat),
-              onEdit: _edit,
-              onDelete: (s) async {
-                setState(() => _items.remove(s));
-                await _save();
-              },
-            ),
-            const SizedBox(height: 12),
-          ],
+          if (items.isNotEmpty) ...[
+            // ── Search ───────────────────────────────────────────────────
+            _searchField(),
+            const SizedBox(height: 16),
 
-          // ── Uncategorized ───────────────────────────────────────────────
-          if (uncategorized.isNotEmpty) ...[
-            _CategorySection(
-              categoryName: _kUncategorized,
-              color: AppTheme.subtext(context),
-              items: uncategorized,
-              itemLabel: _itemLabel,
-              collapsed: _collapsed.contains(_kUncategorized),
-              onToggle: () => setState(() {
-                if (_collapsed.contains(_kUncategorized)) {
-                  _collapsed.remove(_kUncategorized);
-                } else {
-                  _collapsed.add(_kUncategorized);
-                }
-              }),
-              onAdd: () => _add(),
-              onEdit: _edit,
-              onDelete: (s) async {
-                setState(() => _items.remove(s));
-                await _save();
-              },
-            ),
-            const SizedBox(height: 12),
+            if (query.isNotEmpty) ...[
+              // ── Search results ────────────────────────────────────────
+              if (matches.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      'No ${_itemLabel.toLowerCase()}s match "$query".',
+                      style: TextStyle(
+                          fontSize: 13, color: AppTheme.subtext(context)),
+                    ),
+                  ),
+                )
+              else if (matches.length > _kSearchVirtualizeThreshold)
+                // shrinkWrap would force every match to be laid out up front —
+                // for a large catalog a broad query can match hundreds of
+                // items, so give this list a bounded height and a real
+                // viewport that only builds the visible tiles.
+                Container(
+                  height: 400,
+                  decoration: BoxDecoration(
+                    color: AppTheme.card(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.outline(context)),
+                  ),
+                  child: ListView.separated(
+                    itemCount: matches.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) => _searchResultTile(matches[i]),
+                  ),
+                )
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppTheme.card(context),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.outline(context)),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: matches.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) => _searchResultTile(matches[i]),
+                  ),
+                ),
+            ] else ...[
+              // ── Named categories ──────────────────────────────────────
+              for (final cat in namedCats) ...[
+                _CategorySection(
+                  categoryName: cat,
+                  color: _catColor(cat, namedCats),
+                  items: grouped[cat] ?? [],
+                  itemLabel: _itemLabel,
+                  collapsed: _collapsed.contains(cat),
+                  onToggle: () => setState(() {
+                    if (_collapsed.contains(cat)) {
+                      _collapsed.remove(cat);
+                    } else {
+                      _collapsed.add(cat);
+                    }
+                  }),
+                  onAdd: () => _add(presetCategory: cat),
+                  onEdit: _edit,
+                  onDelete: (s) async {
+                    await context.read<AppProvider>().deleteServiceItem(s.id);
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── Uncategorized ─────────────────────────────────────────
+              if (uncategorized.isNotEmpty) ...[
+                _CategorySection(
+                  categoryName: _kUncategorized,
+                  color: AppTheme.subtext(context),
+                  items: uncategorized,
+                  itemLabel: _itemLabel,
+                  collapsed: _collapsed.contains(_kUncategorized),
+                  onToggle: () => setState(() {
+                    if (_collapsed.contains(_kUncategorized)) {
+                      _collapsed.remove(_kUncategorized);
+                    } else {
+                      _collapsed.add(_kUncategorized);
+                    }
+                  }),
+                  onAdd: () => _add(),
+                  onEdit: _edit,
+                  onDelete: (s) async {
+                    await context.read<AppProvider>().deleteServiceItem(s.id);
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
           ],
         ],
       ),
+    );
+  }
+
+  Widget _searchField() {
+    return TextField(
+      controller: _searchCtrl,
+      onChanged: (v) => setState(() => _search = v),
+      decoration: InputDecoration(
+        hintText: 'Search ${_itemLabel.toLowerCase()}s…',
+        prefixIcon: Icon(Icons.search_rounded,
+            size: 20, color: AppTheme.subtext(context)),
+        suffixIcon: _search.isEmpty
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => setState(() {
+                  _search = '';
+                  _searchCtrl.clear();
+                }),
+              ),
+        filled: true,
+        fillColor: AppTheme.inputFill(context),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 0),
+      ),
+    );
+  }
+
+  Widget _searchResultTile(ServiceItem item) {
+    return _ItemTile(
+      item: item,
+      categoryLabel:
+          item.category?.trim().isNotEmpty == true ? item.category : _kUncategorized,
+      onEdit: () => _edit(item),
+      onDelete: () async {
+        await context.read<AppProvider>().deleteServiceItem(item.id);
+      },
     );
   }
 
@@ -332,6 +481,10 @@ class _ServicesScreenState extends State<ServicesScreen> {
 // ─── Category Section widget ───────────────────────────────────────────────
 
 class _CategorySection extends StatelessWidget {
+  // Above this many items, the item list switches to a bounded-height,
+  // truly virtualized ListView instead of a shrinkWrap one.
+  static const _kVirtualizeThreshold = 20;
+
   final String categoryName;
   final Color color;
   final List<ServiceItem> items;
@@ -462,6 +615,23 @@ class _CategorySection extends StatelessWidget {
                   ),
                 ),
               )
+            else if (items.length > _CategorySection._kVirtualizeThreshold)
+              // shrinkWrap forces every child to be laid out up front, so for
+              // large categories that builds hundreds of tiles in one frame.
+              // Give this list a bounded height so it gets a real viewport
+              // and only builds the tiles that are actually visible.
+              SizedBox(
+                height: 400,
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (_, i) => _ItemTile(
+                    item: items[i],
+                    onEdit: () => onEdit(items[i]),
+                    onDelete: () => onDelete(items[i]),
+                  ),
+                ),
+              )
             else
               ListView.separated(
                 shrinkWrap: true,
@@ -485,19 +655,25 @@ class _CategorySection extends StatelessWidget {
 
 class _ItemTile extends StatelessWidget {
   final ServiceItem item;
+  final String? categoryLabel;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   const _ItemTile(
-      {required this.item, required this.onEdit, required this.onDelete});
+      {required this.item,
+      this.categoryLabel,
+      required this.onEdit,
+      required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
     final parts = <String>[
       if (item.description != null && item.description!.isNotEmpty)
         item.description!,
-      if (item.rate > 0) '₹${item.rate.toStringAsFixed(0)}',
-      if (item.unit != null && item.unit!.isNotEmpty) item.unit!,
+      if (!item.hasVariants && item.rate > 0)
+        '₹${item.rate.toStringAsFixed(0)}',
+      if (!item.hasVariants && item.unit != null && item.unit!.isNotEmpty)
+        item.unit!,
       if (item.taxPercent > 0)
         '${item.taxPercent.toStringAsFixed(0)}% tax',
     ];
@@ -505,8 +681,13 @@ class _ItemTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 18,
         backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-        child: const Icon(Icons.receipt_long_outlined,
-            size: 15, color: AppTheme.primary),
+        child: Icon(
+          item.hasVariants
+              ? Icons.layers_outlined
+              : Icons.receipt_long_outlined,
+          size: 15,
+          color: AppTheme.primary,
+        ),
       ),
       title: Text(item.name,
           style: const TextStyle(
@@ -515,7 +696,24 @@ class _ItemTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (parts.isNotEmpty)
+          if (categoryLabel != null) ...[
+            Text(categoryLabel!,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary)),
+            const SizedBox(height: 2),
+          ],
+          if (item.hasVariants) ...[
+            Text(
+              '${item.variants.length} variant${item.variants.length == 1 ? '' : 's'}'
+              ' · from ₹${item.lowestVariantRate.toStringAsFixed(0)}',
+              style: TextStyle(
+                  fontSize: 11, color: AppTheme.subtext(context)),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ] else if (parts.isNotEmpty)
             Text(
               parts.join(' · '),
               style: TextStyle(
@@ -523,7 +721,7 @@ class _ItemTile extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          if (item.isTrackingStock) ...[
+          if (!item.hasVariants && item.isTrackingStock) ...[
             const SizedBox(height: 4),
             _StockBadge(item: item),
           ],
@@ -562,7 +760,7 @@ class _StockBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isLow = item.isLowStock;
-    final qty = item.quantityOnHand!;
+    final qty = item.totalStock;
     final bgColor = isLow
         ? AppTheme.error.withValues(alpha: 0.12)
         : AppTheme.textSecondary.withValues(alpha: 0.1);
@@ -625,22 +823,32 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
   late TextEditingController _nameCtrl;
   late TextEditingController _descCtrl;
   late TextEditingController _rateCtrl;
+  late TextEditingController _costPriceCtrl;
   late TextEditingController _taxCtrl;
   late TextEditingController _unitCtrl;
   late TextEditingController _categoryCtrl;
   late TextEditingController _qtyCtrl;
   late TextEditingController _thresholdCtrl;
+  late TextEditingController _barcodeCtrl;
   bool _trackStock = false;
+  bool _hasVariants = false;
+  List<_VariantRowData> _variantRows = [];
+  String? _stockShopId;
   final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     final s = widget.existing;
+    _stockShopId = context.read<AppProvider>().currentShopId;
     _nameCtrl = TextEditingController(text: s?.name ?? '');
     _descCtrl = TextEditingController(text: s?.description ?? '');
     _rateCtrl = TextEditingController(
-        text: s != null && s.rate > 0 ? s.rate.toString() : '');
+        text: s != null && !s.hasVariants && s.rate > 0
+            ? s.rate.toString()
+            : '');
+    _costPriceCtrl = TextEditingController(
+        text: s?.costPrice != null ? s!.costPrice.toString() : '');
     _taxCtrl = TextEditingController(
         text: s != null
             ? s.taxPercent.toString()
@@ -648,11 +856,54 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
     _unitCtrl = TextEditingController(text: s?.unit ?? '');
     _categoryCtrl = TextEditingController(
         text: s?.category ?? widget.presetCategory ?? '');
-    _trackStock = s?.isTrackingStock ?? false;
+    _trackStock = (s?.isTrackingStock ?? false) && !(s?.hasVariants ?? false);
     _qtyCtrl = TextEditingController(
-        text: s?.quantityOnHand?.toString() ?? '');
+        text: s?.stockByShop[_stockShopId]?.toString() ?? '');
     _thresholdCtrl = TextEditingController(
         text: s?.lowStockThreshold?.toString() ?? '');
+    _barcodeCtrl = TextEditingController(text: s?.barcode ?? '');
+    _hasVariants = s?.hasVariants ?? false;
+    _variantRows = s?.variants
+            .map((v) => _VariantRowData.fromVariant(v, _stockShopId))
+            .toList() ??
+        [];
+    if (_hasVariants && _variantRows.isEmpty) {
+      _variantRows.add(_VariantRowData.empty());
+    }
+  }
+
+  /// Re-reads the qty controllers for the newly selected stock location.
+  void _onStockShopChanged(String? shopId) {
+    setState(() {
+      _stockShopId = shopId;
+      final s = widget.existing;
+      _qtyCtrl.text = s?.stockByShop[shopId]?.toString() ?? '';
+      for (final row in _variantRows) {
+        row.qtyCtrl.text =
+            row.existingStockByShop[shopId]?.toString() ?? '';
+      }
+    });
+  }
+
+  /// Dropdown for choosing which shop's stock level is being edited.
+  /// Hidden when the business only has a single shop.
+  Widget _buildStockShopPicker() {
+    final shops = context.watch<AppProvider>().allShops;
+    if (shops.length <= 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DropdownButtonFormField<String>(
+        initialValue: _stockShopId,
+        decoration: const InputDecoration(labelText: 'Stock Location'),
+        items: shops
+            .map((s) => DropdownMenuItem(
+                  value: s.shopId,
+                  child: Text(s.shopName),
+                ))
+            .toList(),
+        onChanged: _onStockShopChanged,
+      ),
+    );
   }
 
   @override
@@ -661,15 +912,49 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
       _nameCtrl,
       _descCtrl,
       _rateCtrl,
+      _costPriceCtrl,
       _taxCtrl,
       _unitCtrl,
       _categoryCtrl,
       _qtyCtrl,
       _thresholdCtrl,
+      _barcodeCtrl,
     ]) {
       c.dispose();
     }
+    for (final r in _variantRows) {
+      r.dispose();
+    }
     super.dispose();
+  }
+
+  void _toggleVariants(bool on) {
+    setState(() {
+      _hasVariants = on;
+      if (on) {
+        // Pre-fill first variant with existing rate if set
+        if (_variantRows.isEmpty) {
+          final seed = _VariantRowData.empty();
+          if (_rateCtrl.text.isNotEmpty) {
+            seed.rateCtrl.text = _rateCtrl.text;
+          }
+          _variantRows.add(seed);
+        }
+        // Clear flat rate / stock (per-variant takes over)
+        _trackStock = false;
+      }
+    });
+  }
+
+  void _addVariantRow() {
+    setState(() => _variantRows.add(_VariantRowData.empty()));
+  }
+
+  void _removeVariantRow(int i) {
+    if (_variantRows.length <= 1) return;
+    final row = _variantRows.removeAt(i);
+    row.dispose();
+    setState(() {});
   }
 
   void _submit() {
@@ -677,6 +962,44 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
     final id = widget.existing?.id ??
         DateTime.now().millisecondsSinceEpoch.toString();
     final cat = _categoryCtrl.text.trim();
+
+    List<ProductVariant>? variants;
+    if (_hasVariants) {
+      variants = _variantRows
+          .where((r) => r.nameCtrl.text.trim().isNotEmpty)
+          .map((r) {
+            final bc = r.barcodeCtrl.text.trim();
+            final newStockByShop = Map<String, double>.from(r.existingStockByShop);
+            if (r.trackStock && _stockShopId != null) {
+              newStockByShop[_stockShopId!] = double.tryParse(r.qtyCtrl.text) ?? 0;
+            } else if (!r.trackStock) {
+              newStockByShop.clear();
+            }
+            return ProductVariant(
+              id: r.id,
+              name: r.nameCtrl.text.trim(),
+              rate: double.tryParse(r.rateCtrl.text) ?? 0,
+              costPrice: double.tryParse(r.costPriceCtrl.text.trim()),
+              barcode: bc.isEmpty ? null : bc,
+              trackStock: r.trackStock,
+              stockByShop: newStockByShop,
+              lowStockThreshold: r.trackStock
+                  ? double.tryParse(r.thresholdCtrl.text)
+                  : null,
+            );
+          })
+          .toList();
+    }
+
+    final newStockByShop =
+        Map<String, double>.from(widget.existing?.stockByShop ?? {});
+    if (!_hasVariants && _trackStock && _stockShopId != null) {
+      newStockByShop[_stockShopId!] = double.tryParse(_qtyCtrl.text) ?? 0;
+    } else if (!_trackStock) {
+      newStockByShop.clear();
+    }
+
+    final barcode = _barcodeCtrl.text.trim();
     Navigator.pop(
       context,
       ServiceItem(
@@ -685,16 +1008,20 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
         description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
-        rate: double.tryParse(_rateCtrl.text) ?? 0,
+        rate: _hasVariants ? 0 : (double.tryParse(_rateCtrl.text) ?? 0),
+        costPrice: _hasVariants
+            ? null
+            : double.tryParse(_costPriceCtrl.text.trim()),
         taxPercent: double.tryParse(_taxCtrl.text) ?? 0,
-        unit:
-            _unitCtrl.text.trim().isEmpty ? null : _unitCtrl.text.trim(),
+        unit: _unitCtrl.text.trim().isEmpty ? null : _unitCtrl.text.trim(),
         category: cat.isEmpty ? null : cat,
-        quantityOnHand:
-            _trackStock ? double.tryParse(_qtyCtrl.text) : null,
-        lowStockThreshold: _trackStock
+        barcode: barcode.isEmpty ? null : barcode,
+        trackStock: !_hasVariants && _trackStock,
+        stockByShop: newStockByShop,
+        lowStockThreshold: (!_hasVariants && _trackStock)
             ? double.tryParse(_thresholdCtrl.text)
             : null,
+        variants: variants,
       ),
     );
   }
@@ -790,6 +1117,28 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
             ),
             const SizedBox(height: 12),
 
+            // ── Barcode ───────────────────────────────────────────────
+            TextFormField(
+              controller: _barcodeCtrl,
+              decoration: InputDecoration(
+                labelText: 'Barcode / SKU',
+                hintText: 'Scan or type barcode',
+                prefixIcon: const Icon(Icons.qr_code, size: 18),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.document_scanner_outlined, size: 20),
+                  tooltip: 'Scan with camera',
+                  onPressed: () async {
+                    final value = await scanBarcode(context,
+                        title: 'Scan Product Barcode');
+                    if (value != null && mounted) {
+                      setState(() => _barcodeCtrl.text = value);
+                    }
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
             // Category autocomplete
             Autocomplete<String>(
               initialValue: TextEditingValue(text: _categoryCtrl.text),
@@ -854,45 +1203,7 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
             ),
             const SizedBox(height: 12),
 
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextFormField(
-                    controller: _rateCtrl,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Default Rate', hintText: '0'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _unitCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Unit', hintText: 'hrs, pcs…'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _taxCtrl,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                  labelText: 'Tax %', suffixText: '%'),
-              validator: (v) {
-                if (v == null || v.isEmpty) return null;
-                final n = double.tryParse(v);
-                if (n == null || n < 0 || n > 100) return '0–100';
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-
-            // ── Inventory / Stock tracking ────────────────────────────
+            // ── Packaging variants toggle ────────────────────────────
             Container(
               decoration: BoxDecoration(
                 color: AppTheme.surface,
@@ -900,48 +1211,166 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
                 border: Border.all(color: AppTheme.outline(context)),
               ),
               child: SwitchListTile(
-                title: const Text('Track Stock / Inventory',
+                title: const Text('Has Packaging Variants',
                     style: TextStyle(
                         fontSize: 14, fontWeight: FontWeight.w600)),
                 subtitle: const Text(
-                    'Monitor quantity on hand for this item',
+                    'e.g. 180ml, 360ml, 500ml — each with its own price',
                     style: TextStyle(fontSize: 11)),
-                value: _trackStock,
+                value: _hasVariants,
                 activeThumbColor: AppTheme.primary,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12),
-                onChanged: (v) => setState(() => _trackStock = v),
+                onChanged: _toggleVariants,
               ),
             ),
-            if (_trackStock) ...[
-              const SizedBox(height: 12),
+            const SizedBox(height: 12),
+
+            if (!_hasVariants) ...[
+              // ── Selling price + unit ──────────────────────────────
               Row(
                 children: [
                   Expanded(
+                    flex: 2,
                     child: TextFormField(
-                      controller: _qtyCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      controller: _rateCtrl,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
                       decoration: const InputDecoration(
-                        labelText: 'Quantity on Hand',
-                        hintText: '0',
-                      ),
+                          labelText: 'Selling Price', hintText: '0'),
+                      onChanged: (_) => setState(() {}),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: TextFormField(
-                      controller: _thresholdCtrl,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
+                      controller: _unitCtrl,
                       decoration: const InputDecoration(
-                        labelText: 'Low Stock Alert Threshold',
-                        hintText: 'e.g. 5',
-                      ),
+                          labelText: 'Unit', hintText: 'hrs, pcs…'),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              // ── Cost price ────────────────────────────────────────
+              _CostPriceField(
+                costCtrl: _costPriceCtrl,
+                sellingPrice: double.tryParse(_rateCtrl.text.trim()),
+                onChanged: () => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _taxCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'Tax %', suffixText: '%'),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return null;
+                  final n = double.tryParse(v);
+                  if (n == null || n < 0 || n > 100) return '0–100';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              // ── Stock tracking ────────────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.outline(context)),
+                ),
+                child: SwitchListTile(
+                  title: const Text('Track Stock / Inventory',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: const Text(
+                      'Monitor quantity on hand for this item',
+                      style: TextStyle(fontSize: 11)),
+                  value: _trackStock,
+                  activeThumbColor: AppTheme.primary,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12),
+                  onChanged: (v) => setState(() => _trackStock = v),
+                ),
+              ),
+              if (_trackStock) ...[
+                const SizedBox(height: 12),
+                _buildStockShopPicker(),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _qtyCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Quantity on Hand',
+                          hintText: '0',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _thresholdCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Low Stock Alert Threshold',
+                          hintText: 'e.g. 5',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ] else ...[
+              // ── Variant rows ──────────────────────────────────────
+              TextFormField(
+                controller: _taxCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                    labelText: 'Tax % (applied to all variants)',
+                    suffixText: '%'),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return null;
+                  final n = double.tryParse(v);
+                  if (n == null || n < 0 || n > 100) return '0–100';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              _buildStockShopPicker(),
+              Row(
+                children: [
+                  const Text('Variants',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _addVariantRow,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Add'),
+                    style: TextButton.styleFrom(
+                        foregroundColor: AppTheme.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ..._variantRows.asMap().entries.map((entry) {
+                final i = entry.key;
+                final row = entry.value;
+                return _VariantRowWidget(
+                  key: ValueKey(row.id),
+                  row: row,
+                  index: i,
+                  canRemove: _variantRows.length > 1,
+                  onRemove: () => _removeVariantRow(i),
+                  onChanged: () => setState(() {}),
+                );
+              }),
             ],
             const SizedBox(height: 20),
             ElevatedButton(
@@ -955,6 +1384,295 @@ class _ServiceItemFormState extends State<_ServiceItemForm> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── Variant row data holder ──────────────────────────────────────────────────
+
+class _VariantRowData {
+  final String id;
+  final TextEditingController nameCtrl;
+  final TextEditingController rateCtrl;
+  final TextEditingController costPriceCtrl;
+  final TextEditingController barcodeCtrl;
+  final TextEditingController qtyCtrl;
+  final TextEditingController thresholdCtrl;
+  bool trackStock;
+  Map<String, double> existingStockByShop;
+
+  _VariantRowData({
+    required this.id,
+    required this.nameCtrl,
+    required this.rateCtrl,
+    required this.costPriceCtrl,
+    required this.barcodeCtrl,
+    required this.qtyCtrl,
+    required this.thresholdCtrl,
+    this.trackStock = false,
+    Map<String, double>? existingStockByShop,
+  }) : existingStockByShop = existingStockByShop ?? {};
+
+  factory _VariantRowData.empty() => _VariantRowData(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        nameCtrl: TextEditingController(),
+        rateCtrl: TextEditingController(),
+        costPriceCtrl: TextEditingController(),
+        barcodeCtrl: TextEditingController(),
+        qtyCtrl: TextEditingController(),
+        thresholdCtrl: TextEditingController(),
+      );
+
+  factory _VariantRowData.fromVariant(ProductVariant v, String? stockShopId) =>
+      _VariantRowData(
+        id: v.id,
+        nameCtrl: TextEditingController(text: v.name),
+        rateCtrl: TextEditingController(
+            text: v.rate > 0 ? v.rate.toString() : ''),
+        costPriceCtrl: TextEditingController(
+            text: v.costPrice != null ? v.costPrice.toString() : ''),
+        barcodeCtrl: TextEditingController(text: v.barcode ?? ''),
+        qtyCtrl: TextEditingController(
+            text: v.stockByShop[stockShopId]?.toString() ?? ''),
+        thresholdCtrl: TextEditingController(
+            text: v.lowStockThreshold?.toString() ?? ''),
+        trackStock: v.isTrackingStock,
+        existingStockByShop: Map.of(v.stockByShop),
+      );
+
+  void dispose() {
+    nameCtrl.dispose();
+    rateCtrl.dispose();
+    costPriceCtrl.dispose();
+    barcodeCtrl.dispose();
+    qtyCtrl.dispose();
+    thresholdCtrl.dispose();
+  }
+}
+
+// ─── Variant row widget ───────────────────────────────────────────────────────
+
+class _VariantRowWidget extends StatefulWidget {
+  final _VariantRowData row;
+  final int index;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final VoidCallback onChanged;
+
+  const _VariantRowWidget({
+    super.key,
+    required this.row,
+    required this.index,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onChanged,
+  });
+
+  @override
+  State<_VariantRowWidget> createState() => _VariantRowWidgetState();
+}
+
+class _VariantRowWidgetState extends State<_VariantRowWidget> {
+  @override
+  Widget build(BuildContext context) {
+    final row = widget.row;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.outline(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Variant ${widget.index + 1}',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.primary),
+              ),
+              const Spacer(),
+              if (widget.canRemove)
+                IconButton(
+                  icon: const Icon(Icons.remove_circle_outline,
+                      size: 18, color: Colors.red),
+                  onPressed: widget.onRemove,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: row.nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Size / Name',
+                    hintText: 'e.g. 180ml',
+                  ),
+                  textCapitalization: TextCapitalization.words,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Required' : null,
+                  onChanged: (_) => widget.onChanged(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: row.rateCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Selling Price',
+                    hintText: '0',
+                  ),
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) return 'Required';
+                    if (double.tryParse(v) == null) return 'Invalid';
+                    return null;
+                  },
+                  onChanged: (_) => widget.onChanged(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _CostPriceField(
+            costCtrl: row.costPriceCtrl,
+            sellingPrice: double.tryParse(row.rateCtrl.text.trim()),
+            onChanged: () => setState(() {}),
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: row.barcodeCtrl,
+            decoration: InputDecoration(
+              labelText: 'Barcode (optional)',
+              hintText: 'Scan or type',
+              isDense: true,
+              prefixIcon: const Icon(Icons.qr_code, size: 16),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.document_scanner_outlined, size: 18),
+                padding: EdgeInsets.zero,
+                tooltip: 'Scan',
+                onPressed: () async {
+                  final value =
+                      await scanBarcode(context, title: 'Scan Variant Barcode');
+                  if (value != null && mounted) {
+                    setState(() => row.barcodeCtrl.text = value);
+                    widget.onChanged();
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Track Stock',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            value: row.trackStock,
+            activeThumbColor: AppTheme.primary,
+            onChanged: (v) => setState(() {
+              row.trackStock = v;
+              widget.onChanged();
+            }),
+          ),
+          if (row.trackStock) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: row.qtyCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Qty on Hand',
+                      hintText: '0',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: row.thresholdCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Low Alert',
+                      hintText: 'e.g. 5',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Cost price field with live margin hint ───────────────────────────────────
+
+class _CostPriceField extends StatelessWidget {
+  final TextEditingController costCtrl;
+  final double? sellingPrice;
+  final VoidCallback onChanged;
+
+  const _CostPriceField({
+    required this.costCtrl,
+    required this.sellingPrice,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cost = double.tryParse(costCtrl.text.trim());
+    final sp = sellingPrice;
+    String? hint;
+    Color hintColor = AppTheme.success;
+    if (cost != null && sp != null && sp > 0) {
+      final margin = sp - cost;
+      final pct = (margin / sp * 100).toStringAsFixed(1);
+      if (margin >= 0) {
+        hint = 'Margin ₹${margin.toStringAsFixed(0)}  ($pct%)';
+        hintColor = AppTheme.success;
+      } else {
+        hint = 'Loss ₹${margin.abs().toStringAsFixed(0)}  ($pct%)';
+        hintColor = AppTheme.error;
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: costCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Cost Price (optional)',
+            hintText: 'Purchase / landed cost',
+          ),
+          onChanged: (_) => onChanged(),
+        ),
+        if (hint != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            hint,
+            style: TextStyle(fontSize: 11, color: hintColor, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ],
     );
   }
 }

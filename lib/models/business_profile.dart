@@ -26,6 +26,11 @@ const kHeaderWebsite = 'website';
 
 enum VerificationStatus { unverified, pending, verified, rejected }
 
+/// Controls which set of features are shown in the app's navigation.
+/// - [invoiceBased]: full invoice workflow (default)
+/// - [stockBased]: daily stock-sales entry + cash/bank reconciliation
+enum BusinessMode { invoiceBased, stockBased }
+
 enum BusinessType {
   restaurant,
   grocery,
@@ -100,7 +105,6 @@ class BusinessProfile {
   bool showQuantity;
   String itemLabel;
   List<PaymentMethod> paymentMethods;
-  List<ServiceItem> serviceItems;
   VerificationStatus verificationStatus;
   String? verificationNotes;
   String? verificationSubmittedAt;
@@ -127,6 +131,43 @@ class BusinessProfile {
   /// Extra registration / compliance fields shown on every invoice
   /// (e.g. PAN Number, FSSAI Licence, MSME Reg., Trade Licence).
   List<CustomField> businessInfoFields;
+
+  // ── Credit limit ──────────────────────────────────────────────────────────
+  /// Global default credit limit applied to clients that have no individual
+  /// limit set. null means no default (no enforcement unless client has one).
+  double? defaultCreditLimit;
+
+  // ── Approval workflow ──────────────────────────────────────────────────────
+  /// When true, invoices must be approved by a manager before being sent.
+  bool approvalWorkflowEnabled;
+
+  // ── Late payment penalty ───────────────────────────────────────────────────
+  /// When true, a penalty is auto-calculated on overdue invoices.
+  bool lateFeeEnabled;
+  /// Monthly interest rate applied after [gracePeriodDays]. Default: 2 % / month.
+  double lateFeePercent;
+  /// Days after due date before the penalty clock starts. Default: 0.
+  int gracePeriodDays;
+
+  /// Whether this business operates in invoice-based or stock-based mode.
+  BusinessMode businessMode;
+
+  /// When false, employees cannot change the unit price of line items
+  /// while creating or editing invoices. The rate field becomes read-only.
+  bool allowEmployeePriceChange;
+
+  /// Limits how many days of past Daily Sales entries an employee can view.
+  /// null means employees can see the full history (no limit).
+  int? employeeDailySalesVisibilityDays;
+
+  /// Per-shop list of payment method ids shown in Daily Sales "Money Received".
+  /// Keyed by shopId. If a shop has no entry the full [allPaymentMethods] list is shown.
+  Map<String, List<String>> shopPaymentMethodIds;
+
+  // ── Low-stock alerts ────────────────────────────────────────────────────────
+  /// When true, a push notification fires the first time any tracked item
+  /// drops to or below its [ServiceItem.lowStockThreshold].
+  bool lowStockAlertsEnabled;
 
   BusinessProfile({
     this.name = '',
@@ -155,7 +196,6 @@ class BusinessProfile {
     this.showQuantity = true,
     this.itemLabel = 'Item',
     List<PaymentMethod>? paymentMethods,
-    List<ServiceItem>? serviceItems,
     this.verificationStatus = VerificationStatus.unverified,
     this.verificationNotes,
     this.verificationSubmittedAt,
@@ -175,10 +215,20 @@ class BusinessProfile {
     this.businessType,
     this.professionTitle,
     List<CustomField>? businessInfoFields,
+    this.defaultCreditLimit,
+    this.approvalWorkflowEnabled = false,
+    this.lateFeeEnabled = false,
+    this.lateFeePercent = 2.0,
+    this.gracePeriodDays = 0,
+    this.businessMode = BusinessMode.invoiceBased,
+    this.allowEmployeePriceChange = true,
+    this.employeeDailySalesVisibilityDays,
+    Map<String, List<String>>? shopPaymentMethodIds,
+    this.lowStockAlertsEnabled = true,
   })  : headerFields = headerFields ?? {kHeaderLogo, kHeaderName, kHeaderAddress},
         paymentMethods = paymentMethods ?? [],
-        serviceItems = serviceItems ?? [],
-        businessInfoFields = businessInfoFields ?? [];
+        businessInfoFields = businessInfoFields ?? [],
+        shopPaymentMethodIds = shopPaymentMethodIds ?? {};
 
   BusinessProfile copyWith({
     String? name,
@@ -207,7 +257,6 @@ class BusinessProfile {
     bool? showQuantity,
     String? itemLabel,
     List<PaymentMethod>? paymentMethods,
-    List<ServiceItem>? serviceItems,
     VerificationStatus? verificationStatus,
     Object? verificationNotes = _sentinel,
     Object? verificationSubmittedAt = _sentinel,
@@ -227,6 +276,16 @@ class BusinessProfile {
     Object? businessType = _sentinel,
     Object? professionTitle = _sentinel,
     List<CustomField>? businessInfoFields,
+    Object? defaultCreditLimit = _sentinel,
+    bool? lateFeeEnabled,
+    double? lateFeePercent,
+    int? gracePeriodDays,
+    bool? approvalWorkflowEnabled,
+    BusinessMode? businessMode,
+    bool? allowEmployeePriceChange,
+    Object? employeeDailySalesVisibilityDays = _sentinel,
+    Map<String, List<String>>? shopPaymentMethodIds,
+    bool? lowStockAlertsEnabled,
   }) =>
       BusinessProfile(
         name: name ?? this.name,
@@ -255,7 +314,6 @@ class BusinessProfile {
         showQuantity: showQuantity ?? this.showQuantity,
         itemLabel: itemLabel ?? this.itemLabel,
         paymentMethods: paymentMethods ?? this.paymentMethods,
-        serviceItems: serviceItems ?? this.serviceItems,
         verificationStatus: verificationStatus ?? this.verificationStatus,
         verificationNotes: verificationNotes == _sentinel ? this.verificationNotes : verificationNotes as String?,
         verificationSubmittedAt: verificationSubmittedAt == _sentinel ? this.verificationSubmittedAt : verificationSubmittedAt as String?,
@@ -275,6 +333,18 @@ class BusinessProfile {
         businessType: businessType == _sentinel ? this.businessType : businessType as BusinessType?,
         professionTitle: professionTitle == _sentinel ? this.professionTitle : professionTitle as String?,
         businessInfoFields: businessInfoFields ?? this.businessInfoFields,
+        defaultCreditLimit: defaultCreditLimit == _sentinel ? this.defaultCreditLimit : defaultCreditLimit as double?,
+        lateFeeEnabled: lateFeeEnabled ?? this.lateFeeEnabled,
+        lateFeePercent: lateFeePercent ?? this.lateFeePercent,
+        gracePeriodDays: gracePeriodDays ?? this.gracePeriodDays,
+        approvalWorkflowEnabled: approvalWorkflowEnabled ?? this.approvalWorkflowEnabled,
+        businessMode: businessMode ?? this.businessMode,
+        allowEmployeePriceChange: allowEmployeePriceChange ?? this.allowEmployeePriceChange,
+        employeeDailySalesVisibilityDays: employeeDailySalesVisibilityDays == _sentinel
+            ? this.employeeDailySalesVisibilityDays
+            : employeeDailySalesVisibilityDays as int?,
+        shopPaymentMethodIds: shopPaymentMethodIds ?? this.shopPaymentMethodIds,
+        lowStockAlertsEnabled: lowStockAlertsEnabled ?? this.lowStockAlertsEnabled,
       );
 
   List<PaymentMethod> get allPaymentMethods {
@@ -299,6 +369,21 @@ class BusinessProfile {
       ],
     ];
     return [...builtIns, ...paymentMethods];
+  }
+
+  /// Returns the payment methods to display for a given shop's Daily Sales entry.
+  /// Falls back to all [allPaymentMethods] when no per-shop config is set.
+  List<PaymentMethod> paymentMethodsForShop(String shopId) {
+    final ids = shopPaymentMethodIds[shopId];
+    final all = allPaymentMethods;
+    if (ids == null || ids.isEmpty) return all;
+    return ids
+        .map((id) => all.cast<PaymentMethod?>().firstWhere(
+              (m) => m?.id == id,
+              orElse: () => null,
+            ))
+        .whereType<PaymentMethod>()
+        .toList();
   }
 
   bool get isGstRegistered => gstin != null && gstin!.isNotEmpty;
@@ -333,7 +418,6 @@ class BusinessProfile {
         'showQuantity': showQuantity,
         'itemLabel': itemLabel,
         'paymentMethods': paymentMethods.map((m) => m.toJson()).toList(),
-        'serviceItems': serviceItems.map((s) => s.toJson()).toList(),
         'verificationStatus': verificationStatus.name,
         'verificationNotes': verificationNotes,
         'verificationSubmittedAt': verificationSubmittedAt,
@@ -353,6 +437,17 @@ class BusinessProfile {
         'businessType': businessType?.name,
         'professionTitle': professionTitle,
         'businessInfoFields': businessInfoFields.map((f) => f.toJson()).toList(),
+        'lateFeeEnabled': lateFeeEnabled,
+        'lateFeePercent': lateFeePercent,
+        'gracePeriodDays': gracePeriodDays,
+        'defaultCreditLimit': defaultCreditLimit,
+        'approvalWorkflowEnabled': approvalWorkflowEnabled,
+        'businessMode': businessMode.name,
+        'allowEmployeePriceChange': allowEmployeePriceChange,
+        'employeeDailySalesVisibilityDays': employeeDailySalesVisibilityDays,
+        'shopPaymentMethodIds': shopPaymentMethodIds.map(
+            (k, v) => MapEntry(k, v)),
+        'lowStockAlertsEnabled': lowStockAlertsEnabled,
       };
 
   factory BusinessProfile.fromJson(Map<String, dynamic> json) =>
@@ -387,10 +482,6 @@ class BusinessProfile {
         itemLabel: json['itemLabel'] as String? ?? 'Item',
         paymentMethods: (json['paymentMethods'] as List<dynamic>?)
                 ?.map((e) => PaymentMethod.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
-        serviceItems: (json['serviceItems'] as List<dynamic>?)
-                ?.map((e) => ServiceItem.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
         verificationStatus: VerificationStatus.values.firstWhere(
@@ -430,7 +521,33 @@ class BusinessProfile {
                 ?.map((e) => CustomField.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             [],
+        lateFeeEnabled: json['lateFeeEnabled'] as bool? ?? false,
+        lateFeePercent: (json['lateFeePercent'] as num?)?.toDouble() ?? 2.0,
+        gracePeriodDays: json['gracePeriodDays'] as int? ?? 0,
+        defaultCreditLimit: (json['defaultCreditLimit'] as num?)?.toDouble(),
+        approvalWorkflowEnabled: json['approvalWorkflowEnabled'] as bool? ?? false,
+        businessMode: BusinessMode.values.firstWhere(
+          (e) => e.name == json['businessMode'],
+          orElse: () => BusinessMode.invoiceBased,
+        ),
+        allowEmployeePriceChange: json['allowEmployeePriceChange'] as bool? ?? true,
+        employeeDailySalesVisibilityDays:
+            json['employeeDailySalesVisibilityDays'] as int?,
+        shopPaymentMethodIds: (json['shopPaymentMethodIds'] as Map<String, dynamic>?)
+                ?.map((k, v) => MapEntry(
+                    k, (v as List<dynamic>).map((e) => e as String).toList())) ??
+            {},
+        lowStockAlertsEnabled: json['lowStockAlertsEnabled'] as bool? ?? true,
       );
+
+  /// Parses the `serviceItems` that older app versions stored inside the
+  /// profile blob, for one-time migration into the local items database.
+  /// `BusinessProfile` itself no longer stores these.
+  static List<ServiceItem> extractLegacyServiceItems(Map<String, dynamic> json) =>
+      (json['serviceItems'] as List<dynamic>?)
+          ?.map((e) => ServiceItem.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [];
 }
 
 Set<String> _parseHeaderFields(Map<String, dynamic> json) {

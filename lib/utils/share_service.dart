@@ -8,7 +8,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/invoice.dart';
 import '../models/business_profile.dart';
+import '../screens/settings/printer_settings_screen.dart';
 import '../services/template_service.dart';
+import '../services/thermal_printer_service.dart';
 import 'formatters.dart';
 import 'pdf_generator.dart';
 
@@ -317,8 +319,10 @@ class _ShareSheetState extends State<_ShareSheet> {
   bool _loadingWaPdf = false;
   bool _loadingEmail = false;
   bool _loadingPdf   = false;
+  bool _loadingPrint = false;
 
-  bool get _busy => _loadingWa || _loadingWaPdf || _loadingEmail || _loadingPdf;
+  bool get _busy =>
+      _loadingWa || _loadingWaPdf || _loadingEmail || _loadingPdf || _loadingPrint;
 
   /// Computes the bounding rect of this bottom sheet in global coordinates.
   /// Passed to [Share.shareXFiles] so iOS can anchor the
@@ -439,6 +443,45 @@ class _ShareSheetState extends State<_ShareSheet> {
                   },
           ),
           const SizedBox(height: 10),
+
+          // ── Print via Bluetooth thermal printer (mobile only) ────────────────
+          if (!kIsWeb) ...[
+            _ShareTile(
+              icon: Icons.bluetooth_outlined,
+              iconColor: const Color(0xFF0F766E),
+              bgColor: const Color(0xFF0F766E),
+              title: 'Print Receipt',
+              subtitle: 'Print on a connected Bluetooth thermal printer',
+              loading: _loadingPrint,
+              onTap: _busy
+                  ? null
+                  : () async {
+                      setState(() => _loadingPrint = true);
+                      try {
+                        final saved =
+                            await ThermalPrinterService.getSavedPrinter();
+                        if (saved == null) {
+                          if (!context.mounted) return;
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    const PrinterSettingsScreen()),
+                          );
+                          return;
+                        }
+                        await ThermalPrinterService.printInvoice(
+                            widget.invoice, widget.profile);
+                      } catch (e) {
+                        _showError(
+                            e.toString().replaceAll('Exception: ', ''));
+                      } finally {
+                        if (mounted) setState(() => _loadingPrint = false);
+                      }
+                    },
+            ),
+            const SizedBox(height: 10),
+          ],
 
           // ── WhatsApp message ─────────────────────────────────────────────────
           if (widget.hasPhone) ...[

@@ -4,6 +4,8 @@ import '../models/service_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/app_theme.dart';
 import '../widgets/feature_guide_sheet.dart';
+import 'purchase_order_screen.dart';
+import 'receive_stock_screen.dart';
 
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
@@ -14,6 +16,7 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   String _search = '';
+  String? _shopFilter;
 
   @override
   void initState() {
@@ -23,13 +26,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
     });
   }
 
+  static String _fmtQty(double qty) =>
+      qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);
+
   // ── Quick stock adjustment sheet ─────────────────────────────────────────────
   void _showAdjustSheet(BuildContext context, AppProvider provider,
       ServiceItem item) {
-    final ctrl = TextEditingController(
-        text: item.quantityOnHand?.toStringAsFixed(
-            item.quantityOnHand! % 1 == 0 ? 0 : 2) ??
-            '0');
+    final shops = provider.allShops;
+    String shopId = _shopFilter ?? provider.currentShopId ?? shops.first.shopId;
+    final ctrl = TextEditingController(text: _fmtQty(item.stockFor(shopId)));
 
     showModalBottomSheet<void>(
       context: context,
@@ -37,7 +42,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
         padding: EdgeInsets.only(
           left: 24,
           right: 24,
@@ -68,6 +74,26 @@ class _InventoryScreenState extends State<InventoryScreen> {
             Text('Adjust quantity on hand',
                 style: TextStyle(
                     fontSize: 13, color: AppTheme.subtext(ctx))),
+            if (shops.length > 1) ...[
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                initialValue: shopId,
+                decoration: const InputDecoration(labelText: 'Shop'),
+                items: shops
+                    .map((s) => DropdownMenuItem(
+                          value: s.shopId,
+                          child: Text(s.shopName),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v == null) return;
+                  setSheetState(() {
+                    shopId = v;
+                    ctrl.text = _fmtQty(item.stockFor(shopId));
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [
@@ -76,8 +102,11 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   icon: Icons.remove,
                   onTap: () {
                     final v = double.tryParse(ctrl.text) ?? 0;
-                    ctrl.text = (v - 1).clamp(0, double.infinity)
-                        .toStringAsFixed(v % 1 == 0 ? 0 : 2);
+                    setSheetState(() {
+                      ctrl.text = (v - 1)
+                          .clamp(0, double.infinity)
+                          .toStringAsFixed(v % 1 == 0 ? 0 : 2);
+                    });
                   },
                 ),
                 SizedBox(width: 12),
@@ -106,8 +135,9 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   icon: Icons.add,
                   onTap: () {
                     final v = double.tryParse(ctrl.text) ?? 0;
-                    ctrl.text = (v + 1)
-                        .toStringAsFixed(v % 1 == 0 ? 0 : 2);
+                    setSheetState(() {
+                      ctrl.text = (v + 1).toStringAsFixed(v % 1 == 0 ? 0 : 2);
+                    });
                   },
                 ),
               ],
@@ -124,19 +154,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 onPressed: () {
                   final newQty = double.tryParse(ctrl.text);
                   if (newQty == null) return;
-                  final updated = ServiceItem(
-                    id: item.id,
-                    name: item.name,
-                    description: item.description,
-                    rate: item.rate,
-                    taxPercent: item.taxPercent,
-                    unit: item.unit,
-                    hsnSac: item.hsnSac,
-                    category: item.category,
-                    quantityOnHand: newQty,
-                    lowStockThreshold: item.lowStockThreshold,
-                  );
-                  provider.updateServiceItem(updated);
+                  provider.updateItemStock(item.id, newQty, shopId: shopId);
                   Navigator.pop(ctx);
                 },
                 child: const Text('Save',
@@ -146,21 +164,27 @@ class _InventoryScreenState extends State<InventoryScreen> {
             ),
           ],
         ),
+        ),
       ),
+    ).whenComplete(
+      () => WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.dispose()),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<AppProvider>();
-    final allTracked = provider.profile.serviceItems
+    final shops = provider.allShops;
+    final allTracked = provider.serviceItems
         .where((s) => s.isTrackingStock)
         .toList();
 
     // Sort: low-stock first, then alphabetical
     allTracked.sort((a, b) {
-      if (a.isLowStock && !b.isLowStock) return -1;
-      if (!a.isLowStock && b.isLowStock) return 1;
+      final aLow = a.isLowStockFor(_shopFilter);
+      final bLow = b.isLowStockFor(_shopFilter);
+      if (aLow && !bLow) return -1;
+      if (!aLow && bLow) return 1;
       return a.name.compareTo(b.name);
     });
 
@@ -173,10 +197,33 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     false))
             .toList();
 
-    final lowStockCount = allTracked.where((s) => s.isLowStock).length;
+    final lowStockCount =
+        allTracked.where((s) => s.isLowStockFor(_shopFilter)).length;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventory')),
+      appBar: AppBar(
+        title: const Text('Inventory'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.move_to_inbox_outlined),
+            tooltip: 'Receive Stock',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const ReceiveStockScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.shopping_cart_outlined),
+            tooltip: 'Purchase Order',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const PurchaseOrderScreen()),
+            ),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // ── Summary banner ───────────────────────────────────────────────────
@@ -203,6 +250,33 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     icon: Icons.warning_amber_rounded,
                   ),
                 ],
+              ),
+            ),
+
+          // ── Shop filter ──────────────────────────────────────────────────────
+          if (allTracked.isNotEmpty && shops.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _ShopFilterChip(
+                      label: 'All Shops',
+                      selected: _shopFilter == null,
+                      onTap: () => setState(() => _shopFilter = null),
+                    ),
+                    for (final shop in shops) ...[
+                      const SizedBox(width: 8),
+                      _ShopFilterChip(
+                        label: shop.shopName,
+                        selected: _shopFilter == shop.shopId,
+                        onTap: () =>
+                            setState(() => _shopFilter = shop.shopId),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
 
@@ -247,6 +321,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           final item = items[i];
                           return _InventoryCard(
                             item: item,
+                            shopFilter: _shopFilter,
                             onAdjust: () => _showAdjustSheet(
                                 context, provider, item),
                           );
@@ -263,16 +338,15 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
 class _InventoryCard extends StatelessWidget {
   final ServiceItem item;
+  final String? shopFilter;
   final VoidCallback onAdjust;
 
-  const _InventoryCard({required this.item, required this.onAdjust});
+  const _InventoryCard(
+      {required this.item, required this.shopFilter, required this.onAdjust});
 
   @override
   Widget build(BuildContext context) {
-    final qty = item.quantityOnHand!;
-    final isLow = item.isLowStock;
-    final qtyLabel =
-        qty % 1 == 0 ? qty.toInt().toString() : qty.toStringAsFixed(2);
+    final isLow = item.isLowStockFor(shopFilter);
     final unit = item.unit ?? 'units';
 
     return Container(
@@ -286,7 +360,7 @@ class _InventoryCard extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Icon
           Container(
@@ -298,15 +372,17 @@ class _InventoryCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
-              isLow
-                  ? Icons.warning_amber_rounded
-                  : Icons.inventory_2_outlined,
+              item.hasVariants
+                  ? Icons.layers_outlined
+                  : isLow
+                      ? Icons.warning_amber_rounded
+                      : Icons.inventory_2_outlined,
               size: 22,
               color: isLow ? AppTheme.error : AppTheme.primary,
             ),
           ),
           const SizedBox(width: 14),
-          // Name + category
+          // Name + stock info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -327,60 +403,96 @@ class _InventoryCard extends StatelessWidget {
                           fontSize: 12, color: AppTheme.subtext(context))),
                 ],
                 const SizedBox(height: 6),
-                Row(
-                  children: [
-                    // Qty chip
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: (isLow ? AppTheme.error : AppTheme.primary)
-                            .withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$qtyLabel $unit',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isLow
-                                ? AppTheme.error
-                                : AppTheme.primary),
-                      ),
-                    ),
-                    if (isLow) ...[
-                      const SizedBox(width: 6),
+                if (item.hasVariants)
+                  // Per-variant chips
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: item.variants
+                        .where((v) => v.isTrackingStock)
+                        .map((v) {
+                      final vLow = v.isLowStockFor(shopFilter);
+                      final qLabel = _InventoryScreenState._fmtQty(
+                          v.stockFor(shopFilter));
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: (vLow ? AppTheme.error : AppTheme.primary)
+                              .withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: vLow
+                              ? Border.all(
+                                  color: AppTheme.error.withValues(alpha: 0.3))
+                              : null,
+                        ),
+                        child: Text(
+                          '${v.name}: $qLabel $unit${vLow ? ' ⚠' : ''}',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: vLow ? AppTheme.error : AppTheme.primary),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                else ...[
+                  Row(
+                    children: [
+                      // Qty chip
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppTheme.error.withValues(alpha: 0.1),
+                          color: (isLow ? AppTheme.error : AppTheme.primary)
+                              .withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Text(
-                          'Low Stock',
+                        child: Text(
+                          '${_InventoryScreenState._fmtQty(item.stockFor(shopFilter))} $unit',
                           style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.error),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isLow
+                                  ? AppTheme.error
+                                  : AppTheme.primary),
                         ),
                       ),
+                      if (isLow) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppTheme.error.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Low Stock',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.error),
+                          ),
+                        ),
+                      ],
+                      if (item.lowStockThreshold != null) ...[
+                        SizedBox(width: 6),
+                        Text(
+                          'Alert ≤ ${item.lowStockThreshold!.toStringAsFixed(item.lowStockThreshold! % 1 == 0 ? 0 : 1)}',
+                          style: TextStyle(
+                              fontSize: 11, color: AppTheme.subtext(context)),
+                        ),
+                      ],
                     ],
-                    if (item.lowStockThreshold != null) ...[
-                      SizedBox(width: 6),
-                      Text(
-                        'Alert ≤ ${item.lowStockThreshold!.toStringAsFixed(item.lowStockThreshold! % 1 == 0 ? 0 : 1)}',
-                        style: TextStyle(
-                            fontSize: 11, color: AppTheme.subtext(context)),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(width: 10),
-          // Adjust button
+          // Adjust button — only for flat-stock items
+          if (!item.hasVariants)
           GestureDetector(
             onTap: onAdjust,
             child: Container(
@@ -399,6 +511,44 @@ class _InventoryCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Shop filter chip ──────────────────────────────────────────────────────────
+
+class _ShopFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ShopFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppTheme.primary
+              : AppTheme.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? Colors.white : AppTheme.primary,
+          ),
+        ),
       ),
     );
   }

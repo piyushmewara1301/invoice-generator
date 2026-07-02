@@ -10,6 +10,19 @@ class Client {
   String postalCode;
   String? gstin;
   String? companyName;
+  /// Business industry/sector — used for client segmentation.
+  String? industry;
+
+  /// Maximum outstanding balance allowed for this client.
+  /// null means no limit is set.
+  double? creditLimit;
+
+  /// When true, this client is a regular bulk buyer.
+  bool isBulkBuyer;
+
+  /// Discount percentage automatically applied on invoices for this client.
+  /// e.g. 10.0 means 10% off every line item. Only used when [isBulkBuyer] is true.
+  double bulkDiscountPercent;
 
   // Audit fields — stamped by AppProvider on every create/edit
   String? createdBy;
@@ -28,6 +41,10 @@ class Client {
     this.postalCode = '',
     this.gstin,
     this.companyName,
+    this.industry,
+    this.creditLimit,
+    this.isBulkBuyer = false,
+    this.bulkDiscountPercent = 0.0,
     this.createdBy,
     this.lastEditedBy,
     this.lastEditedAt,
@@ -47,6 +64,10 @@ class Client {
         'postalCode': postalCode,
         'gstin': gstin,
         'companyName': companyName,
+        'industry': industry,
+        'creditLimit': creditLimit,
+        'isBulkBuyer': isBulkBuyer,
+        'bulkDiscountPercent': bulkDiscountPercent,
         'createdBy': createdBy,
         'lastEditedBy': lastEditedBy,
         'lastEditedAt': lastEditedAt?.toIso8601String(),
@@ -64,6 +85,11 @@ class Client {
         postalCode: json['postalCode'] ?? '',
         gstin: json['gstin'],
         companyName: json['companyName'],
+        industry: json['industry'] as String?,
+        creditLimit: (json['creditLimit'] as num?)?.toDouble(),
+        isBulkBuyer: json['isBulkBuyer'] as bool? ?? false,
+        bulkDiscountPercent:
+            (json['bulkDiscountPercent'] as num?)?.toDouble() ?? 0.0,
         createdBy: json['createdBy'] as String?,
         lastEditedBy: json['lastEditedBy'] as String?,
         lastEditedAt: json['lastEditedAt'] != null
